@@ -1,0 +1,19 @@
+# Dependency directories
+node_modules/
+
+# Local env files (credentials)
+.env
+.env*.local
+
+# Build outputs
+dist/
+build/
+.expo/
+web-build/
+*.log
+
+# IDE & OS files
+.DS_Store
+.vscode/
+.idea/
+.expo-shared/
