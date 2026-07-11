@@ -24,6 +24,7 @@ export interface Product {
   visibleEnApp?: boolean;
   destacado?: boolean;
   fechaActualizacion?: string;
+  marca?: string;
 }
 
 export interface ProductStock {

@@ -73,6 +73,11 @@ interface AdminStore {
   bulkReplaceCatalog: (newProducts: Product[], branchId: string, rowStocks: any, fileName: string) => Promise<void>;
   bulkUpdateExistingCatalog: (updatedProducts: Product[], branchId: string, rowStocks: any, fileName: string) => Promise<void>;
   bulkAddNewCatalog: (newProducts: Product[], branchId: string, rowStocks: any, fileName: string) => Promise<void>;
+  checkFileHashExists: (hash: string) => Promise<any | null>;
+  createStagingImport: (fileName: string, fileHash: string, stagedRowsCount: number) => Promise<any>;
+  insertStagingRows: (importId: string, rows: any[]) => Promise<void>;
+  updateStagingRow: (rowId: string, updates: { estado: string; datos: any }) => Promise<void>;
+  confirmImport: (importId: string, branchId: string) => Promise<any>;
   
   // Clientes
   updateClient: (id: string, updates: Partial<Customer>) => Promise<void>;
@@ -492,7 +497,30 @@ export const useAdminStore = create<AdminStore>((set, get) => ({
         .update({ estado: 'error', errores: { message: (err as Error).message } })
         .eq('id', imp.id);
       throw err;
-    }
+  },
+
+  checkFileHashExists: async (hash) => {
+    return await productService.checkFileHashExists(hash);
+  },
+
+  createStagingImport: async (fileName, fileHash, stagedRowsCount) => {
+    const userEmail = get().currentUser?.email || 'admin@quimicadeheza.com';
+    return await productService.createStagingImport(fileName, userEmail, fileHash, stagedRowsCount);
+  },
+
+  insertStagingRows: async (importId, rows) => {
+    await productService.insertStagingRows(importId, rows);
+  },
+
+  updateStagingRow: async (rowId, updates) => {
+    await productService.updateStagingRow(rowId, updates);
+  },
+
+  confirmImport: async (importId, branchId) => {
+    const userEmail = get().currentUser?.email || 'admin@quimicadeheza.com';
+    const result = await productService.confirmImport(importId, branchId, userEmail);
+    await get().fetchData();
+    return result;
   },
 
   updateClient: async (id, updates) => {

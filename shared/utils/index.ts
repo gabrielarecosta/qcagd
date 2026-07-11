@@ -5,3 +5,4 @@ export * from './paymentUtils';
 export * from './orderStatusUtils';
 export * from './branchUtils';
 export * from './excelValidator';
+export * from './conflictDetector';

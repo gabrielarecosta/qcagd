@@ -692,3 +692,46 @@ INSERT INTO exchange_rates (valor_anterior, valor_nuevo, usuario_responsable) VA
 INSERT INTO delivery_zones (id, nombre, descripcion, branch_id, activo) VALUES
 ('zona-centro', 'Zona Centro', 'Centro de General Deheza', 'branch-gd1', TRUE),
 ('zona-norte', 'Zona Norte', 'Norte de General Deheza', 'branch-gd1', TRUE);
+
+-- ============================================================
+-- 6. MIGRACIONES: HISTORIAL DE CÓDIGOS, HASHES Y ESTADOS DE IMPORTACIÓN
+-- ============================================================
+
+-- Tabla de Historial de Cambios de Código Comercial
+CREATE TABLE IF NOT EXISTS product_code_history (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    product_id TEXT REFERENCES products(id) ON DELETE CASCADE NOT NULL,
+    old_code TEXT NOT NULL,
+    new_code TEXT NOT NULL,
+    changed_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    changed_by TEXT,
+    import_id UUID REFERENCES imports(id) ON DELETE SET NULL,
+    reason TEXT NOT NULL, -- 'manufacturer_code_change'
+    source TEXT NOT NULL  -- 'daily_excel_import'
+);
+
+-- Habilitar RLS en product_code_history
+ALTER TABLE product_code_history ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Allow read/write access to authenticated users on code history"
+    ON product_code_history
+    FOR ALL
+    TO authenticated
+    USING (TRUE)
+    WITH CHECK (TRUE);
+
+-- Alterar Tabla de Importaciones para soportar Hash y Nuevos Estados
+ALTER TABLE imports ADD COLUMN IF NOT EXISTS file_hash TEXT UNIQUE;
+ALTER TABLE imports DROP CONSTRAINT IF EXISTS imports_estado_check;
+ALTER TABLE imports ADD CONSTRAINT imports_estado_check CHECK (
+    estado IN ('uploaded', 'validating', 'ready', 'processing', 'completed', 'completed_with_errors', 'failed', 'cancelled')
+);
+
+-- Alterar Tabla de Filas de Importación para soportar Staging y Conflictos
+ALTER TABLE import_rows DROP CONSTRAINT IF EXISTS import_rows_estado_check;
+ALTER TABLE import_rows ADD CONSTRAINT import_rows_estado_check CHECK (
+    estado IN ('pending', 'requires_review', 'completed', 'ignored', 'error')
+);
+
+-- Agregar columna marca a la tabla de productos
+ALTER TABLE products ADD COLUMN IF NOT EXISTS marca TEXT;
