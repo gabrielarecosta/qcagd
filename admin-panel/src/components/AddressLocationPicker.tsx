@@ -49,7 +49,7 @@ export function AddressLocationPicker({
   const debounceTimeoutRef = useRef<any>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
+  const backendUrl = import.meta.env.VITE_BACKEND_URL || 'https://api.quimicagd.com.ar';
   const mapApiKey = import.meta.env.VITE_GEOAPIFY_MAP_KEY || '';
 
   // Haversine distance calculator

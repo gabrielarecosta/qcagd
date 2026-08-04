@@ -122,7 +122,7 @@ export function LogisticsView() {
   const mapRef = useRef<maplibregl.Map | null>(null);
   const markersRef = useRef<maplibregl.Marker[]>([]);
   const mapApiKey = import.meta.env.VITE_GEOAPIFY_MAP_KEY || '';
-  const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
+  const backendUrl = import.meta.env.VITE_BACKEND_URL || 'https://api.quimicagd.com.ar';
 
 
   // Load depot settings
