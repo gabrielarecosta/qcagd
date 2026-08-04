@@ -16,3 +16,16 @@ export interface Customer {
   observaciones?: string;
   fechaAlta: string;
 }
+
+export interface CustomerAddress {
+  id?: string;
+  customerId: string;
+  direccion: string;
+  zona: string;
+  indicaciones?: string;
+  latitude?: number;
+  longitude?: number;
+  locationVerified?: boolean;
+  defaultAddress?: boolean;
+  createdAt?: string;
+}

@@ -36,7 +36,25 @@ const mapOrder = (o: any, items: any[] = []): Order => ({
   paymentStatus: o.payment_status as PaymentStatus,
   abonaCon: o.abona_con ? Number(o.abona_con) : undefined,
   cambioEstimado: o.cambio_estimado ? Number(o.cambio_estimado) : undefined,
+  deliveryDate: o.delivery_date || undefined,
+  deliveryStartTime: o.delivery_start_time || undefined,
+  deliveryEndTime: o.delivery_end_time || undefined,
+  deliveryTimeSlotId: o.delivery_time_slot_id || undefined,
+  deliveryMethod: o.delivery_method || undefined,
+  takenById: o.taken_by_id || undefined,
+  takenAt: o.taken_at || undefined,
+  deliveredAt: o.delivered_at || undefined,
+  originalAddress: o.original_address || undefined,
+  formattedAddress: o.formatted_address || undefined,
+  latitude: o.latitude ? Number(o.latitude) : undefined,
+  longitude: o.longitude ? Number(o.longitude) : undefined,
+  addressReference: o.address_reference || undefined,
+  locationVerified: o.location_verified || false,
+  deliveryZone: o.delivery_zone || undefined,
+  customerName: o.customer_name || undefined,
+  customerPhone: o.customer_phone || undefined,
 });
+
 
 export const orderService = {
   getAll: async (branchId?: string): Promise<Order[]> => {
@@ -91,14 +109,20 @@ export const orderService = {
       await supabase.rpc('set_config', { placeholder: 'app.current_user_email', value: userMail, is_local: false });
     }
 
+    const updatePayload: any = {
+      estado: status,
+      observaciones: notes,
+      payment_status: status === 'entregado' ? 'pagado' : undefined,
+      updated_at: new Date().toISOString(),
+    };
+
+    if (status === 'entregado') {
+      updatePayload.delivered_at = new Date().toISOString();
+    }
+
     const { data: updated, error } = await supabase
       .from('orders')
-      .update({
-        estado: status,
-        observaciones: notes,
-        payment_status: status === 'entregado' ? 'pagado' : undefined,
-        updated_at: new Date().toISOString(),
-      })
+      .update(updatePayload)
       .eq('id', id)
       .select('*')
       .single();
@@ -134,8 +158,20 @@ export const orderService = {
       abona_con: updates.abonaCon,
       cambio_estimado: updates.cambioEstimado,
       total: updates.total,
+      delivery_date: updates.deliveryDate,
+      delivery_start_time: updates.deliveryStartTime,
+      delivery_end_time: updates.deliveryEndTime,
+      delivery_time_slot_id: updates.deliveryTimeSlotId,
+      delivery_method: updates.deliveryMethod,
+      taken_by_id: updates.takenById,
+      taken_at: updates.takenAt,
+      delivered_at: updates.deliveredAt,
       updated_at: new Date().toISOString(),
     };
+
+    if (updates.estado === 'entregado') {
+      dbUpdates.delivered_at = new Date().toISOString();
+    }
 
     Object.keys(dbUpdates).forEach(key => dbUpdates[key] === undefined && delete dbUpdates[key]);
 
@@ -185,7 +221,21 @@ export const orderService = {
       payment_status: order.paymentStatus || 'pendiente',
       abona_con: order.abonaCon,
       cambio_estimado: order.cambioEstimado,
+      delivery_date: order.deliveryDate,
+      delivery_start_time: order.deliveryStartTime,
+      delivery_end_time: order.deliveryEndTime,
+      delivery_time_slot_id: order.deliveryTimeSlotId,
+      delivery_method: order.deliveryMethod,
+      original_address: order.originalAddress,
+      formatted_address: order.formattedAddress,
+      latitude: order.latitude,
+      longitude: order.longitude,
+      address_reference: order.addressReference,
+      location_verified: order.locationVerified,
+      customer_name: order.customerName,
+      customer_phone: order.customerPhone,
     };
+
 
     const { data: insertedOrder, error: orderErr } = await supabase
       .from('orders')

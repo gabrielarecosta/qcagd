@@ -1,5 +1,5 @@
 import { supabase } from './supabaseClient';
-import { Customer } from '../types/client';
+import { Customer, CustomerAddress } from '../types/client';
 
 const mapCustomer = (d: any): Customer => ({
   id: d.id,
@@ -108,5 +108,84 @@ export const clientService = {
       .eq('id', id);
     if (error) throw error;
     return true;
+  },
+
+  getAddresses: async (customerId: string): Promise<CustomerAddress[]> => {
+    const { data, error } = await supabase
+      .from('customer_addresses')
+      .select('*')
+      .eq('customer_id', customerId)
+      .order('default_address', { ascending: false })
+      .order('created_at', { ascending: true });
+
+    if (error) throw error;
+    return (data || []).map(mapAddress);
+  },
+
+  addAddress: async (address: Omit<CustomerAddress, 'id'>): Promise<CustomerAddress> => {
+    const dbInsert = {
+      customer_id: address.customerId,
+      direccion: address.direccion,
+      zona: address.zona,
+      indicaciones: address.indicaciones,
+      latitude: address.latitude,
+      longitude: address.longitude,
+      location_verified: address.locationVerified ?? false,
+      default_address: address.defaultAddress ?? false,
+    };
+
+    if (address.defaultAddress) {
+      await supabase
+        .from('customer_addresses')
+        .update({ default_address: false })
+        .eq('customer_id', address.customerId);
+    }
+
+    const { data, error } = await supabase
+      .from('customer_addresses')
+      .insert(dbInsert)
+      .select('*')
+      .single();
+
+    if (error) throw error;
+    return mapAddress(data);
+  },
+
+  deleteAddress: async (id: string): Promise<boolean> => {
+    const { error } = await supabase
+      .from('customer_addresses')
+      .delete()
+      .eq('id', id);
+
+    if (error) throw error;
+    return true;
+  },
+
+  setDefaultAddress: async (customerId: string, id: string): Promise<boolean> => {
+    await supabase
+      .from('customer_addresses')
+      .update({ default_address: false })
+      .eq('customer_id', customerId);
+
+    const { error } = await supabase
+      .from('customer_addresses')
+      .update({ default_address: true })
+      .eq('id', id);
+
+    if (error) throw error;
+    return true;
   }
 };
+
+const mapAddress = (a: any): CustomerAddress => ({
+  id: a.id,
+  customerId: a.customer_id,
+  direccion: a.direccion,
+  zona: a.zona,
+  indicaciones: a.indicaciones || undefined,
+  latitude: a.latitude ? Number(a.latitude) : undefined,
+  longitude: a.longitude ? Number(a.longitude) : undefined,
+  locationVerified: a.location_verified || false,
+  defaultAddress: a.default_address || false,
+  createdAt: a.created_at,
+});

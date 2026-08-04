@@ -1,10 +1,10 @@
 import { supabase } from './supabaseClient';
 import { Product, ProductStock, ProductCategory } from '../types/product';
 
-const mapProduct = (d: any, rate: number = 1000): Product => {
-  const isDolarizado = d.dolarizado || false;
-  const precioUsd = Number(d.precio_usd || 0.0);
-  const precioArs = isDolarizado ? Math.round(precioUsd * rate * 100) / 100 : Number(d.precio || 0.0);
+const mapProduct = (d: any, rate: number = 1000, isPublic: boolean = false): Product => {
+  const isDolarizado = isPublic ? false : (d.dolarizado || false);
+  const precioUsd = isPublic ? 0.0 : Number(d.precio_usd || 0.0);
+  const precioArs = isPublic ? 0.0 : (isDolarizado ? Math.round(precioUsd * rate * 100) / 100 : Number(d.precio || 0.0));
 
   return {
     id: d.id,
@@ -15,7 +15,7 @@ const mapProduct = (d: any, rate: number = 1000): Product => {
     presentacion: d.presentacion,
     unidad: d.unidad || 'unidad',
     precio: precioArs,
-    precioMayorista: d.precio_mayorista ? Number(d.precio_mayorista) : undefined,
+    precioMayorista: isPublic ? undefined : (d.precio_mayorista ? Number(d.precio_mayorista) : undefined),
     descripcion: d.descripcion || undefined,
     imagen: d.imagen || undefined,
     activo: d.activo,
@@ -41,27 +41,74 @@ export const productService = {
     return data ? Number(data.valor_nuevo) : 1000;
   },
 
-  getAll: async (branchId?: string): Promise<(Product & { stock: number; stockMinimo: number })[]> => {
+  getAll: async (branchId?: string, isPublic?: boolean): Promise<(Product & { stock: number; stockMinimo: number })[]> => {
     const rate = await productService.getLatestExchangeRate();
-    const { data: prods, error: prodErr } = await supabase
-      .from('products')
-      .select('*')
-      .is('deleted_at', null);
+    const pageSize = 1000;
 
-    if (prodErr) throw prodErr;
+    // 1. Obtener todos los productos paginados (evitando límite de 1000)
+    let prods: any[] = [];
+    let hasMoreProds = true;
+    let prodPage = 0;
+
+    while (hasMoreProds) {
+      const fromRange = prodPage * pageSize;
+      const toRange = fromRange + pageSize - 1;
+
+      const { data: chunk, error: prodErr } = await supabase
+        .from('products')
+        .select(isPublic ? 'id, codigo, nombre, categoria, subcategoria, presentacion, unidad, descripcion, imagen, activo, visible_en_app, destacado, created_at, updated_at, deleted_at, deleted_by' : '*')
+        .is('deleted_at', null)
+        .range(fromRange, toRange);
+
+      if (prodErr) throw prodErr;
+
+      if (!chunk || chunk.length === 0) {
+        hasMoreProds = false;
+      } else {
+        prods = prods.concat(chunk);
+        if (chunk.length < pageSize) {
+          hasMoreProds = false;
+        } else {
+          prodPage++;
+        }
+      }
+    }
 
     const targetBranch = branchId && branchId !== 'all' ? branchId : 'branch-gd1';
-    const { data: stocks, error: stockErr } = await supabase
-      .from('inventory')
-      .select('*')
-      .eq('branch_id', targetBranch);
 
-    if (stockErr) throw stockErr;
+    // 2. Obtener todo el inventario paginado para la sucursal (evitando límite de 1000)
+    let stocks: any[] = [];
+    let hasMoreStocks = true;
+    let stockPage = 0;
+
+    while (hasMoreStocks) {
+      const fromRange = stockPage * pageSize;
+      const toRange = fromRange + pageSize - 1;
+
+      const { data: chunk, error: stockErr } = await supabase
+        .from('inventory')
+        .select('*')
+        .eq('branch_id', targetBranch)
+        .range(fromRange, toRange);
+
+      if (stockErr) throw stockErr;
+
+      if (!chunk || chunk.length === 0) {
+        hasMoreStocks = false;
+      } else {
+        stocks = stocks.concat(chunk);
+        if (chunk.length < pageSize) {
+          hasMoreStocks = false;
+        } else {
+          stockPage++;
+        }
+      }
+    }
 
     return (prods || []).map((p: any) => {
       const stockInfo = (stocks || []).find((s: any) => s.product_id === p.id);
       return {
-        ...mapProduct(p, rate),
+        ...mapProduct(p, rate, isPublic),
         stock: stockInfo ? Number(stockInfo.stock) : 0,
         stockMinimo: stockInfo ? Number(stockInfo.stock_minimo) : 5,
       };
@@ -193,7 +240,7 @@ export const productService = {
     return mapProduct(data, rate);
   },
 
-  updateStock: async (productId: string, branchId: string, qty: number, minQty?: number, userMail?: string): Promise<ProductStock> => {
+  updateStock: async (productId: string, branchId: string, qty: number, minQty?: number, userMail?: string, reason?: string): Promise<ProductStock> => {
     const { data: inv } = await supabase
       .from('inventory')
       .select('stock, stock_minimo')
@@ -227,7 +274,7 @@ export const productService = {
           branch_id: branchId,
           cantidad_modificada: diff,
           tipo_movimiento: 'ajuste_manual',
-          motivo: 'Ajuste manual de stock desde el panel',
+          motivo: reason || 'Ajuste manual de stock desde el panel',
           usuario_responsable: userMail || 'admin@quimicadeheza.com'
         });
       if (moveErr) throw moveErr;
@@ -335,17 +382,65 @@ export const productService = {
       .eq('id', importId);
     if (updErr) throw updErr;
 
-    // 2. Obtener todas las filas de la importación
-    const { data: rowsData, error: rowsErr } = await supabase
-      .from('import_rows')
-      .select('*')
-      .eq('import_id', importId);
-    if (rowsErr) throw rowsErr;
+    // 2. Obtener todas las filas de la importación paginadas (evitando el límite de 1000 de PostgREST)
+    let rowsData: any[] = [];
+    let hasMore = true;
+    let page = 0;
+    const pageSize = 1000;
+
+    while (hasMore) {
+      const fromRange = page * pageSize;
+      const toRange = fromRange + pageSize - 1;
+
+      const { data: chunkData, error: rowsErr } = await supabase
+        .from('import_rows')
+        .select('*')
+        .eq('import_id', importId)
+        .range(fromRange, toRange);
+
+      if (rowsErr) throw rowsErr;
+
+      if (!chunkData || chunkData.length === 0) {
+        hasMore = false;
+      } else {
+        rowsData = rowsData.concat(chunkData);
+        if (chunkData.length < pageSize) {
+          hasMore = false;
+        } else {
+          page++;
+        }
+      }
+    }
 
     const stagedRows = (rowsData || []).map(r => ({
       rowDbId: r.id,
       ...r.datos
     }));
+
+    // 3. Traer todos los productos e inventarios actuales en un solo query para búsqueda rápida en memoria
+    const { data: dbProducts, error: dbProdsErr } = await supabase
+      .from('products')
+      .select('*');
+    if (dbProdsErr) throw dbProdsErr;
+
+    const { data: dbInventory, error: dbInvErr } = await supabase
+      .from('inventory')
+      .select('product_id, stock')
+      .eq('branch_id', branchId);
+    if (dbInvErr) throw dbInvErr;
+
+    // Indexar datos existentes en memoria
+    const prodByIdMap = new Map<string, any>();
+    const prodByCodeMap = new Map<string, any>();
+    dbProducts?.forEach(p => {
+      prodByIdMap.set(p.id, p);
+      if (p.codigo) {
+        prodByCodeMap.set(p.codigo.trim().toUpperCase(), p);
+      }
+    });
+
+    const stockMap = new Map<string, number>();
+    dbInventory?.forEach(inv => stockMap.set(inv.product_id, Number(inv.stock)));
 
     let createdCount = 0;
     let updatedCount = 0;
@@ -353,84 +448,125 @@ export const productService = {
     let failedCount = 0;
     const errorsList: any[] = [];
 
+    // Arrays para acumulaciones bulk
+    const productsUpsert: any[] = [];
+    const pricesInsert: any[] = [];
+    const inventoryUpsert: any[] = [];
+    const movementsInsert: any[] = [];
+    const codeHistoryInsert: any[] = [];
+    const auditLogsInsert: any[] = [];
+    
+    const rowsCompletedIds: string[] = [];
+    const rowsFailedUpdates: { id: string; error_detalle: string }[] = [];
+
     for (const sRow of stagedRows) {
-      // Omitir filas ignoradas o con error inicial que no se resolvieron
       if (sRow.estado === 'ignored' || sRow.estado === 'error') {
         continue;
       }
 
       try {
-        const prodData = {
-          codigo: sRow.codigo.trim().toUpperCase(),
-          nombre: sRow.descripcion.trim(),
-          precio: Number(sRow.precio),
-          activo: true,
-          visible_en_app: true,
-          unidad: 'unidad',
-          presentacion: 'Presentación Importada',
-          categoria: 'limpieza' // Categoría por defecto requerida por la base
-        } as any;
-
-        // Agregar marca si tiene valor
-        if (sRow.marca) {
-          prodData.marca = sRow.marca.trim();
-        }
+        const rawCode = sRow.codigo.trim().toUpperCase();
+        const rawDesc = sRow.descripcion.trim();
+        const rawPrice = Number(sRow.precio);
+        const rawStock = Number(sRow.stock);
 
         let targetProductId = sRow.matchedProductId;
         const oldCode = sRow.matchedProductCode;
 
-        if (sRow.action === 'create_new') {
-          // Generar nuevo UUID para el producto
-          targetProductId = `prod-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-          const { error: insErr } = await supabase
-            .from('products')
-            .insert({
-              id: targetProductId,
-              ...prodData
+        const prodData: any = {
+          codigo: rawCode,
+          nombre: rawDesc,
+          precio: rawPrice,
+          activo: true,
+          visible_en_app: true,
+          unidad: 'unidad',
+          presentacion: 'Presentación Importada',
+          categoria: 'limpieza',
+          destacado: false,
+          dolarizado: false,
+          precio_usd: 0.0,
+          subcategoria: null,
+          descripcion: null,
+          imagen: null,
+          precio_mayorista: null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+        if (sRow.marca) {
+          prodData.marca = sRow.marca.trim();
+        } else {
+          prodData.marca = null;
+        }
+
+        const dbProdByCode = prodByCodeMap.get(rawCode);
+
+        if (dbProdByCode) {
+          // Si el código ya existe en la base de datos (por ejemplo, creado en un intento anterior fallido),
+          // redirigimos la acción para actualizar el producto existente en lugar de duplicarlo
+          targetProductId = dbProdByCode.id;
+          const prevPrice = Number(dbProdByCode.precio || 0);
+          
+          const updates: any = { id: targetProductId };
+          if (sRow.descripcion) updates.nombre = sRow.descripcion;
+          if (sRow.marca) updates.marca = sRow.marca;
+          updates.precio = rawPrice;
+          updates.updated_at = new Date().toISOString();
+
+          productsUpsert.push({
+            ...dbProdByCode,
+            ...updates
+          });
+          updatedCount++;
+
+          if (prevPrice !== rawPrice) {
+            pricesInsert.push({
+              product_id: targetProductId,
+              precio_anterior: prevPrice,
+              precio_nuevo: rawPrice,
+              cambio_tipo: 'masivo',
+              usuario_responsable: userEmail,
+              criterio: 'Importación diaria por código (auto-recuperado)'
             });
-          if (insErr) throw insErr;
+          }
+
+        } else if (sRow.action === 'create_new') {
+          // Generar nuevo ID para el producto
+          targetProductId = `prod-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+          prodData.id = targetProductId;
+          
+          productsUpsert.push(prodData);
           createdCount++;
 
-          // Registrar en historial de precios inicial
-          await supabase.from('product_prices').insert({
+          pricesInsert.push({
             product_id: targetProductId,
             precio_anterior: 0,
-            precio_nuevo: prodData.precio,
+            precio_nuevo: rawPrice,
             cambio_tipo: 'masivo',
             usuario_responsable: userEmail,
             criterio: 'Importación inicial de catálogo'
           });
 
         } else if (sRow.action === 'update_by_code' && targetProductId) {
-          // Leer precio actual para auditoría e historial
-          const { data: currentProd } = await supabase
-            .from('products')
-            .select('precio, nombre, descripcion, marca')
-            .eq('id', targetProductId)
-            .single();
-
-          const prevPrice = currentProd ? Number(currentProd.precio) : 0;
+          const dbProd = prodByIdMap.get(targetProductId);
+          const prevPrice = dbProd ? Number(dbProd.precio) : 0;
           
-          // Actualizar producto en base de datos sin pisar descripción ni marca si vienen vacías
-          const updates: any = {};
+          const updates: any = { id: targetProductId };
           if (sRow.descripcion) updates.nombre = sRow.descripcion;
           if (sRow.marca) updates.marca = sRow.marca;
-          updates.precio = prodData.precio;
+          updates.precio = rawPrice;
           updates.updated_at = new Date().toISOString();
 
-          const { error: updProdErr } = await supabase
-            .from('products')
-            .update(updates)
-            .eq('id', targetProductId);
-          if (updProdErr) throw updProdErr;
+          productsUpsert.push({
+            ...dbProd,
+            ...updates
+          });
           updatedCount++;
 
-          // Registrar en historial de precios si cambió
-          if (prevPrice !== prodData.precio) {
-            await supabase.from('product_prices').insert({
+          if (prevPrice !== rawPrice) {
+            pricesInsert.push({
               product_id: targetProductId,
               precio_anterior: prevPrice,
-              precio_nuevo: prodData.precio,
+              precio_nuevo: rawPrice,
               cambio_tipo: 'masivo',
               usuario_responsable: userEmail,
               criterio: 'Importación diaria por código'
@@ -438,61 +574,51 @@ export const productService = {
           }
 
         } else if (sRow.action === 'replace_code' && targetProductId && oldCode) {
-          // Reemplazo de código de fábrica por descripción coincidente
-          const { data: currentProd } = await supabase
-            .from('products')
-            .select('precio, codigo, nombre')
-            .eq('id', targetProductId)
-            .single();
+          const dbProd = prodByIdMap.get(targetProductId);
+          const prevPrice = dbProd ? Number(dbProd.precio) : 0;
 
-          const prevPrice = currentProd ? Number(currentProd.precio) : 0;
-
-          // Reemplazar código comercial y actualizar datos del producto
           const updates: any = {
-            codigo: sRow.codigo.trim().toUpperCase()
+            id: targetProductId,
+            codigo: rawCode
           };
           if (sRow.descripcion) updates.nombre = sRow.descripcion;
           if (sRow.marca) updates.marca = sRow.marca;
-          updates.precio = prodData.precio;
+          updates.precio = rawPrice;
           updates.updated_at = new Date().toISOString();
 
-          const { error: replaceErr } = await supabase
-            .from('products')
-            .update(updates)
-            .eq('id', targetProductId);
-          if (replaceErr) throw replaceErr;
+          productsUpsert.push({
+            ...dbProd,
+            ...updates
+          });
           codeReplacedCount++;
 
-          // Registrar en product_code_history
-          await supabase.from('product_code_history').insert({
+          codeHistoryInsert.push({
             product_id: targetProductId,
             old_code: oldCode,
-            new_code: updates.codigo,
+            new_code: rawCode,
             changed_by: userEmail,
             import_id: importId,
             reason: 'manufacturer_code_change',
             source: 'daily_excel_import'
           });
 
-          // Registrar en audit_logs
-          await supabase.from('audit_logs').insert({
+          auditLogsInsert.push({
             usuario: userEmail,
             accion: 'UPDATE',
             entidad: 'products',
             registro_id: targetProductId,
             valores_anteriores: { codigo: oldCode, precio: prevPrice },
-            valores_nuevos: { codigo: updates.codigo, precio: prodData.precio },
+            valores_nuevos: { codigo: rawCode, precio: rawPrice },
             origen: 'frontend',
             observacion: `Reemplazo de código comercial por coincidencia única de descripción ("${sRow.descripcion}").`,
             referencia_relacionada: importId
           });
 
-          // Registrar en historial de precios si cambió
-          if (prevPrice !== prodData.precio) {
-            await supabase.from('product_prices').insert({
+          if (prevPrice !== rawPrice) {
+            pricesInsert.push({
               product_id: targetProductId,
               precio_anterior: prevPrice,
-              precio_nuevo: prodData.precio,
+              precio_nuevo: rawPrice,
               cambio_tipo: 'masivo',
               usuario_responsable: userEmail,
               criterio: 'Importación diaria con cambio de código'
@@ -500,40 +626,19 @@ export const productService = {
           }
         }
 
-        // ────────── Sincronización de Stock Absoluto en la Sucursal ──────────
+        // Sincronización de Stock
         if (targetProductId) {
-          // Obtener stock actual en la sucursal seleccionada
-          const { data: currentStockData } = await supabase
-            .from('inventory')
-            .select('stock')
-            .eq('product_id', targetProductId)
-            .eq('branch_id', branchId)
-            .maybeSingle();
+          const isNew = sRow.action === 'create_new';
+          const previousStock = isNew ? 0 : Number(stockMap.get(targetProductId) || 0);
+          const difference = rawStock - previousStock;
 
-          const previousStock = currentStockData ? Number(currentStockData.stock) : 0;
-          const importedStock = Number(sRow.stock);
-          const difference = importedStock - previousStock;
-
-          // Upsert en la tabla de inventario
-          const { error: stockUpdErr } = await supabase
-            .from('inventory')
-            .upsert({
-              product_id: targetProductId,
-              branch_id: branchId,
-              stock: importedStock,
-              disponible: importedStock > 0,
-              updated_at: new Date().toISOString()
-            }, { onConflict: 'product_id,branch_id' });
-          if (stockUpdErr) throw stockUpdErr;
-
-          // Registrar movimiento de stock diario si hay diferencia
-          if (difference !== 0) {
-            await supabase.from('inventory_movements').insert({
+          if (isNew || difference !== 0) {
+            movementsInsert.push({
               product_id: targetProductId,
               branch_id: branchId,
               cantidad_anterior: previousStock,
               cantidad_modificada: difference,
-              cantidad_resultante: importedStock,
+              cantidad_resultante: rawStock,
               tipo_movimiento: 'importacion',
               motivo: 'Sincronización diaria absoluta de stock',
               importacion_id: importId,
@@ -542,24 +647,86 @@ export const productService = {
           }
         }
 
-        // Marcar fila de importación como exitosamente completada
-        await supabase
-          .from('import_rows')
-          .update({ estado: 'completed' })
-          .eq('id', sRow.rowDbId);
-
+        rowsCompletedIds.push(sRow.rowDbId);
       } catch (err: any) {
         failedCount++;
         errorsList.push({ fila: sRow.filaNumero, error: err.message || String(err) });
-        // Marcar fila de importación con error
-        await supabase
-          .from('import_rows')
-          .update({ estado: 'error', error_detalle: err.message || String(err) })
-          .eq('id', sRow.rowDbId);
+        rowsFailedUpdates.push({ id: sRow.rowDbId, error_detalle: err.message || String(err) });
       }
     }
 
-    // Actualizar resumen final del registro de importación
+    // 4. Ejecución en Lotes Bulk en Supabase (Chunked para no saturar el servidor)
+    const chunkSize = 200;
+
+    // Filtro de seguridad para evitar duplicados del mismo código comercial en el lote de upsert
+    const uniqueProductsMap = new Map<string, any>();
+    productsUpsert.forEach(p => {
+      const normCode = p.codigo.trim().toUpperCase();
+      if (uniqueProductsMap.has(normCode)) {
+        const existing = uniqueProductsMap.get(normCode);
+        // Si el actual es autogenerado ("prod-...") y el existente es un UUID real de BD, mantenemos el de la BD
+        if (p.id.startsWith('prod-') && !existing.id.startsWith('prod-')) {
+          return;
+        }
+      }
+      uniqueProductsMap.set(normCode, p);
+    });
+    const finalProductsUpsert = Array.from(uniqueProductsMap.values());
+
+    // A. Productos (Upsert)
+    for (let i = 0; i < finalProductsUpsert.length; i += chunkSize) {
+      const chunk = finalProductsUpsert.slice(i, i + chunkSize);
+      const { error } = await supabase.from('products').upsert(chunk);
+      if (error) throw error;
+    }
+
+    // B. Precios (Insert)
+    for (let i = 0; i < pricesInsert.length; i += chunkSize) {
+      const chunk = pricesInsert.slice(i, i + chunkSize);
+      const { error } = await supabase.from('product_prices').insert(chunk);
+      if (error) throw error;
+    }
+
+    // C. Historial de Códigos (Insert)
+    for (let i = 0; i < codeHistoryInsert.length; i += chunkSize) {
+      const chunk = codeHistoryInsert.slice(i, i + chunkSize);
+      const { error } = await supabase.from('product_code_history').insert(chunk);
+      if (error) throw error;
+    }
+
+    // D. Logs de Auditoría (Insert)
+    for (let i = 0; i < auditLogsInsert.length; i += chunkSize) {
+      const chunk = auditLogsInsert.slice(i, i + chunkSize);
+      const { error } = await supabase.from('audit_logs').insert(chunk);
+      if (error) throw error;
+    }
+
+    // E. Movimientos de Stock (Insert)
+    for (let i = 0; i < movementsInsert.length; i += chunkSize) {
+      const chunk = movementsInsert.slice(i, i + chunkSize);
+      const { error } = await supabase.from('inventory_movements').insert(chunk);
+      if (error) throw error;
+    }
+
+    // G. Actualizar filas de importación exitosas en Supabase
+    for (let i = 0; i < rowsCompletedIds.length; i += chunkSize) {
+      const chunk = rowsCompletedIds.slice(i, i + chunkSize);
+      const { error } = await supabase
+        .from('import_rows')
+        .update({ estado: 'completed' })
+        .in('id', chunk);
+      if (error) throw error;
+    }
+
+    // H. Actualizar filas fallidas en Supabase
+    for (const fail of rowsFailedUpdates) {
+      await supabase
+        .from('import_rows')
+        .update({ estado: 'error', error_detalle: fail.error_detalle })
+        .eq('id', fail.id);
+    }
+
+    // 5. Actualizar resumen final de la importación
     const finalState = failedCount > 0 ? 'completed_with_errors' : 'completed';
     const { data: finalImp, error: finalImpErr } = await supabase
       .from('imports')
@@ -576,5 +743,79 @@ export const productService = {
 
     if (finalImpErr) throw finalImpErr;
     return finalImp;
+  },
+
+  createSuperOffer: async (offer: any, items: any[]): Promise<any> => {
+    const offerId = `offer-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+    const { error: offerErr } = await supabase
+      .from('super_offers')
+      .insert({
+        id: offerId,
+        nombre: offer.nombre,
+        descripcion: offer.descripcion || null,
+        precio_oferta: offer.precioOferta,
+        precio_original: offer.precioOriginal,
+        activo: offer.activo ?? true
+      });
+    if (offerErr) throw offerErr;
+
+    const offerItemsToInsert = items.map(item => ({
+      id: `item-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+      offer_id: offerId,
+      product_id: item.productId,
+      cantidad: item.cantidad,
+      unidad: item.unidad
+    }));
+
+    const { error: itemsErr } = await supabase
+      .from('super_offer_items')
+      .insert(offerItemsToInsert);
+    if (itemsErr) throw itemsErr;
+
+    return { id: offerId, ...offer };
+  },
+
+  getSuperOffers: async (isPublic?: boolean): Promise<any[]> => {
+    const { data, error } = await supabase
+      .from('super_offers')
+      .select(isPublic ? `
+        id, nombre, descripcion, activo, created_at, updated_at,
+        super_offer_items (
+          id, offer_id, product_id, cantidad, unidad, created_at,
+          products:products (
+            id, codigo, nombre, categoria, subcategoria, presentacion, unidad, descripcion, imagen, activo, visible_en_app, destacado
+          )
+        )
+      ` : `
+        *,
+        super_offer_items (
+          *,
+          products:products (*)
+        )
+      `)
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+
+    const list = data || [];
+    if (isPublic) {
+      return list.map((offer: any) => ({
+        ...offer,
+        precio_oferta: 0,
+        precio_original: 0,
+        super_offer_items: (offer.super_offer_items || []).map((item: any) => ({
+          ...item,
+          products: item.products ? mapProduct(item.products, 1000, true) : null
+        }))
+      }));
+    }
+    return list;
+  },
+
+  deleteSuperOffer: async (id: string): Promise<void> => {
+    const { error } = await supabase
+      .from('super_offers')
+      .delete()
+      .eq('id', id);
+    if (error) throw error;
   }
 };

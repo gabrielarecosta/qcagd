@@ -32,8 +32,10 @@ const mapRoute = (r: any, deliveries: any[] = [], events: any[] = []): DeliveryR
     pedidosIds: (deliveries || []).map(d => d.order_id),
     stops,
     observaciones: r.observaciones || undefined,
+    plannedBy: r.planned_by || undefined,
   };
 };
+
 
 export const deliveryService = {
   getAll: async (branchId?: string): Promise<DeliveryRoute[]> => {
@@ -251,9 +253,11 @@ export const deliveryService = {
         zona: route.zona,
         horario_estimado: route.horarioEstimado,
         observaciones: route.observaciones,
+        planned_by: route.plannedBy,
       })
       .select('*')
       .single();
+
 
     if (routeErr) throw routeErr;
 

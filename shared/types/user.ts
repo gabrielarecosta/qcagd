@@ -16,4 +16,9 @@ export interface InternalUser {
   sectorId?: string;
   activo: boolean;
   telefono?: string;
+  password?: string;
+  auto?: string;
+  patente?: string;
+  fotoUrl?: string;
+  dni?: string;
 }

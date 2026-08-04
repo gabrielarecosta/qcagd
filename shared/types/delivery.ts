@@ -26,4 +26,5 @@ export interface DeliveryRoute {
   pedidosIds: string[];
   stops: DeliveryStop[];
   observaciones?: string;
+  plannedBy?: string;
 }

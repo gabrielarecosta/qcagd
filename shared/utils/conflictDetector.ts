@@ -28,8 +28,12 @@ export interface StagedRow {
 
 export function normalizeCode(c: any): string {
   if (c === undefined || c === null) return '';
-  return String(c)
-    .trim()
+  let str = String(c).trim();
+  // Quitar sufijo decimal .0 inyectado por parseadores de Excel en campos numéricos
+  if (str.endsWith('.0')) {
+    str = str.substring(0, str.length - 2);
+  }
+  return str
     .replace(/\s+/g, '') // remove spaces
     .replace(/[^a-zA-Z0-9]/g, ''); // alphanumeric only (keep case or ignore case consistently)
 }
@@ -65,6 +69,17 @@ export function analyzeImportRows(
     }
   });
 
+  // Encontrar el último índice de fila para cada código en el Excel
+  const lastIndexByCode = new Map<string, number>();
+  rawRows.forEach((row, index) => {
+    if (row && row.length > 0) {
+      const code = normalizeCode(row[0]);
+      if (code) {
+        lastIndexByCode.set(code, index);
+      }
+    }
+  });
+
   // 2. Procesar cada fila
   rawRows.forEach((row, index) => {
     const filaNumero = index + 2; // Fila 1 es el encabezado
@@ -79,6 +94,23 @@ export function analyzeImportRows(
     const code = normalizeCode(rawCode);
     const desc = rawDesc ? String(rawDesc).trim() : '';
     const brand = rawBrand ? String(rawBrand).trim() : '';
+
+    // Si este código se repite más adelante en el archivo, ignoramos esta fila para evitar duplicidades
+    const lastIndex = lastIndexByCode.get(code);
+    if (code && lastIndex !== undefined && lastIndex !== index) {
+      stagedRows.push({
+        filaNumero,
+        codigo: code,
+        descripcion: desc,
+        marca: brand,
+        precio: Number(rawPrice) || 0,
+        stock: Number(rawStock) || 0,
+        estado: 'ignored',
+        action: 'ignored',
+        validationErrors: ['Fila omitida: Existe un registro posterior en el archivo Excel con el mismo código comercial.']
+      });
+      return;
+    }
 
     const validationErrors: string[] = [];
 

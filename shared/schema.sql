@@ -116,7 +116,7 @@ CREATE TABLE customer_addresses (
 -- Catálogo de Productos
 CREATE TABLE products (
     id TEXT PRIMARY KEY,
-    codigo TEXT UNIQUE NOT NULL,
+    codigo TEXT NOT NULL,
     nombre TEXT NOT NULL,
     categoria TEXT NOT NULL,
     subcategoria TEXT,
@@ -438,13 +438,13 @@ BEGIN
     NEW.cantidad_anterior := curr_stock;
     NEW.cantidad_resultante := curr_stock + NEW.cantidad_modificada;
 
-    -- Validar que el stock no sea menor a cero
-    IF NEW.cantidad_resultante < 0.0 THEN
-        -- Aquí podemos forzar el bloqueo de venta sin stock si se desea
-        -- NEW.cantidad_resultante := 0; -- o levantar excepción
-        RAISE EXCEPTION 'Stock insuficiente para el producto % en la sucursal %. (Stock actual: %, requerido: %)', 
-            NEW.product_id, NEW.branch_id, curr_stock, ABS(NEW.cantidad_modificada);
-    END IF;
+    -- Validar que el stock no sea menor a cero (Comentado para admitir stock negativo según requerimientos)
+    -- IF NEW.cantidad_resultante < 0.0 THEN
+    --     -- Aquí podemos forzar el bloqueo de venta sin stock si se desea
+    --     -- NEW.cantidad_resultante := 0; -- o levantar excepción
+    --     RAISE EXCEPTION 'Stock insuficiente para el producto % en la sucursal %. (Stock actual: %, requerido: %)', 
+    --         NEW.product_id, NEW.branch_id, curr_stock, ABS(NEW.cantidad_modificada);
+    -- END IF;
 
     -- Actualizar stock
     UPDATE inventory
@@ -721,7 +721,7 @@ CREATE POLICY "Allow read/write access to authenticated users on code history"
     WITH CHECK (TRUE);
 
 -- Alterar Tabla de Importaciones para soportar Hash y Nuevos Estados
-ALTER TABLE imports ADD COLUMN IF NOT EXISTS file_hash TEXT UNIQUE;
+ALTER TABLE imports ADD COLUMN IF NOT EXISTS file_hash TEXT;
 ALTER TABLE imports DROP CONSTRAINT IF EXISTS imports_estado_check;
 ALTER TABLE imports ADD CONSTRAINT imports_estado_check CHECK (
     estado IN ('uploaded', 'validating', 'ready', 'processing', 'completed', 'completed_with_errors', 'failed', 'cancelled')
@@ -730,8 +730,163 @@ ALTER TABLE imports ADD CONSTRAINT imports_estado_check CHECK (
 -- Alterar Tabla de Filas de Importación para soportar Staging y Conflictos
 ALTER TABLE import_rows DROP CONSTRAINT IF EXISTS import_rows_estado_check;
 ALTER TABLE import_rows ADD CONSTRAINT import_rows_estado_check CHECK (
-    estado IN ('pending', 'requires_review', 'completed', 'ignored', 'error')
+    estado IN ('pending', 'ready', 'requires_review', 'completed', 'ignored', 'error')
 );
 
 -- Agregar columna marca a la tabla de productos
 ALTER TABLE products ADD COLUMN IF NOT EXISTS marca TEXT;
+
+
+-- ============================================================
+-- 6. TABLAS DE COMBO / SÚPER OFERTAS (PROMOCIONES)
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS super_offers (
+    id TEXT PRIMARY KEY,
+    nombre TEXT NOT NULL,
+    descripcion TEXT,
+    precio_oferta NUMERIC NOT NULL,
+    precio_original NUMERIC NOT NULL,
+    activo BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Habilitar RLS en super_offers
+ALTER TABLE super_offers ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow public read on super_offers" ON super_offers FOR SELECT TO public USING (TRUE);
+CREATE POLICY "Allow all write on super_offers" ON super_offers FOR ALL TO authenticated USING (TRUE) WITH CHECK (TRUE);
+
+CREATE TABLE IF NOT EXISTS super_offer_items (
+    id TEXT PRIMARY KEY,
+    offer_id TEXT REFERENCES super_offers(id) ON DELETE CASCADE,
+    product_id TEXT REFERENCES products(id) ON DELETE CASCADE,
+    cantidad NUMERIC NOT NULL,
+    unidad TEXT NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Habilitar RLS en super_offer_items
+ALTER TABLE super_offer_items ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow public read on super_offer_items" ON super_offer_items FOR SELECT TO public USING (TRUE);
+CREATE POLICY "Allow all write on super_offer_items" ON super_offer_items FOR ALL TO authenticated USING (TRUE) WITH CHECK (TRUE);
+
+
+-- ============================================================
+-- ADICIONES PARA ETAPAS 6, 7 Y 8 (FRANJAS HORARIAS, LOGISTICA Y TRIGGER DE PRECIOS)
+-- ============================================================
+
+-- 1. TABLA DE PROMOCIONES DE PRODUCTOS
+CREATE TABLE IF NOT EXISTS product_promotions (
+    id TEXT PRIMARY KEY,
+    product_id TEXT REFERENCES products(id) ON DELETE CASCADE NOT NULL,
+    descuento_porcentaje NUMERIC NOT NULL CHECK (descuento_porcentaje >= 0 AND descuento_porcentaje <= 100),
+    cantidad_minima INTEGER DEFAULT 1 NOT NULL CHECK (cantidad_minima >= 1),
+    fecha_inicio TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    fecha_fin TIMESTAMP WITH TIME ZONE NOT NULL,
+    tipo_cliente TEXT CHECK (tipo_cliente IN ('mayorista', 'minorista', 'todos')) DEFAULT 'todos' NOT NULL,
+    activo BOOLEAN DEFAULT TRUE NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_promotions_lookup ON product_promotions (product_id, activo, fecha_inicio, fecha_fin);
+
+ALTER TABLE product_promotions ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow public read on product_promotions" ON product_promotions FOR SELECT TO public USING (TRUE);
+CREATE POLICY "Allow all write on product_promotions" ON product_promotions FOR ALL TO authenticated USING (TRUE) WITH CHECK (TRUE);
+
+
+-- 2. TABLA DE FRANJAS HORARIAS DE ENTREGA
+CREATE TABLE IF NOT EXISTS delivery_time_slots (
+    id TEXT PRIMARY KEY,
+    nombre TEXT NOT NULL,
+    hora_inicio TEXT NOT NULL,
+    hora_fin TEXT NOT NULL,
+    max_pedidos INTEGER,
+    activo BOOLEAN DEFAULT TRUE NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
+);
+
+ALTER TABLE delivery_time_slots ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow public read on delivery_time_slots" ON delivery_time_slots FOR SELECT TO public USING (TRUE);
+CREATE POLICY "Allow all write on delivery_time_slots" ON delivery_time_slots FOR ALL TO authenticated USING (TRUE) WITH CHECK (TRUE);
+
+
+-- 3. AGREGAR COLUMNAS ESTRUCTURADAS A LA TABLA DE PEDIDOS (ORDERS)
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_date TEXT;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_start_time TEXT;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_end_time TEXT;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_time_slot_id TEXT REFERENCES delivery_time_slots(id) ON DELETE SET NULL;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_method TEXT CHECK (delivery_method IN ('reparto', 'retiro', 'whatsapp'));
+
+
+-- 4. AGREGAR COLUMNA DE PLANIFICADOR A HOJAS DE RUTA (DELIVERY_ROUTES)
+ALTER TABLE delivery_routes ADD COLUMN IF NOT EXISTS planned_by TEXT;
+
+
+-- 5. TRIGGER DE VALIDACIÓN DE PRECIOS EN EL SERVIDOR
+CREATE OR REPLACE FUNCTION trg_fn_validate_order_item_price()
+RETURNS TRIGGER AS $$
+DECLARE
+    v_tipo_cliente TEXT;
+    v_precio_minorista NUMERIC;
+    v_precio_mayorista NUMERIC;
+    v_precio_base NUMERIC;
+    v_fecha_pedido TIMESTAMP WITH TIME ZONE;
+    v_promo_pct NUMERIC := 0.0;
+    v_expected_price NUMERIC;
+BEGIN
+    SELECT c.tipo_cliente, o.fecha INTO v_tipo_cliente, v_fecha_pedido
+    FROM orders o
+    JOIN customers c ON c.id = o.cliente_id
+    WHERE o.id = NEW.order_id;
+
+    IF NOT FOUND THEN
+        v_tipo_cliente := 'minorista';
+        v_fecha_pedido := NOW();
+    END IF;
+
+    SELECT precio, COALESCE(precio_mayorista, precio) INTO v_precio_minorista, v_precio_mayorista
+    FROM products
+    WHERE id = NEW.product_id;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Producto con ID % no existe.', NEW.product_id;
+    END IF;
+
+    IF v_tipo_cliente = 'mayorista' THEN
+        v_precio_base := v_precio_mayorista;
+    ELSE
+        v_precio_base := v_precio_minorista;
+    END IF;
+
+    SELECT COALESCE(MAX(descuento_porcentaje), 0.0) INTO v_promo_pct
+    FROM product_promotions
+    WHERE product_id = NEW.product_id
+      AND activo = TRUE
+      AND fecha_inicio <= v_fecha_pedido
+      AND fecha_fin >= v_fecha_pedido
+      AND NEW.cantidad >= cantidad_minima
+      AND (tipo_cliente = 'todos' OR tipo_cliente = v_tipo_cliente);
+
+    v_expected_price := v_precio_base * ((100.0 - v_promo_pct) / 100.0);
+    v_expected_price := ROUND(v_expected_price, 2);
+
+    IF ABS(NEW.precio_unitario - v_expected_price) > 0.05 THEN
+        RAISE EXCEPTION 'Discrepancia de precios para producto %: esperado %, recibido %', 
+            NEW.product_id, v_expected_price, NEW.precio_unitario;
+    END IF;
+
+    NEW.subtotal := NEW.precio_unitario * NEW.cantidad;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_validate_order_item_price ON order_items;
+CREATE TRIGGER trg_validate_order_item_price
+BEFORE INSERT OR UPDATE ON order_items
+FOR EACH ROW EXECUTE FUNCTION trg_fn_validate_order_item_price();
+

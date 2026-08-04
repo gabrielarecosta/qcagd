@@ -26,4 +26,26 @@ export interface Order {
   paymentStatus: PaymentStatus;
   abonaCon?: number;      // Monto con el que abona en caso de efectivo
   cambioEstimado?: number; // Vuelto calculado
+  
+  // Nuevas columnas estructuradas de entrega (Etapa 7)
+  deliveryDate?: string;
+  deliveryStartTime?: string;
+  deliveryEndTime?: string;
+  deliveryTimeSlotId?: string;
+  deliveryMethod?: 'reparto' | 'retiro' | 'whatsapp';
+
+  takenById?: string;
+  takenAt?: string;
+  deliveredAt?: string;
+
+  originalAddress?: string;
+  formattedAddress?: string;
+  latitude?: number;
+  longitude?: number;
+  addressReference?: string;
+  locationVerified?: boolean;
+  deliveryZone?: string;
+  customerName?: string;
+  customerPhone?: string;
 }
+

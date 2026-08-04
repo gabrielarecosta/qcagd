@@ -14,7 +14,7 @@ QUIMICA/
 │   ├── utils/               # Validadores y formateadores de datos (Dinero, cambio, fechas, Excel)
 │   └── services/            # Lógica y cómputo de reportes e IPN de Mercado Pago
 │
-├── mobile-app/              # Aplicación Mobile (React Native + Expo Router + TypeScript)
+├── client-app/              # Aplicación Mobile/Web (React Native + Expo Router + TypeScript)
 │   ├── app/                 # Rutas de navegación (Tabs: Inicio, Catálogo, Carrito, Reparto, Perfil)
 │   ├── components/          # Tarjetas e interfaces nativas
 │   └── metro.config.js      # Bundler configurado para compilar código desde '/shared'
@@ -38,7 +38,7 @@ CRM interactivo optimizado para PC, con navegación lateral de 13 módulos:
 - **Caja y Pagos:** Muestra conciliación de efectivo, transferencias bancarias y simulación interactiva de notificaciones IPN (Webhooks) de Mercado Pago.
 - **Configuración de Calendarios:** Control de feriados, fechas bloqueadas, horarios de atención y retiro en local.
 
-### 2. App Mobile Expo (`mobile-app/`)
+### 2. App Cliente/Repartidor Expo (`client-app/`)
 Diseño de alto contraste y tipografía legible pensado para personas adultas (+40 años):
 - **Búsqueda Inteligente:** Búsqueda rápida en catálogo de 6000 productos por código, presentación, nombre y filtros de categorías gigantes.
 - **Pedido Rápido:** Toggles de cantidades con un toque, estimación del vuelto en efectivo ("¿Con cuánto abona?") y coordinación directa por WhatsApp.
@@ -72,7 +72,7 @@ El panel estará disponible en la dirección local provista por Vite (usualmente
 ### 2. Correr la Aplicación Mobile Expo
 ```bash
 # Entrar al directorio
-cd mobile-app
+cd client-app
 
 # Instalar dependencias
 npm install
@@ -90,7 +90,7 @@ Para validar la coherencia y robustez del código de TypeScript:
 # En /admin-panel
 npm run build
 
-# En /mobile-app
+# En /client-app
 npx tsc --noEmit
 ```
 

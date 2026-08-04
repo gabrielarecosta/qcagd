@@ -10,6 +10,11 @@ const mapProfile = (d: any): InternalUser => ({
   sectorId: d.sector_id || undefined,
   activo: d.activo,
   telefono: d.telefono || undefined,
+  password: d.password || undefined,
+  auto: d.auto || undefined,
+  patente: d.patente || undefined,
+  fotoUrl: d.foto_url || undefined,
+  dni: d.dni || undefined,
 });
 
 export const userService = {
@@ -55,6 +60,11 @@ export const userService = {
       sector_id: updates.sectorId,
       activo: updates.activo,
       telefono: updates.telefono,
+      password: updates.password,
+      auto: updates.auto,
+      patente: updates.patente,
+      foto_url: updates.fotoUrl,
+      dni: updates.dni,
       updated_at: new Date().toISOString(),
     };
 
@@ -68,6 +78,21 @@ export const userService = {
       .select('*')
       .single();
     if (error) throw error;
+
+    // Sincronizar tabla drivers si es un repartidor
+    if (data.rol === 'repartidor') {
+      const { error: driverErr } = await supabase
+        .from('drivers')
+        .upsert({
+          id: id,
+          vehiculo_info: data.auto ? `${data.auto} (Patente: ${data.patente})` : 'Sin vehículo registrado',
+          activo: data.activo ?? true
+        });
+      if (driverErr) {
+        console.warn('Error upserting driver into drivers table:', driverErr);
+      }
+    }
+
     return mapProfile(data);
   },
 
@@ -82,6 +107,11 @@ export const userService = {
       sector_id: user.sectorId,
       activo: user.activo ?? true,
       telefono: user.telefono,
+      password: user.password || '',
+      auto: user.auto || '',
+      patente: user.patente || '',
+      foto_url: user.fotoUrl || '',
+      dni: user.dni || '',
     };
 
     const { data, error } = await supabase
@@ -90,6 +120,21 @@ export const userService = {
       .select('*')
       .single();
     if (error) throw error;
+
+    // Sincronizar tabla drivers si es un repartidor
+    if (data.rol === 'repartidor') {
+      const { error: driverErr } = await supabase
+        .from('drivers')
+        .insert({
+          id: userId,
+          vehiculo_info: data.auto ? `${data.auto} (Patente: ${data.patente})` : 'Sin vehículo registrado',
+          activo: data.activo ?? true
+        });
+      if (driverErr) {
+        console.warn('Error inserting driver into drivers table:', driverErr);
+      }
+    }
+
     return mapProfile(data);
   },
 

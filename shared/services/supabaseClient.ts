@@ -18,10 +18,14 @@ try {
 }
 
 // Fallback to process.env (Node / Expo / React Native)
-if (!supabaseUrl && typeof process !== 'undefined' && process.env) {
-  supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
-  supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || '';
+// Se accede indirectamente para evitar que el compilador Babel de Expo intente inyectar módulos virtuales fuera del root del proyecto
+const globalProc = typeof globalThis !== 'undefined' ? (globalThis as any).process : undefined;
+if (!supabaseUrl && globalProc) {
+  const env = globalProc.env || {};
+  supabaseUrl = env.EXPO_PUBLIC_SUPABASE_URL || env.VITE_SUPABASE_URL || '';
+  supabaseAnonKey = env.EXPO_PUBLIC_SUPABASE_ANON_KEY || env.VITE_SUPABASE_ANON_KEY || '';
 }
+
 
 // Default fallbacks for testing/initial dev to prevent application crashes
 if (!supabaseUrl || !supabaseAnonKey) {

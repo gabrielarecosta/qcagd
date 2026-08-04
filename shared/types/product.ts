@@ -34,3 +34,20 @@ export interface ProductStock {
   stockMinimo: number;
   disponible: boolean;
 }
+
+export interface SuperOffer {
+  id: string;
+  nombre: string;
+  descripcion?: string;
+  precioOferta: number;
+  precioOriginal: number;
+  activo: boolean;
+  createdAt?: string;
+}
+
+export interface SuperOfferItem {
+  id?: string;
+  productId: string;
+  cantidad: number;
+  unidad: string;
+}

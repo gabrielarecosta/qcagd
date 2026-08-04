@@ -10,3 +10,8 @@ export * from './notificationService';
 export * from './reportService';
 export * from './excelImportService';
 export * from './supabaseClient';
+export * from './offerService';
+export * from './deliverySlotService';
+export * from './companySettingsService';
+
+
