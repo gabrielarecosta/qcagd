@@ -7,9 +7,10 @@ import { OrderStatus } from '@shared/types';
 
 interface DashboardViewProps {
   onNavigate?: (tab: any) => void;
+  onFilterProductsNoPhoto?: () => void;
 }
 
-export function DashboardView({ onNavigate }: DashboardViewProps) {
+export function DashboardView({ onNavigate, onFilterProductsNoPhoto }: DashboardViewProps) {
   const { 
     activeBranchId, 
     orders, 
@@ -197,7 +198,18 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
       });
     }
 
-    return list.slice(0, 6); // Límite de 6 alertas principales
+    // Alerta 7: Productos sin foto en catálogo
+    const noPhotoProds = products.filter(p => !p.imagen || p.imagen.trim() === '');
+    if (noPhotoProds.length > 0) {
+      list.push({
+        id: 'no-photo-products-alert',
+        type: 'pink',
+        text: `${noPhotoProds.length} Artículo(s) sin foto en el catálogo`,
+        sub: 'Click para ver y cargar imágenes en Catálogo.'
+      });
+    }
+
+    return list.slice(0, 8); // Límite de 8 alertas principales
   }, [orders, stocks, products, activeBranchId]);
 
   // 4. Tabla de Pedidos Recientes (últimos 6 pedidos)
@@ -561,18 +573,39 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
         ) : (
           <div className="alerts-feed-grid">
             {alertsFeed.map(alert => (
-              <div key={alert.id} className={`attention-alert-card alert-${alert.type}`}>
+              <div 
+                key={alert.id} 
+                className={`attention-alert-card alert-${alert.type}`}
+                style={{ cursor: 'pointer' }}
+                onClick={() => {
+                  if (alert.id === 'no-photo-products-alert') {
+                    onFilterProductsNoPhoto?.();
+                  } else if (alert.id === 'free-products-alert') {
+                    onNavigate?.('products');
+                  } else if (alert.id === 'critical-stock-alert') {
+                    onNavigate?.('products');
+                  } else if (alert.id === 'pending-prep') {
+                    onNavigate?.('orders');
+                  } else if (alert.id === 'ready-no-route') {
+                    onNavigate?.('deliveries');
+                  } else {
+                    onNavigate?.('products');
+                  }
+                }}
+              >
                 <div className="attention-alert-icon" style={{ 
                   backgroundColor: alert.type === 'yellow' ? 'var(--warning-light)' :
                                    alert.type === 'blue' ? 'var(--accent-light)' :
                                    alert.type === 'purple' ? 'rgba(139, 92, 246, 0.1)' :
                                    alert.type === 'red' ? 'var(--error-light)' :
-                                   alert.type === 'orange' ? 'rgba(249, 115, 22, 0.1)' : 'rgba(6, 182, 212, 0.1)',
+                                   alert.type === 'orange' ? 'rgba(249, 115, 22, 0.1)' : 
+                                   alert.type === 'pink' ? 'rgba(236, 72, 153, 0.1)' : 'rgba(6, 182, 212, 0.1)',
                   color: alert.type === 'yellow' ? 'var(--warning-color)' :
                          alert.type === 'blue' ? 'var(--accent-color)' :
                          alert.type === 'purple' ? '#7c3aed' :
                          alert.type === 'red' ? 'var(--error-color)' :
-                         alert.type === 'orange' ? '#ea580c' : '#0891b2'
+                         alert.type === 'orange' ? '#ea580c' : 
+                         alert.type === 'pink' ? '#ec4899' : '#0891b2'
                 }}>
                   {alert.type === 'red' ? '⚠️' : '🔔'}
                 </div>

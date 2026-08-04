@@ -17,7 +17,8 @@ export function DeliveriesView() {
     activeBranchId, 
     createDelivery, 
     updateDeliveryStatus,
-    updateOrder
+    updateOrder,
+    drivers
   } = useAdminStore();
 
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
@@ -30,17 +31,12 @@ export function DeliveriesView() {
   const [formTurno, setFormTurno] = useState('08:00 - 12:00 (Mañana)');
   const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
 
-  // List of active delivery drivers
-  const drivers = useMemo(() => {
-    return users.filter(u => u.rol === 'repartidor');
-  }, [users]);
-
   // Set default driver on open planning modal
   const handleOpenPlanning = () => {
     setIsPlanning(true);
     const firstBranch = activeBranchId !== 'all' ? activeBranchId : (branches[0]?.id || 'branch-gd1');
     setFormBranchId(firstBranch);
-    const branchDrivers = users.filter(u => u.rol === 'repartidor' && u.branchId === firstBranch);
+    const branchDrivers = drivers.filter(d => d.branchId === firstBranch);
     setFormDriverId(branchDrivers[0]?.id || drivers[0]?.id || '');
     setFormZona(zones[0]?.nombre || 'Zona Centro GD');
     setSelectedOrderIds([]);
@@ -331,7 +327,7 @@ export function DeliveriesView() {
                       onChange={e => {
                         setFormBranchId(e.target.value);
                         // Reset driver to one from target branch if possible
-                        const branchDrivers = users.filter(u => u.rol === 'repartidor' && u.branchId === e.target.value);
+                        const branchDrivers = drivers.filter(d => d.branchId === e.target.value);
                         setFormDriverId(branchDrivers[0]?.id || drivers[0]?.id || '');
                         setSelectedOrderIds([]);
                       }}
@@ -349,7 +345,7 @@ export function DeliveriesView() {
                       required
                     >
                       <option value="">-- Seleccionar Repartidor --</option>
-                      {users.filter(u => u.rol === 'repartidor' && (formBranchId === 'all' || u.branchId === formBranchId)).map(d => (
+                      {drivers.filter(d => formBranchId === 'all' || d.branchId === formBranchId).map(d => (
                         <option key={d.id} value={d.id}>{d.nombre}</option>
                       ))}
                     </select>

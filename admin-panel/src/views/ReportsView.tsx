@@ -299,8 +299,9 @@ export function ReportsView() {
               </div>
             ))}
             {reports.pedidosPorEstado.length === 0 && (
-              <p style={{ width: '100%', colSpan: 4, textAlign: 'center', color: 'var(--text-disabled)' }}>No hay pedidos.</p>
+              <p style={{ width: '100%', textAlign: 'center', color: 'var(--text-disabled)' }}>No hay pedidos.</p>
             )}
+
           </div>
         </div>
       </div>

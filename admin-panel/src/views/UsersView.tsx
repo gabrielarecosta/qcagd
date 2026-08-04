@@ -4,12 +4,28 @@ import type { InternalUser, UserRole } from '@shared/types/user';
 
 
 export function UsersView() {
-  const { users, branches, sectors, activeBranchId, createUser, updateUser } = useAdminStore();
+  const { users, branches, sectors, activeBranchId, createUser, updateUser, deleteUser } = useAdminStore();
+
+  const handleDeleteClick = (id: string, nombre: string) => {
+    setDeleteConfirmUser({ id, nombre, step: 1 });
+  };
+
+  const handleConfirmDeleteStep1 = () => {
+    if (!deleteConfirmUser) return;
+    setDeleteConfirmUser({ ...deleteConfirmUser, step: 2 });
+  };
+
+  const handleConfirmDeleteFinal = async () => {
+    if (!deleteConfirmUser) return;
+    await deleteUser(deleteConfirmUser.id);
+    setDeleteConfirmUser(null);
+  };
 
   const [search, setSearch] = useState('');
   const [selectedRole, setSelectedRole] = useState<string>('all');
   const [editingUser, setEditingUser] = useState<InternalUser | null>(null);
   const [isCreating, setIsCreating] = useState(false);
+  const [deleteConfirmUser, setDeleteConfirmUser] = useState<{ id: string; nombre: string; step: 1 | 2 } | null>(null);
 
   // Form State
   const [formUser, setFormUser] = useState({
@@ -20,6 +36,11 @@ export function UsersView() {
     sectorId: 'sector-gd1-adm',
     telefono: '',
     activo: true,
+    password: '',
+    auto: '',
+    patente: '',
+    fotoUrl: '',
+    dni: '',
   });
 
   const roles = [
@@ -92,6 +113,11 @@ export function UsersView() {
       sectorId: u.sectorId || '',
       telefono: u.telefono || '',
       activo: u.activo,
+      password: '',
+      auto: u.auto || '',
+      patente: u.patente || '',
+      fotoUrl: u.fotoUrl || '',
+      dni: u.dni || '',
     });
   };
 
@@ -107,6 +133,11 @@ export function UsersView() {
       sectorId: branchSectors[0]?.id || '',
       telefono: '',
       activo: true,
+      password: '',
+      auto: '',
+      patente: '',
+      fotoUrl: '',
+      dni: '',
     });
   };
 
@@ -114,11 +145,18 @@ export function UsersView() {
     e.preventDefault();
     if (!editingUser) return;
 
-    updateUser(editingUser.id, {
+    const updates: any = {
       ...formUser,
       branchId: formUser.branchId || undefined,
       sectorId: formUser.sectorId || undefined,
-    });
+    };
+    
+    // Si no ingresaron nueva contraseña, la removemos para no pisarla con vacío en la BD
+    if (!formUser.password || formUser.password.trim() === '') {
+      delete updates.password;
+    }
+
+    updateUser(editingUser.id, updates);
     setEditingUser(null);
   };
 
@@ -216,9 +254,16 @@ export function UsersView() {
                       {u.activo ? 'Activo' : 'Inactivo'}
                     </span>
                   </td>
-                  <td className="text-right">
+                  <td className="text-right" style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
                     <button className="btn btn-secondary" onClick={() => handleOpenEdit(u)} style={{ padding: '6px 12px', fontSize: '12px' }}>
                       ✏️ Editar
+                    </button>
+                    <button 
+                      className="btn btn-danger" 
+                      onClick={() => handleDeleteClick(u.id, u.nombre)} 
+                      style={{ padding: '6px 12px', fontSize: '12px', backgroundColor: '#ef4444', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                    >
+                      🗑️ Eliminar
                     </button>
                   </td>
                 </tr>
@@ -322,6 +367,67 @@ export function UsersView() {
                       onChange={e => setFormUser({ ...formUser, telefono: e.target.value })}
                     />
                   </div>
+                </div>
+
+                {formUser.rol === 'repartidor' && (
+                  <div style={{ backgroundColor: '#f8fafc', padding: '16px', borderRadius: '8px', border: '1px solid #e2e8f0', marginBottom: '16px' }}>
+                    <h3 style={{ fontSize: '13px', fontWeight: 'bold', color: '#475569', marginBottom: '12px' }}>Datos específicos del Chofer</h3>
+                    <div className="form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+                      <div className="form-group">
+                        <label className="form-label">Vehículo (Auto)</label>
+                        <input 
+                          type="text" 
+                          className="form-input" 
+                          placeholder="Ej: Ford Transit"
+                          value={formUser.auto}
+                          onChange={e => setFormUser({ ...formUser, auto: e.target.value })}
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">Patente</label>
+                        <input 
+                          type="text" 
+                          className="form-input" 
+                          placeholder="Ej: AB123CD"
+                          value={formUser.patente}
+                          onChange={e => setFormUser({ ...formUser, patente: e.target.value })}
+                        />
+                      </div>
+                    </div>
+                    <div className="form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                      <div className="form-group">
+                        <label className="form-label">DNI</label>
+                        <input 
+                          type="text" 
+                          className="form-input" 
+                          placeholder="Ej: 35999888"
+                          value={formUser.dni}
+                          onChange={e => setFormUser({ ...formUser, dni: e.target.value })}
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">URL Foto del Chofer</label>
+                        <input 
+                          type="text" 
+                          className="form-input" 
+                          placeholder="https://..."
+                          value={formUser.fotoUrl}
+                          onChange={e => setFormUser({ ...formUser, fotoUrl: e.target.value })}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div className="form-group" style={{ marginBottom: '16px' }}>
+                  <label className="form-label">Restablecer Contraseña (dejar vacío para mantener actual)</label>
+                  <input 
+                    type="password" 
+                    className="form-input" 
+                    placeholder="Escribí la nueva contraseña..."
+                    value={formUser.password || ''}
+                    onChange={e => setFormUser({ ...formUser, password: e.target.value })}
+                  />
                 </div>
 
                 <div className="form-group">
@@ -437,12 +543,130 @@ export function UsersView() {
                   </div>
                 </div>
 
+                {formUser.rol === 'repartidor' && (
+                  <div style={{ backgroundColor: '#f8fafc', padding: '16px', borderRadius: '8px', border: '1px solid #e2e8f0', marginBottom: '16px' }}>
+                    <h3 style={{ fontSize: '13px', fontWeight: 'bold', color: '#475569', marginBottom: '12px' }}>Datos específicos del Chofer</h3>
+                    <div className="form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+                      <div className="form-group">
+                        <label className="form-label">Vehículo (Auto)</label>
+                        <input 
+                          type="text" 
+                          className="form-input" 
+                          placeholder="Ej: Ford Transit"
+                          value={formUser.auto}
+                          onChange={e => setFormUser({ ...formUser, auto: e.target.value })}
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">Patente</label>
+                        <input 
+                          type="text" 
+                          className="form-input" 
+                          placeholder="Ej: AB123CD"
+                          value={formUser.patente}
+                          onChange={e => setFormUser({ ...formUser, patente: e.target.value })}
+                        />
+                      </div>
+                    </div>
+                    <div className="form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                      <div className="form-group">
+                        <label className="form-label">DNI</label>
+                        <input 
+                          type="text" 
+                          className="form-input" 
+                          placeholder="Ej: 35999888"
+                          value={formUser.dni}
+                          onChange={e => setFormUser({ ...formUser, dni: e.target.value })}
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">URL Foto del Chofer</label>
+                        <input 
+                          type="text" 
+                          className="form-input" 
+                          placeholder="https://..."
+                          value={formUser.fotoUrl}
+                          onChange={e => setFormUser({ ...formUser, fotoUrl: e.target.value })}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div className="form-group" style={{ marginBottom: '16px' }}>
+                  <label className="form-label">Contraseña de Ingreso *</label>
+                  <input 
+                    type="password" 
+                    className="form-input" 
+                    placeholder="Escribí la contraseña de ingreso..."
+                    value={formUser.password || ''}
+                    onChange={e => setFormUser({ ...formUser, password: e.target.value })}
+                    required
+                  />
+                </div>
+
               </div>
               <div className="modal-footer">
                 <button type="button" className="btn btn-secondary" onClick={() => setIsCreating(false)}>Cancelar</button>
                 <button type="submit" className="btn btn-primary">Registrar</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Confirmar Eliminación (Doble Confirmación) */}
+      {deleteConfirmUser && (
+        <div className="modal-overlay" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0, 0, 0, 0.4)', zIndex: 99999 }}>
+          <div className="modal-content" style={{ backgroundColor: '#fff', borderRadius: '8px', width: '100%', maxWidth: '450px', padding: '24px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
+            <div className="modal-header" style={{ borderBottom: 'none', paddingBottom: '0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h2 className="card-title" style={{ color: '#ef4444', margin: 0, fontSize: '18px', fontWeight: 'bold' }}>
+                {deleteConfirmUser.step === 1 ? '⚠️ Confirmación de Eliminación' : '🛑 Confirmación Definitiva'}
+              </h2>
+            </div>
+            
+            <div className="modal-body" style={{ margin: '16px 0' }}>
+              {deleteConfirmUser.step === 1 ? (
+                <p style={{ fontSize: '14px', color: '#334155', lineHeight: '22px', margin: 0 }}>
+                  ¿Estás seguro de que deseas eliminar a <strong>{deleteConfirmUser.nombre}</strong>? 
+                  Esta acción inhabilitará su acceso al sistema.
+                </p>
+              ) : (
+                <p style={{ fontSize: '14px', color: '#991b1b', fontWeight: '500', lineHeight: '22px', backgroundColor: '#fee2e2', padding: '12px', borderRadius: '6px', border: '1px solid #fecaca', margin: 0 }}>
+                  <strong>ATENCIÓN:</strong> Esta acción marcará permanentemente al colaborador como eliminado de la base de datos y no se podrá deshacer. ¿Confirmar la baja definitiva de <strong>{deleteConfirmUser.nombre}</strong>?
+                </p>
+              )}
+            </div>
+
+            <div className="modal-footer" style={{ borderTop: 'none', paddingTop: '10px', display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+              <button 
+                type="button" 
+                className="btn btn-secondary" 
+                style={{ padding: '8px 16px', borderRadius: '4px', border: '1px solid #cbd5e1', cursor: 'pointer', backgroundColor: '#fff' }}
+                onClick={() => setDeleteConfirmUser(null)}
+              >
+                Cancelar
+              </button>
+              {deleteConfirmUser.step === 1 ? (
+                <button 
+                  type="button" 
+                  className="btn btn-primary" 
+                  style={{ padding: '8px 16px', borderRadius: '4px', border: 'none', backgroundColor: '#ef4444', color: '#fff', fontWeight: '600', cursor: 'pointer' }}
+                  onClick={handleConfirmDeleteStep1}
+                >
+                  Sí, continuar
+                </button>
+              ) : (
+                <button 
+                  type="button" 
+                  className="btn btn-danger" 
+                  style={{ padding: '8px 16px', borderRadius: '4px', border: 'none', backgroundColor: '#991b1b', color: '#fff', fontWeight: '600', cursor: 'pointer' }}
+                  onClick={handleConfirmDeleteFinal}
+                >
+                  Confirmar baja definitiva
+                </button>
+              )}
+            </div>
           </div>
         </div>
       )}

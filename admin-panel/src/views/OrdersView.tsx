@@ -15,21 +15,40 @@ export function OrdersView() {
     users,
     activeBranchId, 
     updateOrderStatus,
-    updateOrder
+    updateOrder,
+    drivers,
+    globalMinOrderAmount,
+    updateGlobalMinOrderAmount
   } = useAdminStore();
 
   const [search, setSearch] = useState('');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
   const [selectedPaymentStatus, setSelectedPaymentStatus] = useState<string>('all');
+  const [localMinAmount, setLocalMinAmount] = useState<string>('');
+  const [isSavingMinAmount, setIsSavingMinAmount] = useState(false);
+
+  React.useEffect(() => {
+    setLocalMinAmount(globalMinOrderAmount.toString());
+  }, [globalMinOrderAmount]);
+
+  const handleSaveMinAmount = async () => {
+    setIsSavingMinAmount(true);
+    try {
+      await updateGlobalMinOrderAmount(Number(localMinAmount || 0));
+    } catch (e) {
+      console.error(e);
+      alert('Error al guardar el monto mínimo de compra.');
+    } finally {
+      setIsSavingMinAmount(false);
+    }
+  };
   
   // Modals / Details State
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
 
   // Chofer asignación rápida
-  const choferes = useMemo(() => {
-    return users.filter(u => u.rol === 'repartidor');
-  }, [users]);
+  const choferes = drivers;
 
   // Filtrado de pedidos
   const filteredOrders = useMemo(() => {
@@ -52,9 +71,14 @@ export function OrdersView() {
     });
   }, [orders, clients, search, activeBranchId, selectedStatus, selectedPaymentStatus]);
 
-  const getClientInfo = (clienteId: string) => {
+  const getClientInfo = (clienteId: string, order?: Order) => {
     const c = clients.find(item => item.id === clienteId);
-    return c ? { name: c.razonSocial, cuit: c.cuit, tel: c.telefono, dir: c.direccion } : { name: 'Desconocido', cuit: '', tel: '', dir: '' };
+    return {
+      name: order?.customerName || (c ? (c.razonSocial || c.nombre) : 'Desconocido'),
+      cuit: c ? c.cuit : '',
+      tel: c ? c.telefono : '',
+      dir: order?.originalAddress || (c ? c.direccion : 'Sin dirección')
+    };
   };
 
   const getBranchName = (bId: string) => {
@@ -63,7 +87,7 @@ export function OrdersView() {
   };
 
   const handlePrint = (order: Order) => {
-    const client = getClientInfo(order.clienteId);
+    const client = getClientInfo(order.clienteId, order);
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
 
@@ -144,7 +168,7 @@ export function OrdersView() {
 
   const handleExportOrders = () => {
     const dataToExport = filteredOrders.map(o => {
-      const client = getClientInfo(o.clienteId);
+      const client = getClientInfo(o.clienteId, o);
       return {
         Número: o.numero,
         Fecha: new Date(o.fecha).toLocaleString(),
@@ -191,6 +215,35 @@ export function OrdersView() {
         <button className="btn btn-secondary" onClick={handleExportOrders}>
           📤 Exportar Excel
         </button>
+      </div>
+
+      {/* Configuración de Pedido Mínimo */}
+      <div className="card-wrapper" style={{ marginBottom: '20px', padding: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#eff6ff', borderColor: '#bfdbfe', borderWidth: '1px', borderStyle: 'solid', borderRadius: '8px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <span style={{ fontSize: '24px' }}>🛒</span>
+          <div>
+            <h3 style={{ margin: 0, fontSize: '14px', color: '#1e3a8a', fontWeight: 'bold' }}>Configuración de Pedido Mínimo</h3>
+            <p style={{ margin: 0, fontSize: '12px', color: '#1e40af' }}>Los clientes de la aplicación móvil no podrán confirmar pedidos menores al monto mínimo establecido.</p>
+          </div>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <span style={{ fontWeight: '600', color: '#1e3a8a', fontSize: '13px' }}>Monto Mínimo ($):</span>
+          <input 
+            type="number" 
+            className="form-input" 
+            style={{ width: '120px', margin: 0, padding: '6px 10px', height: '36px' }} 
+            value={localMinAmount} 
+            onChange={e => setLocalMinAmount(e.target.value)} 
+          />
+          <button 
+            className="btn btn-primary" 
+            style={{ padding: '0 16px', height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            disabled={isSavingMinAmount} 
+            onClick={handleSaveMinAmount}
+          >
+            {isSavingMinAmount ? 'Guardando...' : '💾 Guardar'}
+          </button>
+        </div>
       </div>
 
       {/* Controles de Búsqueda y Filtro */}
@@ -258,7 +311,7 @@ export function OrdersView() {
             </thead>
             <tbody>
               {filteredOrders.map(o => {
-                const client = getClientInfo(o.clienteId);
+                const client = getClientInfo(o.clienteId, o);
                 const orderStatusLabel = getOrderStatusLabel(o.estado);
                 const orderStatusColor = getOrderStatusColor(o.estado);
                 const activeDriver = choferes.find(d => d.id === o.repartidorId);
@@ -400,13 +453,13 @@ export function OrdersView() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px', background: '#f8fafc', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
                 <div>
                   <h4 style={{ margin: '0 0 6px 0', fontSize: '13px', color: '#64748b' }}>CLIENTE</h4>
-                  <div style={{ fontWeight: 'bold' }}>{getClientInfo(selectedOrder.clienteId).name}</div>
-                  <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>CUIT: {getClientInfo(selectedOrder.clienteId).cuit}</div>
-                  <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Tel: {getClientInfo(selectedOrder.clienteId).tel}</div>
+                  <div style={{ fontWeight: 'bold' }}>{getClientInfo(selectedOrder.clienteId, selectedOrder).name}</div>
+                  <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>CUIT: {getClientInfo(selectedOrder.clienteId, selectedOrder).cuit}</div>
+                  <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Tel: {getClientInfo(selectedOrder.clienteId, selectedOrder).tel}</div>
                 </div>
                 <div>
                   <h4 style={{ margin: '0 0 6px 0', fontSize: '13px', color: '#64748b' }}>ENTREGA</h4>
-                  <div>{getClientInfo(selectedOrder.clienteId).dir}</div>
+                  <div>{getClientInfo(selectedOrder.clienteId, selectedOrder).dir}</div>
                   <div style={{ fontSize: '12px', color: 'var(--accent-color)', fontWeight: 'bold', marginTop: '4px' }}>
                     Sucursal: {getBranchName(selectedOrder.branchId)}
                   </div>
@@ -450,6 +503,17 @@ export function OrdersView() {
                     <strong>{formatPrice(selectedOrder.abonaCon)} (Cambio: {formatPrice(selectedOrder.cambioEstimado || 0)})</strong>
                   </div>
                 )}
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px' }}>
+                  <span>Método de entrega:</span>
+                  <strong>{selectedOrder.deliveryMethod === 'whatsapp' ? 'WhatsApp' : selectedOrder.deliveryMethod === 'retiro' ? 'Retiro' : 'Reparto'}</strong>
+                </div>
+                {selectedOrder.deliveryDate && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px' }}>
+                    <span>Fecha de entrega:</span>
+                    <strong>{selectedOrder.deliveryDate} ({selectedOrder.deliveryStartTime} a {selectedOrder.deliveryEndTime} hs)</strong>
+                  </div>
+                )}
+
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '18px', fontWeight: '800', marginTop: '8px' }}>
                   <span>TOTAL ESTIMADO:</span>
                   <span style={{ color: 'var(--accent-color)' }}>{formatPrice(selectedOrder.total)}</span>

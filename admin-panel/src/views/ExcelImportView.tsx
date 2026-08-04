@@ -3,7 +3,7 @@ import * as XLSX from 'xlsx';
 import { useAdminStore } from '../store/adminStore';
 import { validateExcelHeaders } from '@shared/utils/excelValidator';
 import { analyzeImportRows, StagedRow } from '@shared/utils/conflictDetector';
-import { formatPrice } from '../utils/formatters';
+import { formatPrice } from '@shared/utils/formatCurrency';
 
 type Step = 'upload' | 'preview' | 'processing' | 'summary';
 
@@ -18,7 +18,7 @@ export function ExcelImportView() {
   const { 
     branches, 
     products,
-    inventory,
+    stocks,
     checkFileHashExists,
     createStagingImport,
     insertStagingRows,
@@ -42,14 +42,15 @@ export function ExcelImportView() {
 
   // Mapear productos con stock actual
   const productsWithStock = useMemo(() => {
+    const stockList = stocks || [];
     return products.map(p => {
-      const stockItem = inventory.find(inv => inv.productId === p.id && inv.branchId === selectedBranchId);
+      const stockItem = stockList.find(inv => inv.productId === p.id && inv.branchId === selectedBranchId);
       return {
         ...p,
         stock: stockItem ? Number(stockItem.stock) : 0
       };
     });
-  }, [products, inventory, selectedBranchId]);
+  }, [products, stocks, selectedBranchId]);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;

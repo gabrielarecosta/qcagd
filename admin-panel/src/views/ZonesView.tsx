@@ -1,8 +1,10 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useAdminStore } from '../store/adminStore';
 import type { DeliveryZone } from '@shared/types/zone';
 import type { BranchSchedule, DaySchedule } from '@shared/types/schedule';
 import { formatPrice } from '@shared/utils/formatCurrency';
+import { deliverySlotService } from '@shared/services/deliverySlotService';
+
 
 
 export function ZonesView() {
@@ -18,7 +20,84 @@ export function ZonesView() {
 
   const [editingZone, setEditingZone] = useState<DeliveryZone | null>(null);
   const [isCreatingZone, setIsCreatingZone] = useState(false);
-  const [activeTab, setActiveTab] = useState<'zones' | 'schedules'>('zones');
+  const [activeTab, setActiveTab] = useState<'zones' | 'schedules' | 'slots'>('zones');
+
+  // Estados para Franjas Horarias (Etapa 7)
+  const [slots, setSlots] = useState<any[]>([]);
+  const [editingSlot, setEditingSlot] = useState<any | null>(null);
+  const [isCreatingSlot, setIsCreatingSlot] = useState(false);
+  const [formSlot, setFormSlot] = useState({
+    nombre: '',
+    hora_inicio: '08:00',
+    hora_fin: '12:00',
+    max_pedidos: 10,
+    activo: true
+  });
+
+  const loadSlots = async () => {
+    try {
+      const allSlots = await deliverySlotService.getAll();
+      setSlots(allSlots);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'slots') {
+      loadSlots();
+    }
+  }, [activeTab]);
+
+  const handleOpenCreateSlot = () => {
+    setIsCreatingSlot(true);
+    setFormSlot({
+      nombre: '',
+      hora_inicio: '08:00',
+      hora_fin: '12:00',
+      max_pedidos: 10,
+      activo: true
+    });
+  };
+
+  const handleOpenEditSlot = (slot: any) => {
+    setEditingSlot(slot);
+    setFormSlot({
+      nombre: slot.nombre,
+      hora_inicio: slot.hora_inicio,
+      hora_fin: slot.hora_fin,
+      max_pedidos: slot.max_pedidos || 10,
+      activo: slot.activo
+    });
+  };
+
+  const handleSaveSlot = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      if (editingSlot) {
+        await deliverySlotService.update(editingSlot.id, formSlot);
+      } else {
+        await deliverySlotService.create(formSlot);
+      }
+      setEditingSlot(null);
+      setIsCreatingSlot(false);
+      loadSlots();
+    } catch (err: any) {
+      alert('Error al guardar la franja horaria: ' + err.message);
+    }
+  };
+
+  const handleDeleteSlot = async (id: string) => {
+    if (window.confirm('¿Estás seguro de eliminar esta franja horaria?')) {
+      try {
+        await deliverySlotService.delete(id);
+        loadSlots();
+      } catch (err: any) {
+        alert('Error al eliminar: ' + err.message);
+      }
+    }
+  };
+
 
   // Form State for Zone
   const [formZone, setFormZone] = useState({
@@ -173,6 +252,11 @@ export function ZonesView() {
             ➕ Agregar Nueva Zona
           </button>
         )}
+        {activeTab === 'slots' && (
+          <button className="btn btn-primary" onClick={handleOpenCreateSlot}>
+            ➕ Agregar Franja Horaria
+          </button>
+        )}
       </div>
 
       {/* Tabs */}
@@ -205,9 +289,25 @@ export function ZonesView() {
           }}
           onClick={() => setActiveTab('schedules')}
         >
-          📅 Horarios y Calendarios de Sucursal
+          📅 Horarios de Sucursal
+        </button>
+        <button 
+          style={{ 
+            padding: '12px 24px', 
+            fontWeight: '600', 
+            fontSize: '14px', 
+            border: 'none', 
+            background: 'none', 
+            borderBottom: activeTab === 'slots' ? '3px solid var(--accent-color)' : 'none', 
+            color: activeTab === 'slots' ? 'var(--accent-color)' : 'var(--text-secondary)',
+            cursor: 'pointer' 
+          }}
+          onClick={() => setActiveTab('slots')}
+        >
+          🕒 Franjas Horarias de Entrega
         </button>
       </div>
+
 
       {/* VIEW 1: Zonas de Entrega */}
       {activeTab === 'zones' && (
@@ -620,6 +720,164 @@ export function ZonesView() {
           </div>
         </div>
       )}
+
+      {/* VIEW 3: Franjas Horarias de Entrega (Etapa 7) */}
+      {activeTab === 'slots' && (
+        <div className="card-wrapper">
+          <div className="table-container">
+            <table className="admin-table">
+              <thead>
+                <tr>
+                  <th>Nombre</th>
+                  <th>Hora de Inicio</th>
+                  <th>Hora de Fin</th>
+                  <th>Capacidad Máxima (Pedidos)</th>
+                  <th>Estado</th>
+                  <th className="text-right">Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {slots.map(s => (
+                  <tr key={s.id}>
+                    <td style={{ fontWeight: 'bold' }}>{s.nombre}</td>
+                    <td>{s.hora_inicio} hs</td>
+                    <td>{s.hora_fin} hs</td>
+                    <td>
+                      {s.max_pedidos ? (
+                        <span className="badge badge-neutral">{s.max_pedidos} pedidos</span>
+                      ) : (
+                        <span className="badge badge-neutral" style={{ color: '#64748b' }}>Sin límite</span>
+                      )}
+                    </td>
+                    <td>
+                      <span className={`badge ${s.activo ? 'badge-success' : 'badge-error'}`}>
+                        {s.activo ? 'Activa' : 'Desactivada'}
+                      </span>
+                    </td>
+                    <td className="text-right">
+                      <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                        <button className="btn btn-secondary" onClick={() => handleOpenEditSlot(s)} style={{ padding: '6px 12px', fontSize: '12px' }}>
+                          ✏️ Editar
+                        </button>
+                        <button 
+                          className="btn" 
+                          onClick={() => handleDeleteSlot(s.id)} 
+                          style={{ 
+                            padding: '6px 12px', 
+                            fontSize: '12px', 
+                            backgroundColor: '#ef4444', 
+                            color: 'white', 
+                            border: 'none', 
+                            borderRadius: '4px', 
+                            cursor: 'pointer' 
+                          }}
+                        >
+                          🗑️ Eliminar
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+                {slots.length === 0 && (
+                  <tr>
+                    <td colSpan={6} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-disabled)' }}>
+                      No se encontraron franjas horarias cargadas.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Crear / Editar Franja Horaria (Etapa 7) */}
+      {(isCreatingSlot || editingSlot) && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: '500px' }}>
+            <form onSubmit={handleSaveSlot}>
+              <div className="modal-header">
+                <h2 className="card-title">
+                  {editingSlot ? 'Editar Franja Horaria' : 'Nueva Franja Horaria de Entrega'}
+                </h2>
+                <button type="button" className="btn-close" onClick={() => { setIsCreatingSlot(false); setEditingSlot(null); }}>✕</button>
+              </div>
+              <div className="modal-body">
+                
+                <div className="form-group" style={{ marginBottom: '16px' }}>
+                  <label className="form-label">Nombre de la Franja</label>
+                  <input 
+                    type="text" 
+                    className="form-input" 
+                    placeholder="Ej: Mañana, Tarde, Mediodía"
+                    value={formSlot.nombre}
+                    onChange={e => setFormSlot({ ...formSlot, nombre: e.target.value })}
+                    required
+                  />
+                </div>
+
+                <div className="form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+                  <div className="form-group">
+                    <label className="form-label">Hora Inicio (HH:MM)</label>
+                    <input 
+                      type="text" 
+                      className="form-input" 
+                      placeholder="08:00"
+                      value={formSlot.hora_inicio}
+                      onChange={e => setFormSlot({ ...formSlot, hora_inicio: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Hora Fin (HH:MM)</label>
+                    <input 
+                      type="text" 
+                      className="form-input" 
+                      placeholder="12:00"
+                      value={formSlot.hora_fin}
+                      onChange={e => setFormSlot({ ...formSlot, hora_fin: e.target.value })}
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px', alignItems: 'center' }}>
+                  <div className="form-group">
+                    <label className="form-label">Límite de Pedidos</label>
+                    <input 
+                      type="number" 
+                      className="form-input" 
+                      placeholder="Ej: 10"
+                      value={formSlot.max_pedidos || ''}
+                      onChange={e => setFormSlot({ ...formSlot, max_pedidos: parseInt(e.target.value) || 0 })}
+                      min="1"
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Estado</label>
+                    <select 
+                      className="form-select"
+                      value={formSlot.activo ? 'true' : 'false'}
+                      onChange={e => setFormSlot({ ...formSlot, activo: e.target.value === 'true' })}
+                    >
+                      <option value="true">Activa / Habilitada</option>
+                      <option value="false">Desactivada</option>
+                    </select>
+                  </div>
+                </div>
+
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => { setIsCreatingSlot(false); setEditingSlot(null); }}>Cancelar</button>
+                <button type="submit" className="btn btn-primary">
+                  {editingSlot ? 'Guardar Cambios' : 'Crear Franja'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+

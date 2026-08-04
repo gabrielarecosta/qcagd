@@ -48,11 +48,15 @@ interface AdminStore {
   schedules: BranchSchedule[];
   notifications: InternalNotification[];
   payments: PaymentLog[];
+  superOffers: any[];
+  drivers: any[];
+  globalMinOrderAmount: number;
 
   // Acciones globales
   setActiveBranchId: (id: string | 'all') => void;
   setCurrentUser: (user: InternalUser | null) => void;
-  fetchData: () => Promise<void>;
+  fetchData: (silent?: boolean) => Promise<void>;
+  updateGlobalMinOrderAmount: (amount: number) => Promise<void>;
   
   // Sucursales
   updateBranch: (id: string, updates: Partial<Branch>) => Promise<void>;
@@ -65,11 +69,12 @@ interface AdminStore {
   // Usuarios
   updateUser: (id: string, updates: Partial<InternalUser>) => Promise<void>;
   createUser: (user: Omit<InternalUser, 'id'>) => Promise<void>;
+  deleteUser: (id: string) => Promise<void>;
   
   // Productos & Stock
   updateProduct: (id: string, updates: Partial<Product> & { dolarizado?: boolean; precio_usd?: number }) => Promise<void>;
   createProduct: (product: Omit<Product, 'id'> & { dolarizado?: boolean; precio_usd?: number }, initialStock: Record<string, number>) => Promise<void>;
-  updateBranchStock: (productId: string, branchId: string, stock: number, stockMinimo: number) => Promise<void>;
+  updateBranchStock: (productId: string, branchId: string, stock: number, stockMinimo: number, reason?: string) => Promise<void>;
   bulkReplaceCatalog: (newProducts: Product[], branchId: string, rowStocks: any, fileName: string) => Promise<void>;
   bulkUpdateExistingCatalog: (updatedProducts: Product[], branchId: string, rowStocks: any, fileName: string) => Promise<void>;
   bulkAddNewCatalog: (newProducts: Product[], branchId: string, rowStocks: any, fileName: string) => Promise<void>;
@@ -105,6 +110,8 @@ interface AdminStore {
   // Notificaciones
   markNotificationRead: (id: string) => Promise<void>;
   markAllNotificationsRead: () => Promise<void>;
+  createSuperOffer: (offer: any, items: any[]) => Promise<void>;
+  deleteSuperOffer: (id: string) => Promise<void>;
 }
 
 export const useAdminStore = create<AdminStore>((set, get) => ({
@@ -124,12 +131,15 @@ export const useAdminStore = create<AdminStore>((set, get) => ({
   schedules: [],
   notifications: [],
   payments: [],
+  superOffers: [],
+  drivers: [],
+  globalMinOrderAmount: 0,
 
   setActiveBranchId: (id) => set({ activeBranchId: id }),
   setCurrentUser: (user) => set({ currentUser: user }),
 
-  fetchData: async () => {
-    set({ isLoading: true });
+  fetchData: async (silent = false) => {
+    if (!silent) set({ isLoading: true });
     try {
       const [
         branches,
@@ -140,7 +150,8 @@ export const useAdminStore = create<AdminStore>((set, get) => ({
         orders,
         deliveries,
         payments,
-        notifications
+        notifications,
+        superOffers
       ] = await Promise.all([
         branchService.getAll(),
         sectorService.getAll(),
@@ -150,7 +161,8 @@ export const useAdminStore = create<AdminStore>((set, get) => ({
         orderService.getAll(),
         deliveryService.getAll(),
         paymentService.getAll(),
-        notificationService.getAll()
+        notificationService.getAll(),
+        productService.getSuperOffers()
       ]);
 
       // Load stocks directly
@@ -189,6 +201,35 @@ export const useAdminStore = create<AdminStore>((set, get) => ({
 
       const schedules = schedData ? (schedData.value as BranchSchedule[]) : [];
 
+      const { data: minAmountData } = await supabase
+        .from('app_config')
+        .select('value')
+        .eq('key', 'global_order_min_amount')
+        .maybeSingle();
+
+      const globalMinOrderAmount = minAmountData && minAmountData.value && typeof minAmountData.value === 'object' && 'amount' in minAmountData.value
+        ? Number((minAmountData.value as any).amount || 0)
+        : 0;
+
+      // Cargar repartidores desde la tabla drivers (con datos del perfil)
+      const { data: driversData } = await supabase
+        .from('drivers')
+        .select('id, vehiculo_info, activo, profiles(nombre, email, telefono, branch_id)');
+
+      const drivers = (driversData || []).map((d: any) => {
+        const p = d.profiles || {};
+        return {
+          id: d.id,
+          nombre: p.nombre || 'Chofer sin nombre',
+          email: p.email || '',
+          rol: 'repartidor',
+          branchId: p.branch_id || undefined,
+          activo: d.activo,
+          telefono: p.telefono || '',
+          vehiculo: d.vehiculo_info || '',
+        };
+      });
+
       set({
         branches,
         sectors,
@@ -202,6 +243,9 @@ export const useAdminStore = create<AdminStore>((set, get) => ({
         schedules,
         payments,
         notifications,
+        superOffers,
+        drivers,
+        globalMinOrderAmount,
         isLoading: false
       });
     } catch (e) {
@@ -240,25 +284,31 @@ export const useAdminStore = create<AdminStore>((set, get) => ({
     await get().fetchData();
   },
 
+  deleteUser: async (id) => {
+    const userEmail = get().currentUser?.email || 'admin@quimicadeheza.com';
+    await userService.delete(id, userEmail);
+    await get().fetchData();
+  },
+
   updateProduct: async (id, updates) => {
     // Configurar variables en base de datos para auditoría
     const userEmail = get().currentUser?.email || 'admin@quimicadeheza.com';
     await supabase.rpc('set_config', { placeholder: 'app.current_user_email', value: userEmail, is_local: false });
 
     await productService.update(id, updates);
-    await get().fetchData();
+    await get().fetchData(true);
   },
 
   createProduct: async (product, initialStock) => {
     const userEmail = get().currentUser?.email || 'admin@quimicadeheza.com';
     await productService.create(product, initialStock, userEmail);
-    await get().fetchData();
+    await get().fetchData(true);
   },
 
-  updateBranchStock: async (productId, branchId, stock, stockMinimo) => {
+  updateBranchStock: async (productId, branchId, stock, stockMinimo, reason) => {
     const userEmail = get().currentUser?.email || 'admin@quimicadeheza.com';
-    await productService.updateStock(productId, branchId, stock, stockMinimo, userEmail);
-    await get().fetchData();
+    await productService.updateStock(productId, branchId, stock, stockMinimo, userEmail, reason);
+    await get().fetchData(true);
   },
 
   bulkReplaceCatalog: async (newProducts, branchId, rowStocks, fileName) => {
@@ -497,6 +547,7 @@ export const useAdminStore = create<AdminStore>((set, get) => ({
         .update({ estado: 'error', errores: { message: (err as Error).message } })
         .eq('id', imp.id);
       throw err;
+    }
   },
 
   checkFileHashExists: async (hash) => {
@@ -519,7 +570,7 @@ export const useAdminStore = create<AdminStore>((set, get) => ({
   confirmImport: async (importId, branchId) => {
     const userEmail = get().currentUser?.email || 'admin@quimicadeheza.com';
     const result = await productService.confirmImport(importId, branchId, userEmail);
-    await get().fetchData();
+    await get().fetchData(true);
     return result;
   },
 
@@ -609,7 +660,7 @@ export const useAdminStore = create<AdminStore>((set, get) => ({
   updateZone: async (id, updates) => {
     const dbUpdates = {
       nombre: updates.nombre,
-      descripcion: updates.descripcion,
+      descripcion: (updates as any).descripcion,
       branch_id: updates.branchId,
       activo: updates.activo,
       costo_envio: updates.costoEnvio,
@@ -630,18 +681,19 @@ export const useAdminStore = create<AdminStore>((set, get) => ({
   },
 
   createZone: async (zone) => {
-    const zoneId = zone.id || `zone-${Date.now()}`;
+    const zoneId = (zone as any).id || `zone-${Date.now()}`;
     const dbInsert = {
       id: zoneId,
       branch_id: zone.branchId,
       nombre: zone.nombre,
-      descripcion: zone.descripcion,
+      descripcion: (zone as any).descripcion,
       activo: zone.activo ?? true,
       costo_envio: zone.costoEnvio,
       pedido_minimo: zone.pedidoMinimo,
       dias_reparto: zone.diasReparto,
       horario_entrega: zone.horarioEntrega,
     };
+
 
     const { error } = await supabase
       .from('delivery_zones')
@@ -697,5 +749,28 @@ export const useAdminStore = create<AdminStore>((set, get) => ({
     const branchId = get().activeBranchId;
     await notificationService.markAllAsRead(branchId === 'all' ? undefined : branchId);
     await get().fetchData();
+  },
+
+  createSuperOffer: async (offer, items) => {
+    await productService.createSuperOffer(offer, items);
+    await get().fetchData(true);
+  },
+
+  deleteSuperOffer: async (id) => {
+    await productService.deleteSuperOffer(id);
+    await get().fetchData(true);
+  },
+
+  updateGlobalMinOrderAmount: async (amount) => {
+    const { error } = await supabase
+      .from('app_config')
+      .upsert({
+        key: 'global_order_min_amount',
+        value: { amount: Number(amount) },
+        updated_by: get().currentUser?.email || 'admin@quimicadeheza.com',
+        updated_at: new Date().toISOString(),
+      });
+    if (error) throw error;
+    await get().fetchData(true);
   }
 }));

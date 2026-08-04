@@ -1,15 +1,18 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import logoImg from './assets/logo.png';
 import { useAdminStore } from './store/adminStore';
+import { supabase } from '@shared/services';
 
 import { DashboardView } from './views/DashboardView';
 import { BranchesView } from './views/BranchesView';
 import { SectorsView } from './views/SectorsView';
 import { ProductsView } from './views/ProductsView';
+import { SuperOffersView } from './views/SuperOffersView';
 import { ExcelImportView } from './views/ExcelImportView';
 import { ClientsView } from './views/ClientsView';
 import { OrdersView } from './views/OrdersView';
 import { DeliveriesView } from './views/DeliveriesView';
+import { LogisticsView } from './views/LogisticsView';
 import { ZonesView } from './views/ZonesView';
 import { PaymentsView } from './views/PaymentsView';
 import { ClientConfigView } from './views/ClientConfigView';
@@ -17,20 +20,24 @@ import { UsersView } from './views/UsersView';
 import { ReportsView } from './views/ReportsView';
 import { LoginView } from './views/LoginView';
 
+
 type TabType = 
   | 'dashboard'
   | 'branches'
   | 'sectors'
   | 'products'
+  | 'superoffers'
   | 'excel'
   | 'clients'
   | 'orders'
   | 'deliveries'
+  | 'logistics'
   | 'zones'
   | 'payments'
   | 'clientConfig'
   | 'users'
   | 'reports';
+
 
 const getSidebarIcon = (id: TabType) => {
   const props = {
@@ -74,7 +81,16 @@ const getSidebarIcon = (id: TabType) => {
           <circle cx="18.5" cy="18.5" r="2.5"/>
         </svg>
       );
+    case 'logistics':
+      return (
+        <svg {...props}>
+          <polyline points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21" />
+          <line x1="9" y1="3" x2="9" y2="18" />
+          <line x1="15" y1="6" x2="15" y2="21" />
+        </svg>
+      );
     case 'payments':
+
       return (
         <svg {...props}>
           <rect x="2" y="4" width="20" height="16" rx="2" ry="2"/>
@@ -159,10 +175,9 @@ const getSidebarIcon = (id: TabType) => {
   }
 };
 
-import { useEffect } from 'react';
-
 function App() {
   const [activeTab, setActiveTab] = useState<TabType>('dashboard');
+  const [productFilter, setProductFilter] = useState<'all' | 'no-photo'>('all');
   const [showNotifications, setShowNotifications] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -185,6 +200,27 @@ function App() {
 
   useEffect(() => {
     fetchData();
+
+    // Polling de seguridad de 8 segundos
+    const interval = setInterval(() => {
+      fetchData(true);
+    }, 8000);
+
+    // Suscripción Supabase Realtime
+    const channel = supabase
+      .channel('admin-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
+        fetchData(true);
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'customers' }, () => {
+        fetchData(true);
+      })
+      .subscribe();
+
+    return () => {
+      clearInterval(interval);
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const unreadNotifications = useMemo(() => {
@@ -257,9 +293,12 @@ function App() {
     { id: 'dashboard', label: 'Dashboard', group: 'Operaciones' },
     { id: 'orders', label: 'Monitor Pedidos', group: 'Operaciones' },
     { id: 'deliveries', label: 'Hojas de Ruta', group: 'Operaciones' },
+    { id: 'logistics', label: 'Planificar Reparto', group: 'Operaciones' },
     { id: 'payments', label: 'Caja / Pagos', group: 'Operaciones' },
+
     
     { id: 'products', label: 'Catálogo Artículos', group: 'Catálogo & Clientes' },
+    { id: 'superoffers', label: '🔥 Súper Ofertas', group: 'Catálogo & Clientes' },
     { id: 'excel', label: 'Cargar desde Excel', group: 'Catálogo & Clientes' },
     { id: 'clients', label: 'Directorio Clientes', group: 'Catálogo & Clientes' },
     
@@ -275,13 +314,28 @@ function App() {
   const renderActiveView = () => {
     switch (activeTab) {
       case 'dashboard':
-        return <DashboardView onNavigate={setActiveTab} />;
+        return (
+          <DashboardView 
+            onNavigate={(tab) => {
+              setActiveTab(tab);
+              if (tab !== 'products') {
+                setProductFilter('all');
+              }
+            }} 
+            onFilterProductsNoPhoto={() => {
+              setProductFilter('no-photo');
+              setActiveTab('products');
+            }}
+          />
+        );
       case 'branches':
         return <BranchesView />;
       case 'sectors':
         return <SectorsView />;
       case 'products':
-        return <ProductsView />;
+        return <ProductsView initialFilter={productFilter} onResetFilter={() => setProductFilter('all')} />;
+      case 'superoffers':
+        return <SuperOffersView />;
       case 'excel':
         return <ExcelImportView />;
       case 'clients':
@@ -290,10 +344,13 @@ function App() {
         return <OrdersView />;
       case 'deliveries':
         return <DeliveriesView />;
+      case 'logistics':
+        return <LogisticsView />;
       case 'zones':
         return <ZonesView />;
       case 'payments':
         return <PaymentsView />;
+
       case 'clientConfig':
         return <ClientConfigView />;
       case 'users':
@@ -301,7 +358,20 @@ function App() {
       case 'reports':
         return <ReportsView />;
       default:
-        return <DashboardView />;
+        return (
+          <DashboardView 
+            onNavigate={(tab) => {
+              setActiveTab(tab);
+              if (tab !== 'products') {
+                setProductFilter('all');
+              }
+            }} 
+            onFilterProductsNoPhoto={() => {
+              setProductFilter('no-photo');
+              setActiveTab('products');
+            }}
+          />
+        );
     }
   };
 
