@@ -37,6 +37,7 @@ export default defineConfig({
     })
   ],
   resolve: {
+    dedupe: ['@supabase/supabase-js'],
     alias: {
       '@': path.resolve(__dirname, './src'),
       '@shared': path.resolve(__dirname, '../shared'),
