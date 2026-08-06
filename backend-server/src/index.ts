@@ -180,6 +180,16 @@ const calculateRouteSchema = z.object({
 // ENDPOINTS
 // ------------------------------------------------------------
 
+// GET /health
+app.get('/health', (_req: Request, res: Response): void => {
+  res.status(200).json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    uptime: Math.floor(process.uptime()),
+    environment: process.env.NODE_ENV || 'development',
+  });
+});
+
 // 1. GET /api/geocoding/autocomplete
 app.get('/api/geocoding/autocomplete', authMiddleware, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const { text } = req.query;
