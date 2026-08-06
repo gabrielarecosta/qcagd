@@ -1,0 +1,34 @@
+{
+  "expo": {
+    "name": "QuimicaApp",
+    "slug": "quimicaapp",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "scheme": "quimicaapp",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.quimica.app"
+    },
+    "android": {
+      "package": "com.quimica.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#1A56DB",
+        "foregroundImage": "./assets/adaptive-icon.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "bundler": "metro",
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-status-bar"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

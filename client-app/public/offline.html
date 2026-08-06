@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Química General Deheza - Sin conexión</title>
+  <style>
+    :root {
+      --bg-color: #0f172a;
+      --card-bg: #1e293b;
+      --text-primary: #f8fafc;
+      --text-secondary: #94a3b8;
+      --primary: #0284c7;
+      --success: #22c55e;
+      --border: #334155;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: var(--bg-color);
+      color: var(--text-primary);
+      margin: 0;
+      padding: 24px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      box-sizing: border-box;
+    }
+    .container {
+      max-width: 440px;
+      width: 100%;
+      background-color: var(--card-bg);
+      border-radius: 20px;
+      border: 1px solid var(--border);
+      padding: 32px 24px;
+      text-align: center;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.3);
+    }
+    .icon {
+      font-size: 64px;
+      margin-bottom: 16px;
+      display: inline-block;
+      animation: pulse 2s infinite ease-in-out;
+    }
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.1); }
+    }
+    h1 {
+      font-size: 24px;
+      font-weight: 800;
+      margin: 0 0 12px 0;
+      color: var(--text-primary);
+      letter-spacing: -0.5px;
+    }
+    p {
+      font-size: 15px;
+      color: var(--text-secondary);
+      line-height: 1.6;
+      margin: 0 0 28px 0;
+    }
+    .contacts-box {
+      background-color: rgba(15, 23, 42, 0.4);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+      text-align: left;
+      margin-bottom: 28px;
+    }
+    .contact-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 12px;
+      font-size: 14px;
+    }
+    .contact-item:last-child {
+      margin-bottom: 0;
+    }
+    .contact-icon {
+      font-size: 20px;
+    }
+    .contact-label {
+      color: var(--text-secondary);
+      font-weight: 500;
+    }
+    .contact-value {
+      color: var(--text-primary);
+      font-weight: 600;
+      margin-left: auto;
+    }
+    .btn {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 8px;
+      width: 100%;
+      padding: 14px;
+      border-radius: 12px;
+      font-size: 15px;
+      font-weight: 700;
+      border: none;
+      cursor: pointer;
+      box-sizing: border-box;
+      transition: opacity 0.2s, transform 0.1s;
+      text-decoration: none;
+    }
+    .btn:active {
+      transform: scale(0.98);
+    }
+    .btn-primary {
+      background-color: var(--primary);
+      color: white;
+      margin-bottom: 12px;
+    }
+    .btn-success {
+      background-color: var(--success);
+      color: white;
+    }
+    .btn-outline {
+      background-color: transparent;
+      border: 1.5px solid var(--border);
+      color: var(--text-primary);
+      margin-top: 16px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="icon">📡</div>
+    <h1>Sin conexión a Internet</h1>
+    <p>Parece que tu dispositivo no está conectado a la red. Podés reintentar cargar la app o comunicarte directamente con nosotros para realizar tu pedido.</p>
+    
+    <div class="contacts-box">
+      <div class="contact-item">
+        <span class="contact-icon">📞</span>
+        <span class="contact-label">Teléfono:</span>
+        <span class="contact-value">+54 358 4123456</span>
+      </div>
+      <div class="contact-item">
+        <span class="contact-icon">📍</span>
+        <span class="contact-label">Dirección:</span>
+        <span class="contact-value">Bv. Belgrano 450</span>
+      </div>
+    </div>
+
+    <button class="btn btn-primary" onclick="window.location.reload()">🔄 Reintentar Cargar</button>
+    <a href="https://wa.me/5493584123456?text=Hola!%20Estoy%20sin%20conexión%20pero%20quiero%20hacer%20un%20pedido" class="btn btn-success">
+      💬 Comprar por WhatsApp
+    </a>
+  </div>
+</body>
+</html>

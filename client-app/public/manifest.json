@@ -1,0 +1,29 @@
+{
+  "short_name": "Química Deheza",
+  "name": "Química Deheza - Gestión y Distribución",
+  "description": "Sistema de distribución de artículos de limpieza e industriales de Química Deheza.",
+  "icons": [
+    {
+      "src": "/favicon.png",
+      "sizes": "64x64",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-192.png",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "/",
+  "display": "standalone",
+  "theme_color": "#1A56DB",
+  "background_color": "#ffffff",
+  "orientation": "portrait"
+}
