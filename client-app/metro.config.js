@@ -2,19 +2,21 @@ const { getDefaultConfig } = require('expo/metro-config');
 const path = require('path');
 
 const projectRoot = __dirname;
-const sharedRoot = path.resolve(projectRoot, '../shared');
+const workspaceRoot = path.resolve(projectRoot, '..');
+const sharedRoot = path.resolve(workspaceRoot, 'shared');
 
 const config = getDefaultConfig(projectRoot);
 
-// Permite que Metro acceda a la carpeta compartida.
-config.watchFolders = [sharedRoot];
+// Hace visible todo el repositorio a Metro, incluida la carpeta shared.
+config.watchFolders = [workspaceRoot];
 
-// Permite que los archivos de shared usen las dependencias de client-app.
+// Permite resolver dependencias tanto desde client-app como desde la raíz.
 config.resolver.nodeModulesPaths = [
   path.resolve(projectRoot, 'node_modules'),
+  path.resolve(workspaceRoot, 'node_modules'),
 ];
 
-// Traduce @shared/... a la ubicación real ../shared/...
+// Traduce @shared/... a QUIMICA/shared/...
 config.resolver.resolveRequest = (context, moduleName, platform) => {
   if (moduleName.startsWith('@shared/')) {
     const relativePath = moduleName.replace('@shared/', '');
