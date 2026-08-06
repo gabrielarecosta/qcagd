@@ -7,7 +7,7 @@ const workspaceRoot = path.resolve(projectRoot, '..');
 const sharedRoot = path.resolve(workspaceRoot, 'shared');
 
 const config = getDefaultConfig(projectRoot);
-
+config.projectRoot = workspaceRoot;
 config.watchFolders = [workspaceRoot];
 
 config.resolver.nodeModulesPaths = [
