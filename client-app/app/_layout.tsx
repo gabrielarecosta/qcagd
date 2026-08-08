@@ -8,11 +8,10 @@ import { useNotificationStore } from '../store/useNotificationStore';
 import { useAuthStore } from '../store/authStore';
 import { customAlert } from '../utils/alert';
 import { useFonts } from 'expo-font';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts({
-    ...MaterialCommunityIcons.font,
+    MaterialCommunityIcons: require('../assets/fonts/MaterialCommunityIcons.ttf'),
   });
   const isLoggedIn = useAuthStore((state) => state.isLoggedIn);
   const logout = useAuthStore((state) => state.logout);
