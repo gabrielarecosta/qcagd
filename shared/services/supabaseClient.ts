@@ -1,55 +1,53 @@
 import { createClient } from '@supabase/supabase-js';
 
-// Detect environment variables dynamically
 let supabaseUrl = '';
 let supabaseAnonKey = '';
 
-// Check if running in a Vite environment
+// Variables del admin-panel (Vite)
 try {
-  // @ts-ignore
-  if (typeof import.meta !== 'undefined' && import.meta.env) {
-    // @ts-ignore
-    supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
-    // @ts-ignore
-    supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+  const viteEnv = (import.meta as any).env;
+
+  if (viteEnv) {
+    supabaseUrl = viteEnv.VITE_SUPABASE_URL || '';
+    supabaseAnonKey = viteEnv.VITE_SUPABASE_ANON_KEY || '';
   }
-} catch (e) {
-  // Silent catch for environments where import.meta is not defined
+} catch {
+  // Expo no utiliza import.meta.env
 }
 
-// Fallback to process.env (Node / Expo / React Native)
-// Se accede indirectamente para evitar que el compilador Babel de Expo intente inyectar módulos virtuales fuera del root del proyecto
-const globalProc = typeof globalThis !== 'undefined' ? (globalThis as any).process : undefined;
-if (!supabaseUrl && globalProc) {
-  const env = globalProc.env || {};
-  supabaseUrl = env.EXPO_PUBLIC_SUPABASE_URL || env.VITE_SUPABASE_URL || '';
-  supabaseAnonKey = env.EXPO_PUBLIC_SUPABASE_ANON_KEY || env.VITE_SUPABASE_ANON_KEY || '';
+// Variables del client-app (Expo)
+if (!supabaseUrl) {
+  // @ts-ignore Expo reemplaza esta variable durante el build
+  supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
 }
 
+if (!supabaseAnonKey) {
+  // @ts-ignore Expo reemplaza esta variable durante el build
+  supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
+}
 
-// Default fallbacks for testing/initial dev to prevent application crashes
+// Detener la aplicación si faltan variables.
+// No usamos credenciales placeholder porque ocultarían el problema.
 if (!supabaseUrl || !supabaseAnonKey) {
-  console.warn(
-    '⚠️ Supabase credentials missing. Please set VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY (Vite) ' +
-    'or EXPO_PUBLIC_SUPABASE_URL / EXPO_PUBLIC_SUPABASE_ANON_KEY (Expo) in your .env files.'
+  throw new Error(
+    'Faltan las variables de Supabase. ' +
+    'Para admin-panel configurá VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY. ' +
+    'Para client-app configurá EXPO_PUBLIC_SUPABASE_URL y EXPO_PUBLIC_SUPABASE_ANON_KEY.'
   );
-  supabaseUrl = 'https://placeholder-project.supabase.co';
-  supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBsYWNlaG9sZGVyIn0.signature';
 }
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 /**
- * Helper to set session context variables in PostgreSQL for auditing.
- * Since we run on client side directly, we can call a RPC function or run a query
- * to set user session context before performing updates/inserts if needed.
+ * Guarda información del usuario actual para los servicios
+ * y procesos de auditoría.
  */
-export async function setDbUserContext(email: string, actionType = 'manual', criteria = 'User edit') {
+export async function setDbUserContext(
+  email: string,
+  actionType = 'manual',
+  criteria = 'User edit'
+) {
   try {
-    // We execute these settings using a RPC or direct query if permissions allow.
-    // In many Supabase setups, client-side raw SQL EXECUTE is disabled,
-    // so we can fallback to using standard triggers that default to client profile roles.
-    // Here we store it for use in services.
     (supabase as any).currentUserEmail = email;
     (supabase as any).priceChangeType = actionType;
     (supabase as any).priceChangeCriteria = criteria;
