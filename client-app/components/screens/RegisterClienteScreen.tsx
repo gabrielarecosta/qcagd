@@ -14,7 +14,7 @@ import { FontSize, FontWeight } from '../../constants/Typography';
 import { Radius, Spacing } from '../../constants/Spacing';
 import { useAuthStore } from '../../store/authStore';
 import { customAlert } from '../../utils/alert';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import MaterialCommunityIcons from '@/components/icons/MaterialCommunityIcons';
 import { useEntrance } from '../../hooks/useEntrance';
 
 interface RegisterClienteScreenProps {
@@ -162,8 +162,8 @@ export function RegisterClienteScreen({ onBack }: RegisterClienteScreenProps) {
 
         {/* Checkbox Términos y Condiciones */}
         <View style={styles.termsRow}>
-          <TouchableOpacity 
-            style={[styles.checkbox, acceptedTerms && styles.checkboxActive]} 
+          <TouchableOpacity
+            style={[styles.checkbox, acceptedTerms && styles.checkboxActive]}
             onPress={() => setAcceptedTerms(!acceptedTerms)}
             activeOpacity={0.8}
           >
@@ -171,8 +171,8 @@ export function RegisterClienteScreen({ onBack }: RegisterClienteScreenProps) {
           </TouchableOpacity>
           <Text style={styles.termsText}>
             Acepto los{' '}
-            <Text 
-              style={styles.termsLink} 
+            <Text
+              style={styles.termsLink}
               onPress={() => {
                 customAlert(
                   'Términos y Condiciones',

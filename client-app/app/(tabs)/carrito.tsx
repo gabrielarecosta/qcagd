@@ -25,7 +25,7 @@ import { useNotificationStore } from '../../store/useNotificationStore';
 import { CartItem, CATEGORY_ICONS, Order, CustomerAddress } from '../../types';
 import { formatPrice as fmtPrice } from '../../utils/formatters';
 import { Button } from '../../components/ui/Button';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import MaterialCommunityIcons from '@/components/icons/MaterialCommunityIcons';
 import { customAlert } from '../../utils/alert';
 import { offerService } from '@shared/services/offerService';
 import { deliverySlotService } from '@shared/services/deliverySlotService';
@@ -56,25 +56,25 @@ const DELIVERY_OPTIONS: {
   label: string;
   sub: string;
 }[] = [
-  {
-    key: 'reparto',
-    icon: '🚚',
-    label: 'Envío por reparto',
-    sub: 'Lo llevamos a tu domicilio',
-  },
-  {
-    key: 'retiro',
-    icon: '🏪',
-    label: 'Retiro en local',
-    sub: 'Pasás a buscar cuando quieras',
-  },
-  {
-    key: 'whatsapp',
-    icon: '💬',
-    label: 'Coordinar por WhatsApp',
-    sub: 'Te contactamos para coordinar',
-  },
-];
+    {
+      key: 'reparto',
+      icon: '🚚',
+      label: 'Envío por reparto',
+      sub: 'Lo llevamos a tu domicilio',
+    },
+    {
+      key: 'retiro',
+      icon: '🏪',
+      label: 'Retiro en local',
+      sub: 'Pasás a buscar cuando quieras',
+    },
+    {
+      key: 'whatsapp',
+      icon: '💬',
+      label: 'Coordinar por WhatsApp',
+      sub: 'Te contactamos para coordinar',
+    },
+  ];
 
 // El número de WhatsApp y otros datos se cargan dinámicamente desde company_settings en la BD
 
@@ -162,7 +162,7 @@ export default function CarritoScreen() {
       const d = new Date(today);
       d.setDate(today.getDate() + i);
       const dateStr = getArgentinaDate(d);
-      
+
       let label = '';
       if (i === 0) {
         label = `Hoy`;
@@ -171,7 +171,7 @@ export default function CarritoScreen() {
       } else {
         label = getArgentinaDayLabel(d);
       }
-      
+
       list.push({ dateStr, label, rawDate: d });
     }
     return list;
@@ -179,7 +179,7 @@ export default function CarritoScreen() {
 
   const isSlotDisabled = useCallback((slot: any, capacities: Record<string, number>) => {
     if (!slot.activo) return true;
-    
+
     // Validar si es del día de hoy y ya pasó
     const todayStr = getArgentinaDate();
     if (deliveryDate === todayStr) {
@@ -253,12 +253,12 @@ export default function CarritoScreen() {
           })
         );
         setSlotCapacities(capacities);
-        
+
         // Auto-seleccionar primer slot habilitado si el seleccionado ya no es válido
-        const currentSlotIsValid = selectedSlot && 
+        const currentSlotIsValid = selectedSlot &&
           slots.some(s => s.id === selectedSlot.id) &&
           !isSlotDisabled(selectedSlot, capacities);
-          
+
         if (!currentSlotIsValid) {
           const firstAvailable = slots.find(s => !isSlotDisabled(s, capacities));
           setSelectedSlot(firstAvailable || null);
@@ -292,7 +292,7 @@ export default function CarritoScreen() {
   // ── Confirmar pedido ──
   const handleConfirmOrder = useCallback(() => {
     const selectedOption = DELIVERY_OPTIONS.find((o) => o.key === deliveryMethod)!;
-    
+
     // Validar franja horaria requerida para despacho/reparto
     if (deliveryMethod !== 'retiro' && !selectedSlot) {
       customAlert('Horario requerido', 'Por favor, seleccioná una fecha y franja horaria de entrega válidas.');
@@ -300,11 +300,11 @@ export default function CarritoScreen() {
     }
 
     const orderNum = `PED-${String(Math.floor(Math.random() * 9000) + 1000)}`;
-    const paymentLabel = paymentMethod === 'efectivo' 
-      ? 'Efectivo / Contra entrega' 
-      : paymentMethod === 'mercadopago' 
-      ? 'Mercado Pago' 
-      : 'Transferencia Bancaria';
+    const paymentLabel = paymentMethod === 'efectivo'
+      ? 'Efectivo / Contra entrega'
+      : paymentMethod === 'mercadopago'
+        ? 'Mercado Pago'
+        : 'Transferencia Bancaria';
 
     let message =
       `Pedido: ${count} artículo${count !== 1 ? 's' : ''}\n` +
@@ -314,7 +314,7 @@ export default function CarritoScreen() {
 
     if (deliveryMethod !== 'retiro' && selectedSlot) {
       message += `Fecha de Entrega: ${deliveryDate}\n` +
-                 `Horario: ${selectedSlot.nombre} (${selectedSlot.hora_inicio} a ${selectedSlot.hora_fin} hs)\n`;
+        `Horario: ${selectedSlot.nombre} (${selectedSlot.hora_inicio} a ${selectedSlot.hora_fin} hs)\n`;
     }
 
     if (observaciones) {
@@ -367,7 +367,7 @@ export default function CarritoScreen() {
             estado: deliveryMethod === 'whatsapp' ? 'pendiente' : 'en_preparacion',
             observaciones: observaciones || undefined,
             repartidorId: undefined,
-            
+
             // Campos de entrega estructurados
             deliveryDate: deliveryMethod !== 'retiro' ? deliveryDate : undefined,
             deliveryStartTime: deliveryMethod !== 'retiro' ? selectedSlot?.hora_inicio : undefined,
@@ -459,11 +459,11 @@ export default function CarritoScreen() {
   // ──────────────────────────────────────────────────────────────
   if (orderConfirmed) {
     const selectedOption = DELIVERY_OPTIONS.find((o) => o.key === deliveryMethod)!;
-    const paymentLabel = confirmedOrderPaymentMethod === 'efectivo' 
-      ? 'Efectivo / Contra entrega' 
-      : confirmedOrderPaymentMethod === 'mercadopago' 
-      ? 'Mercado Pago' 
-      : 'Transferencia Bancaria';
+    const paymentLabel = confirmedOrderPaymentMethod === 'efectivo'
+      ? 'Efectivo / Contra entrega'
+      : confirmedOrderPaymentMethod === 'mercadopago'
+        ? 'Mercado Pago'
+        : 'Transferencia Bancaria';
 
     const handleSendReceipt = () => {
       const waText = encodeURIComponent(
@@ -532,7 +532,7 @@ export default function CarritoScreen() {
               <View style={styles.confirmedBankCard}>
                 <Text style={styles.bankCardTitle}>🏦 Completar Transferencia</Text>
                 <Text style={styles.bankCardSubtitle}>Transferí el total de {fmtPrice(confirmedOrderTotal)} a la cuenta de la química:</Text>
-                
+
                 <View style={styles.bankCardDetails}>
                   <View style={styles.bankCardRow}><Text style={styles.bankCardLabel}>Banco:</Text><Text style={styles.bankCardVal}>{BANK_DETAILS.banco}</Text></View>
                   <View style={styles.bankCardRow}><Text style={styles.bankCardLabel}>Titular:</Text><Text style={styles.bankCardVal}>{BANK_DETAILS.titular}</Text></View>
@@ -541,8 +541,8 @@ export default function CarritoScreen() {
                   <View style={styles.bankCardRow}><Text style={styles.bankCardLabel}>CUIT:</Text><Text style={styles.bankCardVal}>{BANK_DETAILS.cuit}</Text></View>
                 </View>
 
-                <TouchableOpacity 
-                  style={styles.sendReceiptBtn} 
+                <TouchableOpacity
+                  style={styles.sendReceiptBtn}
                   onPress={handleSendReceipt}
                   activeOpacity={0.85}
                 >
@@ -556,8 +556,8 @@ export default function CarritoScreen() {
               {deliveryMethod === 'reparto'
                 ? 'Te avisamos cuando tu pedido salga para reparto'
                 : deliveryMethod === 'retiro'
-                ? 'Te avisamos cuando esté listo para retirar'
-                : 'Te contactamos por WhatsApp para coordinar'}
+                  ? 'Te avisamos cuando esté listo para retirar'
+                  : 'Te contactamos por WhatsApp para coordinar'}
             </Text>
 
             <View style={styles.confirmedActions}>
@@ -769,7 +769,7 @@ export default function CarritoScreen() {
           {deliveryMethod === 'reparto' && (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Dirección de entrega</Text>
-              
+
               {addresses.length === 0 ? (
                 <View style={{ padding: Spacing.md, borderRadius: Radius.md, backgroundColor: '#f1f5f9' }}>
                   <Text style={{ fontSize: FontSize.md, fontWeight: 'bold', color: Colors.textPrimary }}>
@@ -840,11 +840,11 @@ export default function CarritoScreen() {
           {deliveryMethod !== 'retiro' && (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Horario de entrega</Text>
-              
+
               <Text style={styles.inputLabel}>Fecha de entrega</Text>
-              <ScrollView 
-                horizontal 
-                showsHorizontalScrollIndicator={false} 
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
                 contentContainerStyle={styles.dateSelectorRow}
                 style={{ marginBottom: Spacing.md }}
               >
@@ -894,10 +894,10 @@ export default function CarritoScreen() {
                       >
                         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                            <MaterialCommunityIcons 
-                              name={isSelected ? "clock-check" : "clock-outline"} 
-                              size={18} 
-                              color={isDisabled ? "#94a3b8" : (isSelected ? Colors.primary : Colors.textSecondary)} 
+                            <MaterialCommunityIcons
+                              name={isSelected ? "clock-check" : "clock-outline"}
+                              size={18}
+                              color={isDisabled ? "#94a3b8" : (isSelected ? Colors.primary : Colors.textSecondary)}
                             />
                             <Text style={[
                               styles.slotText,
@@ -940,7 +940,7 @@ export default function CarritoScreen() {
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>¿Cómo abonás?</Text>
             <View style={styles.paymentOptions}>
-              
+
               {/* Opción 1: Efectivo / Contra Entrega */}
               <TouchableOpacity
                 style={[
@@ -950,10 +950,10 @@ export default function CarritoScreen() {
                 onPress={() => setPaymentMethod('efectivo')}
                 activeOpacity={0.8}
               >
-                <MaterialCommunityIcons 
-                  name="cash-multiple" 
-                  size={24} 
-                  color={paymentMethod === 'efectivo' ? Colors.primary : Colors.textSecondary} 
+                <MaterialCommunityIcons
+                  name="cash-multiple"
+                  size={24}
+                  color={paymentMethod === 'efectivo' ? Colors.primary : Colors.textSecondary}
                   style={{ marginRight: 10 }}
                 />
                 <View style={styles.paymentOptionText}>
@@ -995,10 +995,10 @@ export default function CarritoScreen() {
                 onPress={() => setPaymentMethod('mercadopago')}
                 activeOpacity={0.8}
               >
-                <MaterialCommunityIcons 
-                  name="credit-card-outline" 
-                  size={24} 
-                  color={paymentMethod === 'mercadopago' ? Colors.primary : Colors.textSecondary} 
+                <MaterialCommunityIcons
+                  name="credit-card-outline"
+                  size={24}
+                  color={paymentMethod === 'mercadopago' ? Colors.primary : Colors.textSecondary}
                   style={{ marginRight: 10 }}
                 />
                 <View style={styles.paymentOptionText}>
@@ -1030,10 +1030,10 @@ export default function CarritoScreen() {
                 onPress={() => setPaymentMethod('transferencia')}
                 activeOpacity={0.8}
               >
-                <MaterialCommunityIcons 
-                  name="bank" 
-                  size={24} 
-                  color={paymentMethod === 'transferencia' ? Colors.primary : Colors.textSecondary} 
+                <MaterialCommunityIcons
+                  name="bank"
+                  size={24}
+                  color={paymentMethod === 'transferencia' ? Colors.primary : Colors.textSecondary}
                   style={{ marginRight: 10 }}
                 />
                 <View style={styles.paymentOptionText}>
@@ -1204,7 +1204,7 @@ function CartItemRow({
   const { producto, cantidad } = item;
   const promotions = useCartStore((state) => state.promotions);
   const customerType = useAuthStore((state) => state.clientData?.tipoCliente || 'minorista');
-  
+
   const calculation = offerService.calculateFinalPrice(
     producto,
     cantidad,
@@ -1230,7 +1230,7 @@ function CartItemRow({
           <Text style={rowStyles.presentacion}>{producto.presentacion}</Text>
         )}
         <Text style={rowStyles.codigo}>{producto.codigo}</Text>
-        
+
         {calculation.discountPercent > 0 ? (
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
             <Text style={[rowStyles.precioUnit, { textDecorationLine: 'line-through', color: '#94a3b8' }]}>

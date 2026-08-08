@@ -14,7 +14,7 @@ import { FontSize, FontWeight } from '../../constants/Typography';
 import { Radius, Spacing } from '../../constants/Spacing';
 import { useAuthStore } from '../../store/authStore';
 import { customAlert } from '../../utils/alert';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import MaterialCommunityIcons from '@/components/icons/MaterialCommunityIcons';
 import { useEntrance } from '../../hooks/useEntrance';
 
 interface LoginClienteScreenProps {
@@ -115,7 +115,7 @@ export function LoginClienteScreen({ onBack }: LoginClienteScreenProps) {
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView contentContainerStyle={styles.centerContent} keyboardShouldPersistTaps="handled">
-        
+
         {/* Logo animado */}
         <Animated.View style={[styles.logoWrapper, logoAnim.animatedStyle]}>
           <View style={styles.logoBg}>

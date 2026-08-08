@@ -23,7 +23,7 @@ import { useCartStore } from '../../store/cartStore';
 import { getFirstName, formatPrice } from '../../utils/formatters';
 import { useAuthStore } from '../../store/authStore';
 import { CATEGORY_ICONS, CATEGORY_LABELS, ProductCategory, Product, Order } from '../../types';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import MaterialCommunityIcons from '@/components/icons/MaterialCommunityIcons';
 import { useEntrance } from '../../hooks/useEntrance';
 
 const QUICK_CATEGORIES: ProductCategory[] = ['limpieza', 'quimicos', 'perfumeria', 'descartables', 'piscina', 'industrial', 'hogar', 'institucional'];
@@ -177,7 +177,7 @@ export default function HomeScreen() {
   const renderPromotionalBanners = (mode: 'desktop' | 'mobile') => {
     if (banners.length === 0) return null;
     const isDesk = mode === 'desktop';
-    
+
     return (
       <Animated.View style={bannersPromoAnim.animatedStyle}>
         <View style={isDesk ? [styles.bannersSectionDesktop, { width: width, marginLeft: -32, borderRadius: 0 }] : styles.bannersSection}>
@@ -490,7 +490,7 @@ export default function HomeScreen() {
                   <Text style={styles.modalUrgencyText}>🔥 ¡APÚRATE! QUEDAN POCOS COMBOS</Text>
                 </View>
                 <Text style={styles.modalOfferName}>{selectedOfferDetails.nombre}</Text>
-                
+
                 {/* Description info */}
                 {selectedOfferDetails.descripcion ? (
                   <Text style={styles.modalOfferDescText}>{selectedOfferDetails.descripcion}</Text>
@@ -512,7 +512,7 @@ export default function HomeScreen() {
 
                 {/* Products inside the combo */}
                 <Text style={styles.modalProductsTitle}>Productos incluidos en este combo:</Text>
-                
+
                 <View style={styles.modalProductsList}>
                   {(selectedOfferDetails.super_offer_items || []).map((it: any) => {
                     const product = it.products;

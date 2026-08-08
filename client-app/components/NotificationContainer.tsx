@@ -12,7 +12,7 @@ import { useNotificationStore, ToastItem } from '../store/useNotificationStore';
 import { Colors } from '../constants/Colors';
 import { FontSize, FontWeight } from '../constants/Typography';
 import { Radius, Spacing } from '../constants/Spacing';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import MaterialCommunityIcons from '@/components/icons/MaterialCommunityIcons';
 
 const { width } = Dimensions.get('window');
 const IS_MOBILE = width < 768;
@@ -105,7 +105,7 @@ function ToastCard({ item }: { item: ToastItem }) {
           <MaterialCommunityIcons name={theme.icon} size={22} color={theme.color} style={styles.toastIcon} />
           <View style={styles.toastContent}>
             <Text style={styles.toastMessage}>{item.message}</Text>
-            
+
             {/* Acciones */}
             {(item.actionLabel || item.secondaryActionLabel) && (
               <View style={styles.actionRow}>

@@ -7,7 +7,7 @@ import { useCartStore } from '../../store/cartStore';
 import { Badge } from '../../components/ui/Badge';
 import { useAuthStore } from '../../store/authStore';
 import { Radius, Spacing } from '../../constants/Spacing';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import MaterialCommunityIcons from '@/components/icons/MaterialCommunityIcons';
 import { formatPrice as fmtPrice } from '../../utils/formatters';
 
 // Módulos de pantalla para el flujo de autenticación bloqueado
@@ -57,7 +57,7 @@ export default function TabsLayout() {
   const isRepartidor = isLoggedIn && userRole === 'repartidor';
 
   const [authStep, setAuthStep] = useState<'landing' | 'options' | 'login-client' | 'register-client' | 'login-driver'>('landing');
-  
+
   // Animaciones landing
   const buttonOpacity = useRef(new Animated.Value(0)).current;
   const buttonScale = useRef(new Animated.Value(0.92)).current;
@@ -166,7 +166,7 @@ export default function TabsLayout() {
             <View style={desktopStyles.desktopUserArea}>
               {!isRepartidor && (
                 <View style={{ marginRight: 24, position: 'relative', zIndex: 9999 }}>
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     onPress={() => setShowCartPreview(!showCartPreview)}
                     style={desktopStyles.desktopCartIconBtn}
                     activeOpacity={0.7}
@@ -188,7 +188,7 @@ export default function TabsLayout() {
                           <MaterialCommunityIcons name="close" size={18} color={Colors.textSecondary} />
                         </TouchableOpacity>
                       </View>
-                      
+
                       {items.length === 0 ? (
                         <View style={desktopStyles.cartPreviewEmpty}>
                           <Text style={desktopStyles.cartPreviewEmptyText}>Tu carrito está vacío.</Text>
@@ -197,8 +197,8 @@ export default function TabsLayout() {
                         <>
                           <ScrollView style={{ maxHeight: 220 }} contentContainerStyle={{ paddingHorizontal: 12 }}>
                             {items.map((item) => (
-                              <TouchableOpacity 
-                                key={item.producto.id} 
+                              <TouchableOpacity
+                                key={item.producto.id}
                                 style={desktopStyles.cartPreviewItem}
                                 onPress={() => {
                                   setShowCartPreview(false);
@@ -214,13 +214,13 @@ export default function TabsLayout() {
                               </TouchableOpacity>
                             ))}
                           </ScrollView>
-                          
+
                           <View style={desktopStyles.cartPreviewFooter}>
                             <View style={desktopStyles.cartPreviewTotalRow}>
                               <Text style={desktopStyles.cartPreviewTotalLabel}>Total:</Text>
                               <Text style={desktopStyles.cartPreviewTotalVal}>{fmtPrice(totalPrice)}</Text>
                             </View>
-                            <TouchableOpacity 
+                            <TouchableOpacity
                               style={desktopStyles.cartPreviewGoBtn}
                               onPress={() => {
                                 setShowCartPreview(false);
@@ -243,8 +243,8 @@ export default function TabsLayout() {
                   <Text style={desktopStyles.desktopLogoutText}>Salir</Text>
                 </TouchableOpacity>
               ) : (
-                <TouchableOpacity 
-                  onPress={() => router.push({ pathname: '/(tabs)', params: { tab: 'login' } })} 
+                <TouchableOpacity
+                  onPress={() => router.push({ pathname: '/(tabs)', params: { tab: 'login' } })}
                   style={[desktopStyles.desktopLogoutBtn, { borderColor: Colors.primary }]}
                 >
                   <MaterialCommunityIcons name="login" size={16} color={Colors.primary} style={{ marginRight: 6 }} />

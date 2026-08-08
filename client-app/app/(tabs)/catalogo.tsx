@@ -32,7 +32,7 @@ import {
   ALL_PRODUCT_CATEGORIES,
   Product,
 } from '../../types';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import MaterialCommunityIcons from '@/components/icons/MaterialCommunityIcons';
 
 // ──────────────────────────────────────────────────────────────
 // Constantes de layout para getItemLayout (scroll ultra-fluido)
@@ -128,7 +128,7 @@ export default function CatalogoScreen() {
   // Ordenar productos según coincidencia exacta de búsqueda, posesión de foto y criterio seleccionado
   const sortedProducts = useMemo(() => {
     const list = [...filteredProducts];
-    
+
     // Función auxiliar para determinar si tiene imagen válida
     const hasImage = (p: any) => p.imagen && p.imagen.trim() !== '';
 
@@ -137,10 +137,10 @@ export default function CatalogoScreen() {
       if (query.trim()) {
         const qEscaped = query.toLowerCase().trim().replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
         const exactRegex = new RegExp('\\b' + qEscaped + '\\b', 'i');
-        
+
         const aExact = exactRegex.test(a.nombre) || exactRegex.test(a.codigo) ? 1 : 0;
         const bExact = exactRegex.test(b.nombre) || exactRegex.test(b.codigo) ? 1 : 0;
-        
+
         if (aExact !== bExact) {
           return bExact - aExact; // El que es coincidencia exacta va primero
         }
@@ -207,7 +207,7 @@ export default function CatalogoScreen() {
         router.push('/(tabs)/carrito');
       },
       secondaryActionLabel: 'Seguir comprando',
-      onSecondaryAction: () => {},
+      onSecondaryAction: () => { },
     });
   };
 
@@ -246,7 +246,7 @@ export default function CatalogoScreen() {
           <View style={styles.desktopHeaderContent}>
             <View style={styles.desktopLeftSection}>
               <Text style={styles.headerTitle}>Catálogo</Text>
-              
+
               <View style={styles.desktopSearchWrapper}>
                 <SearchBar
                   value={rawQuery}
@@ -298,7 +298,7 @@ export default function CatalogoScreen() {
                 </Text>
               </View>
               {Platform.OS === 'web' && (
-                <TouchableOpacity 
+                <TouchableOpacity
                   onPress={() => router.push('/(tabs)/carrito')}
                   style={styles.mobileHeaderCartBtn}
                   activeOpacity={0.7}
@@ -312,7 +312,7 @@ export default function CatalogoScreen() {
                 </TouchableOpacity>
               )}
             </View>
-            
+
             <View style={styles.mobileSearchRow}>
               <View style={{ flex: 1 }}>
                 <SearchBar
@@ -531,7 +531,7 @@ export default function CatalogoScreen() {
                     </ScrollView>
                   </View>
                 )}
-                
+
                 <Text style={styles.categoryProductsLabel}>Todos los artículos</Text>
               </View>
             ) : (
@@ -568,7 +568,7 @@ export default function CatalogoScreen() {
                     );
                   })}
                 </View>
-                
+
                 <Text style={styles.categoryProductsLabel}>Catálogo Completo</Text>
               </View>
             )

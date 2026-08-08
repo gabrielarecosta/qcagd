@@ -16,7 +16,7 @@ import { FontSize, FontWeight } from '../../constants/Typography';
 import { Radius, Spacing } from '../../constants/Spacing';
 import { useAuthStore } from '../../store/authStore';
 import { customAlert } from '../../utils/alert';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import MaterialCommunityIcons from '@/components/icons/MaterialCommunityIcons';
 import { supabase } from '@shared/services/supabaseClient';
 
 const CAROUSEL_IMAGES = [
@@ -67,7 +67,7 @@ export function DesktopStartScreen() {
   const { loginAsCliente, loginAsRepartidor, lastUsername, sessionExpired } = useAuthStore();
 
   const [tab, setTab] = useState<'login' | 'register'>('login');
-  
+
   // Carousel State
   const [carouselIndex, setCarouselIndex] = useState(0);
   const fadeAnim = useRef(new Animated.Value(1)).current;
@@ -441,11 +441,11 @@ export function DesktopStartScreen() {
                     onPress={() => setLoginRole('cliente')}
                     activeOpacity={0.8}
                   >
-                    <MaterialCommunityIcons 
-                      name="account" 
-                      size={18} 
-                      color={loginRole === 'cliente' ? Colors.primary : '#64748b'} 
-                      style={{ marginRight: 6 }} 
+                    <MaterialCommunityIcons
+                      name="account"
+                      size={18}
+                      color={loginRole === 'cliente' ? Colors.primary : '#64748b'}
+                      style={{ marginRight: 6 }}
                     />
                     <Text style={[styles.roleTabButtonText, loginRole === 'cliente' && styles.roleTabButtonTextActive]}>
                       Cliente
@@ -456,11 +456,11 @@ export function DesktopStartScreen() {
                     onPress={() => setLoginRole('repartidor')}
                     activeOpacity={0.8}
                   >
-                    <MaterialCommunityIcons 
-                      name="truck-delivery" 
-                      size={18} 
-                      color={loginRole === 'repartidor' ? Colors.primary : '#64748b'} 
-                      style={{ marginRight: 6 }} 
+                    <MaterialCommunityIcons
+                      name="truck-delivery"
+                      size={18}
+                      color={loginRole === 'repartidor' ? Colors.primary : '#64748b'}
+                      style={{ marginRight: 6 }}
                     />
                     <Text style={[styles.roleTabButtonText, loginRole === 'repartidor' && styles.roleTabButtonTextActive]}>
                       Repartidor
@@ -658,24 +658,24 @@ export function DesktopStartScreen() {
                 {/* Lista visual de requisitos interactivos */}
                 <View style={styles.pwdRequirementsBox}>
                   <Text style={styles.pwdReqTitle}>Requisitos de la contraseña:</Text>
-                  
+
                   <View style={styles.pwdReqRow}>
-                    <MaterialCommunityIcons 
-                      name={isReqMinLength ? "check-circle" : "checkbox-blank-circle-outline"} 
-                      size={16} 
-                      color={isReqMinLength ? "#10b981" : "#94a3b8"} 
+                    <MaterialCommunityIcons
+                      name={isReqMinLength ? "check-circle" : "checkbox-blank-circle-outline"}
+                      size={16}
+                      color={isReqMinLength ? "#10b981" : "#94a3b8"}
                       style={{ marginRight: 6 }}
                     />
                     <Text style={[styles.pwdReqText, isReqMinLength && styles.pwdReqTextChecked]}>
                       12 caracteres como mínimo.
                     </Text>
                   </View>
-                  
+
                   <View style={styles.pwdReqRow}>
-                    <MaterialCommunityIcons 
-                      name={isReqUpper ? "check-circle" : "checkbox-blank-circle-outline"} 
-                      size={16} 
-                      color={isReqUpper ? "#10b981" : "#94a3b8"} 
+                    <MaterialCommunityIcons
+                      name={isReqUpper ? "check-circle" : "checkbox-blank-circle-outline"}
+                      size={16}
+                      color={isReqUpper ? "#10b981" : "#94a3b8"}
                       style={{ marginRight: 6 }}
                     />
                     <Text style={[styles.pwdReqText, isReqUpper && styles.pwdReqTextChecked]}>
@@ -684,10 +684,10 @@ export function DesktopStartScreen() {
                   </View>
 
                   <View style={styles.pwdReqRow}>
-                    <MaterialCommunityIcons 
-                      name={isReqNum ? "check-circle" : "checkbox-blank-circle-outline"} 
-                      size={16} 
-                      color={isReqNum ? "#10b981" : "#94a3b8"} 
+                    <MaterialCommunityIcons
+                      name={isReqNum ? "check-circle" : "checkbox-blank-circle-outline"}
+                      size={16}
+                      color={isReqNum ? "#10b981" : "#94a3b8"}
                       style={{ marginRight: 6 }}
                     />
                     <Text style={[styles.pwdReqText, isReqNum && styles.pwdReqTextChecked]}>
@@ -696,10 +696,10 @@ export function DesktopStartScreen() {
                   </View>
 
                   <View style={styles.pwdReqRow}>
-                    <MaterialCommunityIcons 
-                      name={isReqSpecial ? "check-circle" : "checkbox-blank-circle-outline"} 
-                      size={16} 
-                      color={isReqSpecial ? "#10b981" : "#94a3b8"} 
+                    <MaterialCommunityIcons
+                      name={isReqSpecial ? "check-circle" : "checkbox-blank-circle-outline"}
+                      size={16}
+                      color={isReqSpecial ? "#10b981" : "#94a3b8"}
                       style={{ marginRight: 6 }}
                     />
                     <Text style={[styles.pwdReqText, isReqSpecial && styles.pwdReqTextChecked]}>
@@ -708,10 +708,10 @@ export function DesktopStartScreen() {
                   </View>
 
                   <View style={styles.pwdReqRow}>
-                    <MaterialCommunityIcons 
-                      name={isReqMaxLength ? "check-circle" : "checkbox-blank-circle-outline"} 
-                      size={16} 
-                      color={isReqMaxLength ? "#10b981" : "#94a3b8"} 
+                    <MaterialCommunityIcons
+                      name={isReqMaxLength ? "check-circle" : "checkbox-blank-circle-outline"}
+                      size={16}
+                      color={isReqMaxLength ? "#10b981" : "#94a3b8"}
                       style={{ marginRight: 6 }}
                     />
                     <Text style={[styles.pwdReqText, isReqMaxLength && styles.pwdReqTextChecked]}>

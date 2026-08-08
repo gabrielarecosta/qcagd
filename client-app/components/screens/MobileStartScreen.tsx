@@ -17,7 +17,7 @@ import { FontSize, FontWeight } from '../../constants/Typography';
 import { Radius, Spacing } from '../../constants/Spacing';
 import { useAuthStore } from '../../store/authStore';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import MaterialCommunityIcons from '@/components/icons/MaterialCommunityIcons';
 import { supabase } from '@shared/services/supabaseClient';
 
 const CAROUSEL_IMAGES = [
@@ -648,7 +648,7 @@ export function MobileStartScreen() {
 
               {/* Sección 4: Contraseñas */}
               <Text style={styles.sectionHeader}>Seguridad</Text>
-              
+
               <View style={styles.ordersMobileField}>
                 <MaterialCommunityIcons name="lock-outline" size={22} color="#94a3b8" style={{ marginRight: 10 }} />
                 <TextInput
@@ -673,24 +673,24 @@ export function MobileStartScreen() {
               {/* Lista visual de requisitos interactivos */}
               <View style={styles.pwdRequirementsBox}>
                 <Text style={styles.pwdReqTitle}>Requisitos de la contraseña:</Text>
-                
+
                 <View style={styles.pwdReqRow}>
-                  <MaterialCommunityIcons 
-                    name={isReqMinLength ? "check-circle" : "checkbox-blank-circle-outline"} 
-                    size={16} 
-                    color={isReqMinLength ? "#10b981" : "#94a3b8"} 
+                  <MaterialCommunityIcons
+                    name={isReqMinLength ? "check-circle" : "checkbox-blank-circle-outline"}
+                    size={16}
+                    color={isReqMinLength ? "#10b981" : "#94a3b8"}
                     style={{ marginRight: 6 }}
                   />
                   <Text style={[styles.pwdReqText, isReqMinLength && styles.pwdReqTextChecked]}>
                     12 caracteres como mínimo.
                   </Text>
                 </View>
-                
+
                 <View style={styles.pwdReqRow}>
-                  <MaterialCommunityIcons 
-                    name={isReqUpper ? "check-circle" : "checkbox-blank-circle-outline"} 
-                    size={16} 
-                    color={isReqUpper ? "#10b981" : "#94a3b8"} 
+                  <MaterialCommunityIcons
+                    name={isReqUpper ? "check-circle" : "checkbox-blank-circle-outline"}
+                    size={16}
+                    color={isReqUpper ? "#10b981" : "#94a3b8"}
                     style={{ marginRight: 6 }}
                   />
                   <Text style={[styles.pwdReqText, isReqUpper && styles.pwdReqTextChecked]}>
@@ -699,10 +699,10 @@ export function MobileStartScreen() {
                 </View>
 
                 <View style={styles.pwdReqRow}>
-                  <MaterialCommunityIcons 
-                    name={isReqNum ? "check-circle" : "checkbox-blank-circle-outline"} 
-                    size={16} 
-                    color={isReqNum ? "#10b981" : "#94a3b8"} 
+                  <MaterialCommunityIcons
+                    name={isReqNum ? "check-circle" : "checkbox-blank-circle-outline"}
+                    size={16}
+                    color={isReqNum ? "#10b981" : "#94a3b8"}
                     style={{ marginRight: 6 }}
                   />
                   <Text style={[styles.pwdReqText, isReqNum && styles.pwdReqTextChecked]}>
@@ -711,10 +711,10 @@ export function MobileStartScreen() {
                 </View>
 
                 <View style={styles.pwdReqRow}>
-                  <MaterialCommunityIcons 
-                    name={isReqSpecial ? "check-circle" : "checkbox-blank-circle-outline"} 
-                    size={16} 
-                    color={isReqSpecial ? "#10b981" : "#94a3b8"} 
+                  <MaterialCommunityIcons
+                    name={isReqSpecial ? "check-circle" : "checkbox-blank-circle-outline"}
+                    size={16}
+                    color={isReqSpecial ? "#10b981" : "#94a3b8"}
                     style={{ marginRight: 6 }}
                   />
                   <Text style={[styles.pwdReqText, isReqSpecial && styles.pwdReqTextChecked]}>
@@ -723,10 +723,10 @@ export function MobileStartScreen() {
                 </View>
 
                 <View style={styles.pwdReqRow}>
-                  <MaterialCommunityIcons 
-                    name={isReqMaxLength ? "check-circle" : "checkbox-blank-circle-outline"} 
-                    size={16} 
-                    color={isReqMaxLength ? "#10b981" : "#94a3b8"} 
+                  <MaterialCommunityIcons
+                    name={isReqMaxLength ? "check-circle" : "checkbox-blank-circle-outline"}
+                    size={16}
+                    color={isReqMaxLength ? "#10b981" : "#94a3b8"}
                     style={{ marginRight: 6 }}
                   />
                   <Text style={[styles.pwdReqText, isReqMaxLength && styles.pwdReqTextChecked]}>

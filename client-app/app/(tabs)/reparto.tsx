@@ -10,7 +10,7 @@ import {
   Image,
   RefreshControl,
 } from 'react-native';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import MaterialCommunityIcons from '@/components/icons/MaterialCommunityIcons';
 import { customAlert } from '../../utils/alert';
 import { Colors } from '../../constants/Colors';
 import { FontSize, FontWeight } from '../../constants/Typography';
@@ -234,7 +234,7 @@ export default function RepartoScreen() {
         .from('delivery_routes')
         .update({ status: 'active', started_at: new Date().toISOString() })
         .eq('id', activeRoute.id);
-      
+
       const firstStop = routeStops.find(s => s.stop_position === 1);
       if (firstStop) {
         await supabase
@@ -242,7 +242,7 @@ export default function RepartoScreen() {
           .update({ status: 'next' })
           .eq('id', firstStop.id);
       }
-      
+
       customAlert('¡Recorrido Iniciado!', 'Comenzaste la hoja de ruta.');
       await fetchActiveRoute();
       await fetchOrders();
@@ -618,7 +618,7 @@ export default function RepartoScreen() {
                         const isCompleted = stop.status === 'delivered';
                         const isFailed = stop.status === 'failed' || stop.status === 'rescheduled';
                         const isCurrent = stop.status === 'next' || stop.status === 'arrived';
-                        
+
                         // Local fallback map for order item products if not fully loaded
                         const orderItemProducts = stop.order?.items || [];
 
@@ -727,7 +727,7 @@ export default function RepartoScreen() {
                                   >
                                     <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 13 }}>🧭 Abrir Navegación GPS</Text>
                                   </TouchableOpacity>
-                                  
+
                                   {customer.telefono && (
                                     <TouchableOpacity
                                       style={{ height: 42, width: 44, backgroundColor: '#f1f5f9', borderRadius: Radius.sm, justifyContent: 'center', alignItems: 'center' }}
@@ -1005,8 +1005,8 @@ export default function RepartoScreen() {
                           {order.repartidorId && (
                             <View style={{ marginTop: Spacing.sm, padding: Spacing.sm, backgroundColor: '#f8fafc', borderRadius: Radius.sm }}>
                               <Text style={{ fontSize: 13, color: '#475569', fontWeight: '500' }}>
-                                {order.repartidorId === repartidorData?.id 
-                                  ? '✔ Está en tu hoja de ruta' 
+                                {order.repartidorId === repartidorData?.id
+                                  ? '✔ Está en tu hoja de ruta'
                                   : `🚚 Asignado a: ${repartidores.find(r => r.id === order.repartidorId)?.nombre || 'Otro repartidor'}`}
                               </Text>
                             </View>
