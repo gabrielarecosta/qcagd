@@ -7,8 +7,13 @@ import { ConfirmationModal } from '../components/ConfirmationModal';
 import { useNotificationStore } from '../store/useNotificationStore';
 import { useAuthStore } from '../store/authStore';
 import { customAlert } from '../utils/alert';
+import { useFonts } from 'expo-font';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 export default function RootLayout() {
+  const [fontsLoaded, fontError] = useFonts({
+    ...MaterialCommunityIcons.font,
+  });
   const isLoggedIn = useAuthStore((state) => state.isLoggedIn);
   const logout = useAuthStore((state) => state.logout);
   const setSessionExpired = useAuthStore((state) => state.setSessionExpired);
@@ -106,7 +111,9 @@ export default function RootLayout() {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
     };
   }, []);
-
+if (!fontsLoaded && !fontError) {
+    return null;
+  }
   return (
     <>
       <StatusBar style="dark" />
