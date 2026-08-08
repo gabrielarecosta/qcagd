@@ -87,7 +87,7 @@ export default function RootLayout() {
     const handleBeforeInstall = (e: any) => {
       e.preventDefault();
       deferredPrompt = e;
-      
+
       useNotificationStore.getState().showToast({
         message: '¡Instalá la App en tu pantalla de inicio!',
         type: 'success',
@@ -111,7 +111,7 @@ export default function RootLayout() {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
     };
   }, []);
-if (!fontsLoaded && !fontError) {
+  if (!fontsLoaded && !fontError) {
     return null;
   }
   return (
