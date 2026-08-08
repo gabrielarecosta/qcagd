@@ -1,42 +1,58 @@
 import { createClient } from '@supabase/supabase-js';
 
 let supabaseUrl = '';
-let supabaseAnonKey = '';
+let supabaseKey = '';
 
-// Variables del admin-panel (Vite)
+// 1. Admin panel: Vite
 try {
   const viteEnv = (import.meta as any).env;
 
   if (viteEnv) {
     supabaseUrl = viteEnv.VITE_SUPABASE_URL || '';
-    supabaseAnonKey = viteEnv.VITE_SUPABASE_ANON_KEY || '';
+    supabaseKey = viteEnv.VITE_SUPABASE_ANON_KEY || '';
   }
 } catch {
-  // Expo no utiliza import.meta.env
+  // No estamos ejecutando dentro de Vite
 }
 
-// Variables del client-app (Expo)
-if (!supabaseUrl) {
+// 2. Client app: Expo
+// Expo exige referencias directas process.env.EXPO_PUBLIC_...
+// para insertar los valores durante el build.
+if (!supabaseUrl && typeof process !== 'undefined') {
   // @ts-ignore Expo reemplaza esta variable durante el build
   supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
 }
 
-if (!supabaseAnonKey) {
+if (!supabaseKey && typeof process !== 'undefined') {
   // @ts-ignore Expo reemplaza esta variable durante el build
-  supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
+  supabaseKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
 }
 
-// Detener la aplicación si faltan variables.
-// No usamos credenciales placeholder porque ocultarían el problema.
-if (!supabaseUrl || !supabaseAnonKey) {
+// 3. Backend: Node.js / Cloudflare Worker con nodejs_compat
+if (!supabaseUrl && typeof process !== 'undefined') {
+  // @ts-ignore Variable disponible solamente en el backend
+  supabaseUrl = process.env.SUPABASE_URL || '';
+}
+
+if (!supabaseKey && typeof process !== 'undefined') {
+  // @ts-ignore Variables disponibles solamente en el backend
+  supabaseKey =
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.SUPABASE_ANON_KEY ||
+    '';
+}
+
+// No usar valores placeholder: si falta algo, mostramos el error real.
+if (!supabaseUrl || !supabaseKey) {
   throw new Error(
-    'Faltan las variables de Supabase. ' +
-    'Para admin-panel configurá VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY. ' +
-    'Para client-app configurá EXPO_PUBLIC_SUPABASE_URL y EXPO_PUBLIC_SUPABASE_ANON_KEY.'
+    'Faltan las variables de Supabase para este entorno. ' +
+      'Admin: VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY. ' +
+      'Cliente: EXPO_PUBLIC_SUPABASE_URL y EXPO_PUBLIC_SUPABASE_ANON_KEY. ' +
+      'Backend: SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY o SUPABASE_ANON_KEY.'
   );
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export const supabase = createClient(supabaseUrl, supabaseKey);
 
 /**
  * Guarda información del usuario actual para los servicios
