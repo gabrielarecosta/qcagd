@@ -7,8 +7,7 @@ import { useCartStore } from '../../store/cartStore';
 import { Badge } from '../../components/ui/Badge';
 import { useAuthStore } from '../../store/authStore';
 import { Radius, Spacing } from '../../constants/Spacing';
-import MaterialCommunityIcons from '@/components/icons/MaterialCommunityIcons';
-import { formatPrice as fmtPrice } from '../../utils/formatters';
+import MaterialCommunityIcons from '../../components/icons/MaterialCommunityIcons';import { formatPrice as fmtPrice } from '../../utils/formatters';
 
 // Módulos de pantalla para el flujo de autenticación bloqueado
 import { LoginClienteScreen } from '../../components/screens/LoginClienteScreen';

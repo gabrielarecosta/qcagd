@@ -10,7 +10,7 @@ import {
 import { Colors } from '../../constants/Colors';
 import { FontSize } from '../../constants/Typography';
 import { Radius, Spacing, TouchTarget } from '../../constants/Spacing';
-import MaterialCommunityIcons from '@/components/icons/MaterialCommunityIcons';
+import MaterialCommunityIcons from '../icons/MaterialCommunityIcons';
 
 interface SearchBarProps {
   value: string;

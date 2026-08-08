@@ -16,7 +16,7 @@ import { formatPrice } from '../utils/formatters';
 import { useCartStore } from '../store/cartStore';
 import { useAuthStore } from '../store/authStore';
 import { CATEGORY_ICONS } from '../types';
-import MaterialCommunityIcons from '@/components/icons/MaterialCommunityIcons';
+import MaterialCommunityIcons from './icons/MaterialCommunityIcons';
 import { useEntrance } from '../hooks/useEntrance';
 
 interface ProductCardProps {

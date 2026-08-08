@@ -32,8 +32,7 @@ import {
   ALL_PRODUCT_CATEGORIES,
   Product,
 } from '../../types';
-import MaterialCommunityIcons from '@/components/icons/MaterialCommunityIcons';
-
+import MaterialCommunityIcons from '../../components/icons/MaterialCommunityIcons';
 // ──────────────────────────────────────────────────────────────
 // Constantes de layout para getItemLayout (scroll ultra-fluido)
 // ──────────────────────────────────────────────────────────────

@@ -6,7 +6,7 @@ import { useAuthStore } from '../../store/authStore';
 // Import modular screens
 import { ClienteAccountScreen } from '../../components/screens/ClienteAccountScreen';
 import { RepartidorHomeScreen } from '../../components/screens/RepartidorHomeScreen';
-
+import MaterialCommunityIcons from '../../components/icons/MaterialCommunityIcons';
 export default function CuentaScreen() {
   const { userRole } = useAuthStore();
 

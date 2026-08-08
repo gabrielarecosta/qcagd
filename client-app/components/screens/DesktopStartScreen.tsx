@@ -16,7 +16,7 @@ import { FontSize, FontWeight } from '../../constants/Typography';
 import { Radius, Spacing } from '../../constants/Spacing';
 import { useAuthStore } from '../../store/authStore';
 import { customAlert } from '../../utils/alert';
-import MaterialCommunityIcons from '@/components/icons/MaterialCommunityIcons';
+import MaterialCommunityIcons from '../icons/MaterialCommunityIcons';
 import { supabase } from '@shared/services/supabaseClient';
 
 const CAROUSEL_IMAGES = [

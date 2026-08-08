@@ -12,7 +12,7 @@ import { useNotificationStore, ToastItem } from '../store/useNotificationStore';
 import { Colors } from '../constants/Colors';
 import { FontSize, FontWeight } from '../constants/Typography';
 import { Radius, Spacing } from '../constants/Spacing';
-import MaterialCommunityIcons from '@/components/icons/MaterialCommunityIcons';
+import MaterialCommunityIcons from './icons/MaterialCommunityIcons';
 
 const { width } = Dimensions.get('window');
 const IS_MOBILE = width < 768;

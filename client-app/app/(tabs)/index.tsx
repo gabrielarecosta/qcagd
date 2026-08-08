@@ -23,8 +23,7 @@ import { useCartStore } from '../../store/cartStore';
 import { getFirstName, formatPrice } from '../../utils/formatters';
 import { useAuthStore } from '../../store/authStore';
 import { CATEGORY_ICONS, CATEGORY_LABELS, ProductCategory, Product, Order } from '../../types';
-import MaterialCommunityIcons from '@/components/icons/MaterialCommunityIcons';
-import { useEntrance } from '../../hooks/useEntrance';
+import MaterialCommunityIcons from '../../components/icons/MaterialCommunityIcons';import { useEntrance } from '../../hooks/useEntrance';
 
 const QUICK_CATEGORIES: ProductCategory[] = ['limpieza', 'quimicos', 'perfumeria', 'descartables', 'piscina', 'industrial', 'hogar', 'institucional'];
 

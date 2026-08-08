@@ -10,8 +10,7 @@ import {
   Image,
   RefreshControl,
 } from 'react-native';
-import MaterialCommunityIcons from '@/components/icons/MaterialCommunityIcons';
-import { customAlert } from '../../utils/alert';
+import MaterialCommunityIcons from '../../components/icons/MaterialCommunityIcons';import { customAlert } from '../../utils/alert';
 import { Colors } from '../../constants/Colors';
 import { FontSize, FontWeight } from '../../constants/Typography';
 import { Radius, Spacing, TouchTarget } from '../../constants/Spacing';
