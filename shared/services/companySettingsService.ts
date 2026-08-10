@@ -7,6 +7,12 @@ export interface CompanySettings {
   telefono: string;
   instagram: string;
   facebook: string;
+  // Datos bancarios para transferencias
+  banco?: string;
+  cbu?: string;
+  alias_cbu?: string;
+  cuit?: string;
+  titular?: string;
 }
 
 export const companySettingsService = {
@@ -25,11 +31,11 @@ export const companySettingsService = {
         console.warn('⚠️ No se pudo obtener la configuración de la base de datos (usando valores predeterminados):', error?.message);
         return {
           id: 'config_main',
-          whatsapp: '5493511234567',
-          direccion: 'Bv. San Martín 123, General Deheza',
-          telefono: '3584123456',
-          instagram: 'quimica_deheza',
-          facebook: 'quimicadeheza',
+          whatsapp: '',
+          direccion: '',
+          telefono: '',
+          instagram: '',
+          facebook: '',
         };
       }
       return data;
@@ -37,11 +43,11 @@ export const companySettingsService = {
       console.error('Error fetching company settings:', e);
       return {
         id: 'config_main',
-        whatsapp: '5493511234567',
-        direccion: 'Bv. San Martín 123, General Deheza',
-        telefono: '3584123456',
-        instagram: 'quimica_deheza',
-        facebook: 'quimicadeheza',
+        whatsapp: '',
+        direccion: '',
+        telefono: '',
+        instagram: '',
+        facebook: '',
       };
     }
   },

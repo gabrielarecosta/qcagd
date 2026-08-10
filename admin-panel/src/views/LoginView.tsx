@@ -23,21 +23,8 @@ export function LoginView() {
 
     // Simulate minor lag for visual transitions & realistic authorization check
     setTimeout(() => {
-      const normalizedUser = username.trim().toLowerCase();
-      if (normalizedUser === 'qca' && password === 'qca') {
-        const adminUser = users.find(u => u.rol === 'admin') || users[0] || {
-          id: 'usr-gabriel',
-          email: 'admin@quimicadeheza.com',
-          nombre: 'Gabriel Areco (Local Fallback)',
-          rol: 'admin',
-          branchId: 'branch-gd1',
-          activo: true,
-        };
-        setCurrentUser(adminUser);
-      } else {
-        setError('Credenciales inválidas. Verifique usuario y contraseña.');
-        setIsLoading(false);
-      }
+      setError('Credenciales inválidas. Verifique usuario y contraseña.');
+      setIsLoading(false);
     }, 700);
   };
 

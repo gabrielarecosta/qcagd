@@ -1,7 +1,7 @@
 export * from './mockBranches';
 export * from './mockSectors';
 export * from './mockUsers';
-export * from './mockClients';
+
 export * from './mockProducts';
 export * from './mockOrders';
 export * from './mockDeliveries';

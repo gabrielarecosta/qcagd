@@ -196,7 +196,7 @@ export const productService = {
           cantidad_modificada: qty,
           tipo_movimiento: 'carga_inicial',
           motivo: 'Carga inicial en creación de producto',
-          usuario_responsable: userMail || 'admin@quimicadeheza.com'
+          usuario_responsable: userMail || ''
         });
       if (stockErr) {
         console.error(`Failed to seed stock for branch ${bId} on product ${productId}:`, stockErr);
@@ -275,7 +275,7 @@ export const productService = {
           cantidad_modificada: diff,
           tipo_movimiento: 'ajuste_manual',
           motivo: reason || 'Ajuste manual de stock desde el panel',
-          usuario_responsable: userMail || 'admin@quimicadeheza.com'
+          usuario_responsable: userMail || ''
         });
       if (moveErr) throw moveErr;
     }
@@ -313,7 +313,7 @@ export const productService = {
       .insert({
         valor_anterior: oldVal,
         valor_nuevo: newVal,
-        usuario_responsable: userMail || 'admin@quimicadeheza.com'
+        usuario_responsable: userMail || ''
       });
     if (error) throw error;
   },

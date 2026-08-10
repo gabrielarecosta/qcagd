@@ -249,7 +249,7 @@ export function ProductsView({
     });
 
     const fileName = `productos_export_${Date.now()}.xlsx`;
-    const userEmail = useAdminStore.getState().currentUser?.email || 'admin@quimicadeheza.com';
+    const userEmail = useAdminStore.getState().currentUser?.email || '';
     
     supabase
       .from('export_history')

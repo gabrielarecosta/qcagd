@@ -285,14 +285,14 @@ export const useAdminStore = create<AdminStore>((set, get) => ({
   },
 
   deleteUser: async (id) => {
-    const userEmail = get().currentUser?.email || 'admin@quimicadeheza.com';
+    const userEmail = get().currentUser?.email || '';
     await userService.delete(id, userEmail);
     await get().fetchData();
   },
 
   updateProduct: async (id, updates) => {
     // Configurar variables en base de datos para auditoría
-    const userEmail = get().currentUser?.email || 'admin@quimicadeheza.com';
+    const userEmail = get().currentUser?.email || '';
     await supabase.rpc('set_config', { placeholder: 'app.current_user_email', value: userEmail, is_local: false });
 
     await productService.update(id, updates);
@@ -300,19 +300,19 @@ export const useAdminStore = create<AdminStore>((set, get) => ({
   },
 
   createProduct: async (product, initialStock) => {
-    const userEmail = get().currentUser?.email || 'admin@quimicadeheza.com';
+    const userEmail = get().currentUser?.email || '';
     await productService.create(product, initialStock, userEmail);
     await get().fetchData(true);
   },
 
   updateBranchStock: async (productId, branchId, stock, stockMinimo, reason) => {
-    const userEmail = get().currentUser?.email || 'admin@quimicadeheza.com';
+    const userEmail = get().currentUser?.email || '';
     await productService.updateStock(productId, branchId, stock, stockMinimo, userEmail, reason);
     await get().fetchData(true);
   },
 
   bulkReplaceCatalog: async (newProducts, branchId, rowStocks, fileName) => {
-    const userEmail = get().currentUser?.email || 'admin@quimicadeheza.com';
+    const userEmail = get().currentUser?.email || '';
     
     // Registrar importación
     const { data: imp, error: impErr } = await supabase
@@ -402,7 +402,7 @@ export const useAdminStore = create<AdminStore>((set, get) => ({
   },
 
   bulkUpdateExistingCatalog: async (updatedProducts, branchId, rowStocks, fileName) => {
-    const userEmail = get().currentUser?.email || 'admin@quimicadeheza.com';
+    const userEmail = get().currentUser?.email || '';
     
     const { data: imp, error: impErr } = await supabase
       .from('imports')
@@ -477,7 +477,7 @@ export const useAdminStore = create<AdminStore>((set, get) => ({
   },
 
   bulkAddNewCatalog: async (newProducts, branchId, rowStocks, fileName) => {
-    const userEmail = get().currentUser?.email || 'admin@quimicadeheza.com';
+    const userEmail = get().currentUser?.email || '';
     
     const { data: imp, error: impErr } = await supabase
       .from('imports')
@@ -555,7 +555,7 @@ export const useAdminStore = create<AdminStore>((set, get) => ({
   },
 
   createStagingImport: async (fileName, fileHash, stagedRowsCount) => {
-    const userEmail = get().currentUser?.email || 'admin@quimicadeheza.com';
+    const userEmail = get().currentUser?.email || '';
     return await productService.createStagingImport(fileName, userEmail, fileHash, stagedRowsCount);
   },
 
@@ -568,7 +568,7 @@ export const useAdminStore = create<AdminStore>((set, get) => ({
   },
 
   confirmImport: async (importId, branchId) => {
-    const userEmail = get().currentUser?.email || 'admin@quimicadeheza.com';
+    const userEmail = get().currentUser?.email || '';
     const result = await productService.confirmImport(importId, branchId, userEmail);
     await get().fetchData(true);
     return result;
@@ -585,7 +585,7 @@ export const useAdminStore = create<AdminStore>((set, get) => ({
   },
 
   updateOrderStatus: async (id, status, notes, clientNotes) => {
-    const userEmail = get().currentUser?.email || 'admin@quimicadeheza.com';
+    const userEmail = get().currentUser?.email || '';
     await orderService.update(id, {
       estado: status,
       observaciones: notes,
@@ -596,13 +596,13 @@ export const useAdminStore = create<AdminStore>((set, get) => ({
   },
 
   updateOrder: async (id, updates) => {
-    const userEmail = get().currentUser?.email || 'admin@quimicadeheza.com';
+    const userEmail = get().currentUser?.email || '';
     await orderService.update(id, updates, userEmail);
     await get().fetchData();
   },
 
   createOrder: async (order) => {
-    const userEmail = get().currentUser?.email || 'admin@quimicadeheza.com';
+    const userEmail = get().currentUser?.email || '';
     await orderService.create(order, userEmail);
     await get().fetchData();
   },
@@ -618,13 +618,13 @@ export const useAdminStore = create<AdminStore>((set, get) => ({
   },
 
   updateDeliveryStop: async (deliveryId, clienteId, completado, horaReal, motivo, receptorNombre, observaciones) => {
-    const userEmail = get().currentUser?.email || 'admin@quimicadeheza.com';
+    const userEmail = get().currentUser?.email || '';
     await deliveryService.updateStop(deliveryId, clienteId, completado, horaReal, motivo, receptorNombre, observaciones, userEmail);
     await get().fetchData();
   },
 
   confirmPayment: async (orderId, reference) => {
-    const userEmail = get().currentUser?.email || 'admin@quimicadeheza.com';
+    const userEmail = get().currentUser?.email || '';
     // Buscar el log de pago correspondiente
     const { data: payLog } = await supabase
       .from('payment_logs')
@@ -726,7 +726,7 @@ export const useAdminStore = create<AdminStore>((set, get) => ({
       });
     }
 
-    const userEmail = get().currentUser?.email || 'admin@quimicadeheza.com';
+    const userEmail = get().currentUser?.email || '';
     const { error } = await supabase
       .from('system_settings')
       .upsert({
@@ -767,7 +767,7 @@ export const useAdminStore = create<AdminStore>((set, get) => ({
       .upsert({
         key: 'global_order_min_amount',
         value: { amount: Number(amount) },
-        updated_by: get().currentUser?.email || 'admin@quimicadeheza.com',
+        updated_by: get().currentUser?.email || '',
         updated_at: new Date().toISOString(),
       });
     if (error) throw error;

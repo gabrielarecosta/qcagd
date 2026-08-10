@@ -11,15 +11,23 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 // Supabase Init
-let supabaseUrl = process.env.SUPABASE_URL || '';
-if (!supabaseUrl.startsWith('http://') && !supabaseUrl.startsWith('https://')) {
-  supabaseUrl = 'https://placeholder-project.supabase.co';
+const supabaseUrl = process.env.SUPABASE_URL || '';
+const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || '';
+
+if (!supabaseUrl || !supabaseUrl.startsWith('https://')) {
+  throw new Error(
+    '❌ SUPABASE_URL no está configurada o es inválida. ' +
+    'Revisá el archivo .env del backend-server (debe empezar con https://).'
+  );
 }
-let supabaseAnonKey = process.env.SUPABASE_ANON_KEY || '';
 if (!supabaseAnonKey || supabaseAnonKey.startsWith('your_')) {
-  supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBsYWNlaG9sZGVyIn0.signature';
+  throw new Error(
+    '❌ SUPABASE_ANON_KEY no está configurada. ' +
+    'Revisá el archivo .env del backend-server.'
+  );
 }
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
 
 app.use(cors());
 app.use(express.json());

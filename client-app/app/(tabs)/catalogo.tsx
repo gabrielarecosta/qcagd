@@ -652,18 +652,26 @@ export default function CatalogoScreen() {
             {/* Bottom action bar */}
             {isLoggedIn && (
               <View style={styles.modalActionBar}>
-                <TouchableOpacity
-                  style={styles.modalBuyButton}
-                  onPress={() => {
-                    addProduct(selectedProductDetails);
-                    setSelectedProductDetails(null);
-                  }}
-                >
-                  <MaterialCommunityIcons name="cart-plus" size={22} color="#fff" style={{ marginRight: 8 }} />
-                  <Text style={styles.modalBuyButtonText}>Agregar al Pedido</Text>
-                </TouchableOpacity>
+                {selectedProductDetails.precio && selectedProductDetails.precio > 0 ? (
+                  <TouchableOpacity
+                    style={styles.modalBuyButton}
+                    onPress={() => {
+                      addProduct(selectedProductDetails);
+                      setSelectedProductDetails(null);
+                    }}
+                  >
+                    <MaterialCommunityIcons name="cart-plus" size={22} color="#fff" style={{ marginRight: 8 }} />
+                    <Text style={styles.modalBuyButtonText}>Agregar al Pedido</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <View style={[styles.modalBuyButton, { backgroundColor: '#e2e8f0' }]}>
+                    <MaterialCommunityIcons name="tag-off-outline" size={20} color="#94a3b8" style={{ marginRight: 8 }} />
+                    <Text style={[styles.modalBuyButtonText, { color: '#94a3b8' }]}>Precio no disponible</Text>
+                  </View>
+                )}
               </View>
             )}
+
           </View>
         </View>
       )}

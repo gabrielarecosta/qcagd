@@ -38,7 +38,8 @@ export const useCatalogStore = create<CatalogStore>((set, get) => ({
   banners: [],
   categoryBanners: {},
   categoryNames: {},
-  isLoading: false,
+  isLoading: true,
+
   source: 'Supabase',
   importedFileName: undefined,
 

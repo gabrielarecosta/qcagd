@@ -41,13 +41,7 @@ import { supabase } from '@shared/services/supabaseClient';
 type DeliveryMethod = 'reparto' | 'retiro' | 'whatsapp';
 type PaymentOption = 'efectivo' | 'mercadopago' | 'transferencia';
 
-const BANK_DETAILS = {
-  banco: 'Banco de la Nación Argentina',
-  cbu: '0110485620048563214569',
-  alias: 'QUIMICA.DEHEZA.MP',
-  cuit: '30-71829304-9',
-  titular: 'Química Deheza S.A.'
-};
+// Los datos bancarios se cargan dinámicamente desde company_settings en la BD
 
 const DELIVERY_OPTIONS: {
   key: DeliveryMethod;
@@ -298,7 +292,7 @@ export default function CarritoScreen() {
       return;
     }
 
-    const orderNum = `PED-${String(Math.floor(Math.random() * 9000) + 1000)}`;
+    const orderNum = `PED-${Date.now().toString().slice(-6)}`;
     const paymentLabel = paymentMethod === 'efectivo'
       ? 'Efectivo / Contra entrega'
       : paymentMethod === 'mercadopago'
@@ -392,9 +386,10 @@ export default function CarritoScreen() {
 
           setIsConfirming(true);
           try {
-            await addOrder(newOrder, clientData?.email || 'app-cliente@quimicadeheza.com');
+            const savedOrder = await addOrder(newOrder, clientData?.email || '');
+            const confirmedNum = savedOrder?.numero || newOrder.numero;
 
-            setConfirmedOrderNum(orderNum);
+            setConfirmedOrderNum(confirmedNum);
             setConfirmedOrderTotal(total);
             setConfirmedOrderPaymentMethod(paymentMethod);
             setOrderConfirmed(true);
@@ -533,11 +528,11 @@ export default function CarritoScreen() {
                 <Text style={styles.bankCardSubtitle}>Transferí el total de {fmtPrice(confirmedOrderTotal)} a la cuenta de la química:</Text>
 
                 <View style={styles.bankCardDetails}>
-                  <View style={styles.bankCardRow}><Text style={styles.bankCardLabel}>Banco:</Text><Text style={styles.bankCardVal}>{BANK_DETAILS.banco}</Text></View>
-                  <View style={styles.bankCardRow}><Text style={styles.bankCardLabel}>Titular:</Text><Text style={styles.bankCardVal}>{BANK_DETAILS.titular}</Text></View>
-                  <View style={styles.bankCardRow}><Text style={styles.bankCardLabel}>Alias:</Text><Text style={[styles.bankCardVal, { fontWeight: 'bold', color: Colors.primary }]}>{BANK_DETAILS.alias}</Text></View>
-                  <View style={styles.bankCardRow}><Text style={styles.bankCardLabel}>CBU:</Text><Text style={styles.bankCardVal}>{BANK_DETAILS.cbu}</Text></View>
-                  <View style={styles.bankCardRow}><Text style={styles.bankCardLabel}>CUIT:</Text><Text style={styles.bankCardVal}>{BANK_DETAILS.cuit}</Text></View>
+                  <View style={styles.bankCardRow}><Text style={styles.bankCardLabel}>Banco:</Text><Text style={styles.bankCardVal}>{companySettings?.banco || '—'}</Text></View>
+                  <View style={styles.bankCardRow}><Text style={styles.bankCardLabel}>Titular:</Text><Text style={styles.bankCardVal}>{companySettings?.titular || '—'}</Text></View>
+                  <View style={styles.bankCardRow}><Text style={styles.bankCardLabel}>Alias:</Text><Text style={[styles.bankCardVal, { fontWeight: 'bold', color: Colors.primary }]}>{companySettings?.alias_cbu || '—'}</Text></View>
+                  <View style={styles.bankCardRow}><Text style={styles.bankCardLabel}>CBU:</Text><Text style={styles.bankCardVal}>{companySettings?.cbu || '—'}</Text></View>
+                  <View style={styles.bankCardRow}><Text style={styles.bankCardLabel}>CUIT:</Text><Text style={styles.bankCardVal}>{companySettings?.cuit || '—'}</Text></View>
                 </View>
 
                 <TouchableOpacity
@@ -1051,23 +1046,23 @@ export default function CarritoScreen() {
                   <Text style={styles.bankDetailsTitle}>Datos para transferencia:</Text>
                   <View style={styles.bankDetailRow}>
                     <Text style={styles.bankDetailLabel}>Banco:</Text>
-                    <Text style={styles.bankDetailValue}>{BANK_DETAILS.banco}</Text>
+                    <Text style={styles.bankDetailValue}>{companySettings?.banco || '—'}</Text>
                   </View>
                   <View style={styles.bankDetailRow}>
                     <Text style={styles.bankDetailLabel}>Titular:</Text>
-                    <Text style={styles.bankDetailValue}>{BANK_DETAILS.titular}</Text>
+                    <Text style={styles.bankDetailValue}>{companySettings?.titular || '—'}</Text>
                   </View>
                   <View style={styles.bankDetailRow}>
                     <Text style={styles.bankDetailLabel}>Alias:</Text>
-                    <Text style={[styles.bankDetailValue, { fontWeight: 'bold', color: Colors.primary }]}>{BANK_DETAILS.alias}</Text>
+                    <Text style={[styles.bankDetailValue, { fontWeight: 'bold', color: Colors.primary }]}>{companySettings?.alias_cbu || '—'}</Text>
                   </View>
                   <View style={styles.bankDetailRow}>
                     <Text style={styles.bankDetailLabel}>CBU:</Text>
-                    <Text style={styles.bankDetailValue}>{BANK_DETAILS.cbu}</Text>
+                    <Text style={styles.bankDetailValue}>{companySettings?.cbu || '—'}</Text>
                   </View>
                   <View style={styles.bankDetailRow}>
                     <Text style={styles.bankDetailLabel}>CUIT:</Text>
-                    <Text style={styles.bankDetailValue}>{BANK_DETAILS.cuit}</Text>
+                    <Text style={styles.bankDetailValue}>{companySettings?.cuit || '—'}</Text>
                   </View>
                 </View>
               )}

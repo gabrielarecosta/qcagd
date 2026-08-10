@@ -79,10 +79,16 @@ export function ProductCard({ product, style, onPress, delay = 0 }: ProductCardP
           <View style={styles.footer}>
             {isLoggedIn ? (
               <>
-                <Text style={styles.precio}>{formatPrice(product.precio)}</Text>
+                <Text style={[styles.precio, (!product.precio || product.precio <= 0) && styles.sinPrecio]}>
+                  {product.precio && product.precio > 0 ? formatPrice(product.precio) : 'Sin precio'}
+                </Text>
 
                 {/* Botón "+ Agregar" o control +/− */}
-                {quantity === 0 ? (
+                {(!product.precio || product.precio <= 0) ? (
+                  <View style={styles.sinPrecioBtn}>
+                    <Text style={styles.sinPrecioBtnText}>No disponible</Text>
+                  </View>
+                ) : quantity === 0 ? (
                   <TouchableOpacity
                     style={styles.addButton}
                     onPress={() => addProduct(product)}
@@ -304,5 +310,23 @@ const styles = StyleSheet.create({
     color: Colors.primary,
     minWidth: 28,
     textAlign: 'center',
+  },
+  // Sin precio
+  sinPrecio: {
+    color: Colors.textDisabled,
+    fontSize: FontSize.sm,
+  },
+  sinPrecioBtn: {
+    backgroundColor: '#f1f5f9',
+    borderRadius: Radius.md,
+    paddingHorizontal: Spacing.md,
+    height: 36,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  sinPrecioBtnText: {
+    color: Colors.textDisabled,
+    fontSize: FontSize.xs,
+    fontWeight: FontWeight.medium,
   },
 });

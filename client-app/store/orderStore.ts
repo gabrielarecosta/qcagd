@@ -38,13 +38,13 @@ export const useOrderStore = create<OrderStore>((set, get) => ({
   },
 
   addOrder: async (order, userEmail) => {
-    const email = userEmail || 'app-cliente@quimicadeheza.com';
+    const email = userEmail || '';
     await orderService.create(order as any, email);
     await get().fetchOrders(order.clienteId);
   },
 
   updateOrderStatus: async (orderId, status, userEmail) => {
-    const email = userEmail || 'app-driver@quimicadeheza.com';
+    const email = userEmail || '';
     await orderService.update(orderId, { estado: status } as any, email);
     
     // Optimistic local state update
@@ -64,7 +64,7 @@ export const useOrderStore = create<OrderStore>((set, get) => ({
   },
 
   takeOrder: async (orderId, repartidorId, userEmail) => {
-    const email = userEmail || 'app-driver@quimicadeheza.com';
+    const email = userEmail || '';
     const now = new Date().toISOString();
     
     await orderService.update(orderId, {
