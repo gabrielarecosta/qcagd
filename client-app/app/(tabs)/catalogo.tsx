@@ -67,6 +67,7 @@ export default function CatalogoScreen() {
   const isDesktop = Platform.OS === 'web' && width >= 768;
 
   const {
+    products,
     searchProducts,
     totalProducts,
     fetchProducts,
@@ -122,7 +123,10 @@ export default function CatalogoScreen() {
       query,
       selectedCategory === 'todos' ? undefined : selectedCategory
     );
-  }, [query, selectedCategory, searchProducts]);
+  // `products` en las deps garantiza que el memo se recompute cuando
+  // Supabase responde, ya que searchProducts es una referencia estable.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query, selectedCategory, searchProducts, products]);
 
   // Ordenar productos según coincidencia exacta de búsqueda, posesión de foto y criterio seleccionado
   const sortedProducts = useMemo(() => {
