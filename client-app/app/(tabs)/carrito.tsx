@@ -69,6 +69,10 @@ const DELIVERY_OPTIONS: {
     },
   ];
 
+import { useWindowDimensions } from 'react-native';
+import { DesktopStartScreen } from '../../components/screens/DesktopStartScreen';
+import { MobileStartScreen } from '../../components/screens/MobileStartScreen';
+
 // El número de WhatsApp y otros datos se cargan dinámicamente desde company_settings en la BD
 
 // ──────────────────────────────────────────────────────────────
@@ -76,10 +80,17 @@ const DELIVERY_OPTIONS: {
 // ──────────────────────────────────────────────────────────────
 export default function CarritoScreen() {
   const router = useRouter();
+  const { width } = useWindowDimensions();
+  const isDesktop = Platform.OS === 'web' && width >= 768;
   const { items, updateQuantity, removeProduct, clearCart, repeatOrder, totalItems, totalPrice, fetchPromotions } =
     useCartStore();
   const { addOrder, orders } = useOrderStore();
-  const { clientData } = useAuthStore();
+  const { clientData, isLoggedIn } = useAuthStore();
+
+  if (!isLoggedIn) {
+    return isDesktop ? <DesktopStartScreen /> : <MobileStartScreen />;
+  }
+
 
   useEffect(() => {
     fetchPromotions();

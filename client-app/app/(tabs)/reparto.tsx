@@ -26,10 +26,21 @@ import { useRouter } from 'expo-router';
 import { mockClients } from '@shared/data';
 import { supabase } from '@shared/services/supabaseClient';
 
+import { Platform, useWindowDimensions } from 'react-native';
+import { DesktopStartScreen } from '../../components/screens/DesktopStartScreen';
+import { MobileStartScreen } from '../../components/screens/MobileStartScreen';
+
 export default function RepartoScreen() {
   const { orders, updateOrderStatus, fetchOrders, takeOrder } = useOrderStore();
   const { isLoggedIn, userRole, clientData, repartidorData } = useAuthStore();
   const router = useRouter();
+  const { width } = useWindowDimensions();
+  const isDesktop = Platform.OS === 'web' && width >= 768;
+
+  if (!isLoggedIn) {
+    return isDesktop ? <DesktopStartScreen /> : <MobileStartScreen />;
+  }
+
   const [repartoTab, setRepartoTab] = React.useState<'disponibles' | 'mis_pedidos'>('mis_pedidos');
   const [refreshing, setRefreshing] = React.useState(false);
 

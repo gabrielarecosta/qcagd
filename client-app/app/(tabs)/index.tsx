@@ -23,7 +23,11 @@ import { useCartStore } from '../../store/cartStore';
 import { getFirstName, formatPrice } from '../../utils/formatters';
 import { useAuthStore } from '../../store/authStore';
 import { CATEGORY_ICONS, CATEGORY_LABELS, ProductCategory, Product, Order } from '../../types';
-import MaterialCommunityIcons from '../../components/icons/MaterialCommunityIcons';import { useEntrance } from '../../hooks/useEntrance';
+import MaterialCommunityIcons from '../../components/icons/MaterialCommunityIcons';
+import { useEntrance } from '../../hooks/useEntrance';
+import { DesktopStartScreen } from '../../components/screens/DesktopStartScreen';
+import { MobileStartScreen } from '../../components/screens/MobileStartScreen';
+
 
 const QUICK_CATEGORIES: ProductCategory[] = ['limpieza', 'quimicos', 'perfumeria', 'descartables', 'piscina', 'industrial', 'hogar', 'institucional'];
 
@@ -119,9 +123,14 @@ export default function HomeScreen() {
     router.push('/(tabs)/carrito');
   };
 
+  if (!isLoggedIn) {
+    return isDesktop ? <DesktopStartScreen /> : <MobileStartScreen />;
+  }
+
   if (isLoggedIn && userRole === 'repartidor') {
     return null;
   }
+
 
   const displayName = isLoggedIn && clientData ? clientData.nombre : 'Invitado';
   const firstName = getFirstName(displayName);

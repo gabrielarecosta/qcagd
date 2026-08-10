@@ -7,8 +7,18 @@ import { useAuthStore } from '../../store/authStore';
 import { ClienteAccountScreen } from '../../components/screens/ClienteAccountScreen';
 import { RepartidorHomeScreen } from '../../components/screens/RepartidorHomeScreen';
 import MaterialCommunityIcons from '../../components/icons/MaterialCommunityIcons';
+import { Platform, useWindowDimensions } from 'react-native';
+import { DesktopStartScreen } from '../../components/screens/DesktopStartScreen';
+import { MobileStartScreen } from '../../components/screens/MobileStartScreen';
+
 export default function CuentaScreen() {
-  const { userRole } = useAuthStore();
+  const { isLoggedIn, userRole } = useAuthStore();
+  const { width } = useWindowDimensions();
+  const isDesktop = Platform.OS === 'web' && width >= 768;
+
+  if (!isLoggedIn) {
+    return isDesktop ? <DesktopStartScreen /> : <MobileStartScreen />;
+  }
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -20,6 +30,7 @@ export default function CuentaScreen() {
     </SafeAreaView>
   );
 }
+
 
 const styles = StyleSheet.create({
   safeArea: {

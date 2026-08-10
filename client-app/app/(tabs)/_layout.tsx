@@ -106,22 +106,11 @@ export default function TabsLayout() {
     }
   }, [authStep]);
 
-  // Si el usuario no está logueado, permitimos únicamente ver el catálogo
-  if (!isLoggedIn) {
-    const isPublicCatalog = pathname === '/catalogo' || pathname === '/(tabs)/catalogo';
-    if (!isPublicCatalog) {
-      if (isDesktop) {
-        return <DesktopStartScreen />;
-      } else {
-        return <MobileStartScreen />;
-      }
-    }
-  }
-
   const isActive = (path: string) => {
     if (path === '/') return pathname === '/' || pathname === '/(tabs)' || pathname === '';
     return pathname.includes(path);
   };
+
 
   // Si está logueado, mostramos el navegador según si es Escritorio o Móvil
   if (isDesktop) {
@@ -526,6 +515,7 @@ const desktopStyles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
   desktopLogo: {
     width: 38,
@@ -549,6 +539,7 @@ const desktopStyles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
   desktopNavLinkActive: {
     backgroundColor: 'rgba(37, 99, 235, 0.08)', // Light theme primary tint
@@ -590,6 +581,7 @@ const desktopStyles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#fca5a5', // light red
     backgroundColor: '#fef2f2',
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
   desktopLogoutText: {
     fontSize: 13,
