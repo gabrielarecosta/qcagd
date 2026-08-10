@@ -266,19 +266,15 @@ function App() {
         justifyContent: 'center',
         height: '100vh',
         background: 'radial-gradient(circle at center, #1e293b 0%, #0f172a 100%)',
-        color: '#fff',
-        fontFamily: 'sans-serif'
       }}>
-        <div className="spinner" style={{
-          width: '50px',
-          height: '50px',
-          border: '3px solid rgba(255,255,255,0.1)',
+        <div style={{
+          width: '44px',
+          height: '44px',
+          border: '3px solid rgba(255,255,255,0.08)',
           borderTop: '3px solid #0ea5e9',
           borderRadius: '50%',
-          animation: 'spin 1s linear infinite',
-          marginBottom: '20px'
+          animation: 'spin 0.9s linear infinite',
         }} />
-        <p>Conectando con Supabase...</p>
         <style>{`
           @keyframes spin {
             0% { transform: rotate(0deg); }
@@ -288,6 +284,7 @@ function App() {
       </div>
     );
   }
+
 
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', group: 'Operaciones' },

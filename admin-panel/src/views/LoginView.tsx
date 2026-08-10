@@ -264,7 +264,7 @@ export function LoginView() {
         </div>
 
         <h1 className="login-title">
-          ACCESO A PANEL ADMINISTRATIVO DE QGD APP MOBILE
+          ACCESO A PANEL ADMINISTRATIVO QGD
         </h1>
 
         {error && (
