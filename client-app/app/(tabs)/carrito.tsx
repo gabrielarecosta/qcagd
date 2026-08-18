@@ -13,6 +13,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Linking,
+  ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Colors } from '../../constants/Colors';
@@ -387,25 +388,15 @@ export default function CarritoScreen() {
           };
 
           setIsConfirming(true);
+          let createdOrder: any = null;
           try {
-            await addOrder(newOrder, clientData?.email || '');
-            const confirmedNum = newOrder.numero;
+            // 1. Validaciones previas
+            if (!items || items.length === 0) {
+              throw new Error('El carrito está vacío.');
+            }
 
-            clearCart();
-            const confirmParams = {
-              orderNum: confirmedNum,
-              orderTotal: String(total),
-              deliveryMethod: deliveryMethod,
-              paymentMethod: paymentMethod,
-              deliveryDate: deliveryDate || '',
-              slotNombre: selectedSlot?.nombre || '',
-              slotHoraInicio: selectedSlot?.hora_inicio || '',
-              slotHoraFin: selectedSlot?.hora_fin || '',
-            };
-
-            resetCheckoutState();
-
-            // Redirección directa a Mercado Pago si eligió MP
+            // 2. Si eligió Mercado Pago, validar/generar la preferencia primero
+            let mpTargetUrl: string | null = null;
             if (paymentMethod === 'mercadopago') {
               try {
                 const backendUrl = process.env.EXPO_PUBLIC_BACKEND_URL || 'http://localhost:3001';
@@ -431,19 +422,44 @@ export default function CarritoScreen() {
 
                 if (mpRes.ok) {
                   const mpData = await mpRes.json();
-                  const targetUrl = mpData.init_point || mpData.sandbox_init_point;
-                  if (targetUrl) {
-                    if (Platform.OS === 'web') {
-                      window.location.href = targetUrl;
-                    } else {
-                      Linking.openURL(targetUrl);
-                    }
-                    return;
-                  }
+                  mpTargetUrl = mpData.init_point || mpData.sandbox_init_point || null;
+                } else {
+                  throw new Error('No se pudo generar la preferencia de pago en Mercado Pago.');
                 }
-              } catch (mpErr) {
+              } catch (mpErr: any) {
                 console.error('Error iniciando checkout de Mercado Pago:', mpErr);
+                throw new Error('No se pudo conectar con Mercado Pago. Por favor, intentá nuevamente o elegí otro medio de pago.');
               }
+            }
+
+            // 3. Crear el pedido en la base de datos
+            await addOrder(newOrder, clientData?.email || '');
+            createdOrder = newOrder;
+
+            // 4. Parámetros para la pantalla de confirmación
+            const confirmParams = {
+              orderNum: newOrder.numero,
+              orderTotal: String(total),
+              deliveryMethod: deliveryMethod,
+              paymentMethod: paymentMethod,
+              deliveryDate: deliveryDate || '',
+              slotNombre: selectedSlot?.nombre || '',
+              slotHoraInicio: selectedSlot?.hora_inicio || '',
+              slotHoraFin: selectedSlot?.hora_fin || '',
+            };
+
+            // 5. Limpiar carrito y resetear solo tras éxito total comprobado
+            clearCart();
+            resetCheckoutState();
+
+            // 6. Redirección
+            if (paymentMethod === 'mercadopago' && mpTargetUrl) {
+              if (Platform.OS === 'web') {
+                window.location.href = mpTargetUrl;
+              } else {
+                Linking.openURL(mpTargetUrl);
+              }
+              return;
             }
 
             router.push({
@@ -451,9 +467,20 @@ export default function CarritoScreen() {
               params: confirmParams,
             });
 
-          } catch (err) {
+          } catch (err: any) {
             console.error('Error confirming order:', err);
-            customAlert('Error', 'No se pudo generar el pedido. Por favor, intentá nuevamente.');
+            // Si el pedido se llegó a guardar en BD pero falló un paso posterior, hacer rollback
+            if (createdOrder) {
+              try {
+                await orderService.delete(createdOrder.id, clientData?.email || 'client');
+              } catch (delErr) {
+                console.warn('Rollback failed:', delErr);
+              }
+            }
+            customAlert(
+              'No se pudo generar el pedido',
+              err?.message || 'Ocurrió un error al procesar tu pedido. Tus productos se mantienen en el carrito para que puedas volver a intentar.'
+            );
           } finally {
             setIsConfirming(false);
           }
@@ -491,6 +518,27 @@ export default function CarritoScreen() {
   }
 
 
+
+  // ──────────────────────────────────────────────────────────────
+  // ESTADO: CREANDO / PROCESANDO PEDIDO (LOADER)
+  // ──────────────────────────────────────────────────────────────
+  if (isConfirming) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.loadingOrderContainer}>
+          <View style={styles.loadingOrderCard}>
+            <ActivityIndicator size="large" color={Colors.primary} style={{ marginBottom: Spacing.lg }} />
+            <Text style={styles.loadingOrderTitle}>
+              {paymentMethod === 'mercadopago' ? 'Conectando con Mercado Pago...' : 'Creando tu pedido...'}
+            </Text>
+            <Text style={styles.loadingOrderSub}>
+              Por favor esperá unos segundos mientras confirmamos tu compra y preparamos los detalles de entrega.
+            </Text>
+          </View>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   // ──────────────────────────────────────────────────────────────
   // ESTADO: CARRITO VACÍO
@@ -1959,6 +2007,41 @@ const styles = StyleSheet.create({
     color: Colors.primary,
     fontWeight: FontWeight.bold,
     fontSize: 12,
+  },
+  loadingOrderContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: Spacing.xl,
+    backgroundColor: Colors.background,
+  },
+  loadingOrderCard: {
+    backgroundColor: Colors.white,
+    padding: Spacing.xxl,
+    borderRadius: Radius.lg,
+    alignItems: 'center',
+    maxWidth: 420,
+    width: '100%',
+    borderWidth: 1,
+    borderColor: Colors.border,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 5,
+  },
+  loadingOrderTitle: {
+    fontSize: FontSize.xl,
+    fontWeight: FontWeight.bold,
+    color: Colors.textPrimary,
+    marginBottom: Spacing.sm,
+    textAlign: 'center',
+  },
+  loadingOrderSub: {
+    fontSize: FontSize.md,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 22,
   },
 });
 

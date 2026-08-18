@@ -23,7 +23,6 @@ import { currentCustomer } from '../../data/customers';
 import { Button } from '../../components/ui/Button';
 import { useAuthStore } from '../../store/authStore';
 import { useRouter } from 'expo-router';
-import { mockClients } from '@shared/data';
 import { supabase } from '@shared/services/supabaseClient';
 import { OrderCard } from '../../components/OrderCard';
 import { OrderDetailModal } from '../../components/OrderDetailModal';
@@ -140,10 +139,6 @@ export default function RepartoScreen() {
       loadRepartidores();
     }
   }, [isLoggedIn, userRole]);
-
-  if (!isLoggedIn) {
-    return isDesktop ? <DesktopStartScreen /> : <MobileStartScreen />;
-  }
 
   const role = userRole || 'cliente';
 
@@ -815,8 +810,13 @@ export default function RepartoScreen() {
                       </View>
                     ) : (
                       activeDelivererOrders.map((order) => {
-                        const client = mockClients.find((c: any) => c.id === order.clienteId);
-                        const customer = client || currentCustomer;
+                        const customer = {
+                          nombre: order.customerName || 'Cliente',
+                          direccion: order.formattedAddress || order.originalAddress || 'Sin dirección',
+                          telefono: order.customerPhone || '',
+                          zona: order.deliveryZone || 'Centro',
+                          branchId: order.branchId || 'branch-gd1',
+                        };
                         return (
                           <View key={order.id} style={styles.orderDelivererCard}>
                             <View style={styles.orderDelivererHeader}>
@@ -965,8 +965,13 @@ export default function RepartoScreen() {
                   </View>
                 ) : (
                   availableOrders.map((order) => {
-                    const client = mockClients.find((c: any) => c.id === order.clienteId);
-                    const customer = client || currentCustomer;
+                    const customer = {
+                      nombre: order.customerName || 'Cliente',
+                      direccion: order.formattedAddress || order.originalAddress || 'Sin dirección',
+                      telefono: order.customerPhone || '',
+                      zona: order.deliveryZone || 'Centro',
+                      branchId: order.branchId || 'branch-gd1',
+                    };
                     return (
                       <View key={order.id} style={styles.orderDelivererCard}>
                         <View style={styles.orderDelivererHeader}>

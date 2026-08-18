@@ -15,7 +15,6 @@ import { Radius, Spacing } from '../../constants/Spacing';
 import { useAuthStore } from '../../store/authStore';
 import { useOrderStore } from '../../store/orderStore';
 import { formatPrice } from '../../utils/formatters';
-import { mockClients } from '@shared/data';
 import { Order } from '../../types';
 
 export function RepartidorHomeScreen() {
@@ -119,10 +118,9 @@ export function RepartidorHomeScreen() {
           <Text style={styles.emptyText}>No tenés entregas asignadas en esta sucursal.</Text>
         ) : (
           driverOrders.map((o) => {
-            const client = mockClients.find(c => c.id === o.clienteId);
-            const clientName = client ? client.nombre : 'Cliente Desconocido';
-            const clientAddress = client ? client.direccion : 'Sin dirección';
-            const clientPhone = client ? client.telefono : '';
+            const clientName = o.customerName || 'Cliente';
+            const clientAddress = o.formattedAddress || o.originalAddress || 'Sin dirección';
+            const clientPhone = o.customerPhone || '';
 
             const isCompleted = o.estado === 'entregado';
             const isFailed = o.estado === 'cancelado';
