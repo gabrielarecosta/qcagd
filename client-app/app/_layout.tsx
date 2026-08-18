@@ -118,6 +118,7 @@ export default function RootLayout() {
       <StatusBar style="dark" />
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen name="confirmacion-pago" options={{ headerShown: false }} />
       </Stack>
       <NotificationContainer />
       <ConfirmationModal />

@@ -25,6 +25,10 @@ import { useAuthStore } from '../../store/authStore';
 import { useRouter } from 'expo-router';
 import { mockClients } from '@shared/data';
 import { supabase } from '@shared/services/supabaseClient';
+import { OrderCard } from '../../components/OrderCard';
+import { OrderDetailModal } from '../../components/OrderDetailModal';
+import { useCartStore } from '../../store/cartStore';
+import { customAlert as _customAlert } from '../../utils/alert';
 
 import { Platform, useWindowDimensions } from 'react-native';
 import { DesktopStartScreen } from '../../components/screens/DesktopStartScreen';
@@ -33,16 +37,14 @@ import { MobileStartScreen } from '../../components/screens/MobileStartScreen';
 export default function RepartoScreen() {
   const { orders, updateOrderStatus, fetchOrders, takeOrder } = useOrderStore();
   const { isLoggedIn, userRole, clientData, repartidorData } = useAuthStore();
+  const { repeatOrder } = useCartStore();
   const router = useRouter();
   const { width } = useWindowDimensions();
   const isDesktop = Platform.OS === 'web' && width >= 768;
 
-  if (!isLoggedIn) {
-    return isDesktop ? <DesktopStartScreen /> : <MobileStartScreen />;
-  }
-
   const [repartoTab, setRepartoTab] = React.useState<'disponibles' | 'mis_pedidos'>('mis_pedidos');
   const [refreshing, setRefreshing] = React.useState(false);
+  const [selectedOrderForModal, setSelectedOrderForModal] = React.useState<Order | null>(null);
 
   const [activeRoute, setActiveRoute] = React.useState<any | null>(null);
   const [routeStops, setRouteStops] = React.useState<any[]>([]);
@@ -139,25 +141,35 @@ export default function RepartoScreen() {
     }
   }, [isLoggedIn, userRole]);
 
+  if (!isLoggedIn) {
+    return isDesktop ? <DesktopStartScreen /> : <MobileStartScreen />;
+  }
+
   const role = userRole || 'cliente';
 
-  // Pedidos activos en el cliente (pendiente, preparando o en camino)
+  // Pedidos activos en el cliente (solo envíos por reparto físico)
   const activeClientOrders = orders.filter(
-    (o) => o.estado === 'en_camino' || o.estado === 'en_preparacion' || o.estado === 'pendiente'
+    (o) =>
+      (o.estado === 'en_camino' || o.estado === 'en_preparacion' || o.estado === 'recibido' || o.estado === 'pendiente' || o.estado === 'listo_para_reparto') &&
+      o.deliveryMethod === 'reparto'
   );
 
-  // Pedidos ya entregados para el historial
-  const deliveredOrders = orders.filter((o) => o.estado === 'entregado');
+  // Pedidos ya entregados para el historial (solo reparto)
+  const deliveredOrders = orders.filter((o) => o.estado === 'entregado' && o.deliveryMethod === 'reparto');
 
-  // Todos los pedidos activos a entregar o tomar (no entregados ni cancelados)
+  // Todos los pedidos activos a entregar para choferes (solo los que requieren envío por reparto)
   const availableOrders = orders.filter(
-    (o) => o.estado !== 'entregado' && o.estado !== 'cancelado'
+    (o) =>
+      o.estado !== 'entregado' &&
+      o.estado !== 'cancelado' &&
+      o.deliveryMethod === 'reparto'
   );
 
   // Pedidos tomados por el repartidor actual (activos)
   const activeDelivererOrders = orders.filter(
     (o) =>
       (repartidorData && o.repartidorId === repartidorData.id) &&
+      o.deliveryMethod === 'reparto' &&
       (o.estado === 'en_camino' || o.estado === 'en_preparacion' || o.estado === 'pendiente' || o.estado === 'recibido' || o.estado === 'listo_para_reparto')
   );
 
@@ -178,9 +190,7 @@ export default function RepartoScreen() {
       orderId: order.id,
       repartidor: mockDeliverers.find((d) => d.id === order.repartidorId) || mockDeliverers[0],
       estado: order.estado,
-      horaEstimada: order.deliveryStartTime && order.deliveryEndTime
-        ? `${order.deliveryStartTime} a ${order.deliveryEndTime}`
-        : '14:30',
+      horaEstimada: '',
       paradas: [
         {
           clienteId: 'other-1',
@@ -419,107 +429,99 @@ export default function RepartoScreen() {
         {/* ========================================== */}
         {role === 'cliente' && (
           <View>
-            {activeClientOrders.length > 0 ? (
-              activeClientOrders.map((order) => {
-                const tracking = getOrderTracking(order);
-                return (
-                  <View key={order.id} style={styles.section}>
-                    <View style={styles.sectionHeader}>
-                      <View style={styles.activeBadge}>
-                        <View
-                          style={[
-                            styles.activeDot,
-                            {
-                              backgroundColor:
-                                order.estado === 'en_camino'
-                                  ? Colors.statusOnTheWay
-                                  : order.estado === 'en_preparacion'
-                                    ? Colors.primary
-                                    : '#D97706',
-                            },
-                          ]}
-                        />
-                        <Text
-                          style={[
-                            styles.activeBadgeText,
-                            {
-                              color:
-                                order.estado === 'en_camino'
-                                  ? Colors.statusOnTheWay
-                                  : order.estado === 'en_preparacion'
-                                    ? Colors.primary
-                                    : '#D97706',
-                            },
-                          ]}
-                        >
-                          {order.estado === 'en_camino'
-                            ? 'En camino'
-                            : order.estado === 'en_preparacion'
-                              ? 'En preparación'
-                              : 'Recibido'}
-                        </Text>
-                      </View>
-                      <Text style={styles.sectionTitle}>{order.numero}</Text>
-                      <Text style={styles.sectionSubtitle}>
-                        {formatDate(order.fecha)}
+            {/* ---- Pedidos de ENVÍO activos (solo reparto físico) ---- */}
+            {activeClientOrders.map((order) => {
+              const tracking = getOrderTracking(order);
+              return (
+                <View key={order.id} style={styles.section}>
+                  <View style={styles.sectionHeader}>
+                    <View style={styles.activeBadge}>
+                      <View
+                        style={[
+                          styles.activeDot,
+                          {
+                            backgroundColor:
+                              order.estado === 'en_camino'
+                                ? Colors.statusOnTheWay
+                                : order.estado === 'en_preparacion'
+                                  ? Colors.primary
+                                  : '#D97706',
+                          },
+                        ]}
+                      />
+                      <Text
+                        style={[
+                          styles.activeBadgeText,
+                          {
+                            color:
+                              order.estado === 'en_camino'
+                                ? Colors.statusOnTheWay
+                                : order.estado === 'en_preparacion'
+                                  ? Colors.primary
+                                  : '#D97706',
+                          },
+                        ]}
+                      >
+                        {order.estado === 'en_camino'
+                          ? 'En camino'
+                          : order.estado === 'en_preparacion'
+                            ? 'En preparación'
+                            : 'Recibido'}
                       </Text>
                     </View>
-
-                    {/* Mostrar franja horaria programada si existe */}
-                    {order.deliveryDate && order.deliveryStartTime && (
-                      <View style={{ marginBottom: Spacing.md, paddingHorizontal: Spacing.sm }}>
-                        <Text style={{ fontSize: 13, color: Colors.textSecondary }}>
-                          📅 Entrega programada: <Text style={{ fontWeight: 'bold', color: Colors.textPrimary }}>{order.deliveryDate}</Text> de {order.deliveryStartTime} a {order.deliveryEndTime} hs
-                        </Text>
-                      </View>
-                    )}
-
-                    <DeliveryCard delivery={tracking} />
+                    <Text style={styles.sectionTitle}>{order.numero}</Text>
+                    <Text style={styles.sectionSubtitle}>
+                      {formatDate(order.fecha)}
+                    </Text>
                   </View>
-                );
-              })
-            ) : (
+
+                  {!!order.deliveryDate && (
+                    <View style={{ marginBottom: Spacing.md, paddingHorizontal: Spacing.sm }}>
+                      <Text style={{ fontSize: 13, color: Colors.textSecondary }}>
+                        📅 Entrega programada: <Text style={{ fontWeight: 'bold', color: Colors.textPrimary }}>{order.deliveryDate}</Text>
+                      </Text>
+                    </View>
+                  )}
+
+                  <DeliveryCard delivery={tracking} />
+                </View>
+              );
+            })}
+
+            {/* Empty state cuando no hay pedidos activos */}
+            {activeClientOrders.length === 0 && (
               <View style={styles.noActiveDelivery}>
                 <Text style={styles.noDeliveryIcon}>📦</Text>
-                <Text style={styles.noDeliveryTitle}>No tenés repartos activos</Text>
+                <Text style={styles.noDeliveryTitle}>No tenés pedidos activos de reparto</Text>
                 <Text style={styles.noDeliverySubtitle}>
-                  Cuando realices un pedido por envío, vas a poder seguir el estado de tu reparto desde acá.
+                  Cuando realices un pedido con envío a domicilio, vas a poder seguir el estado de tu reparto desde acá.
                 </Text>
               </View>
             )}
 
-            {/* Historial de repartos */}
+            {/* Historial de pedidos */}
             <View style={styles.historySection}>
-              <Text style={styles.historyTitle}>Historial de entregas</Text>
+              <Text style={styles.historyTitle}>Historial de pedidos</Text>
 
               {deliveredOrders.length === 0 ? (
                 <View style={styles.emptyHistoryCard}>
                   <Text style={styles.emptyHistoryText}>No tenés entregas completadas todavía.</Text>
                 </View>
               ) : (
-                deliveredOrders.map((order) => (
-                  <View key={order.id} style={styles.historyCard}>
-                    <View style={styles.historyHeader}>
-                      <Text style={styles.historyNumero}>{order.numero}</Text>
-                      <Text style={styles.historyFecha}>{formatDate(order.fecha)}</Text>
-                    </View>
-                    <View style={styles.historyDeliverer}>
-                      {order.repartidorId && (
-                        <>
-                          <Text style={styles.historyDelivererLabel}>Repartidor: </Text>
-                          <Text style={styles.historyDelivererName}>
-                            {mockDeliverers.find((d) => d.id === order.repartidorId)?.nombre ??
-                              'Desconocido'}
-                          </Text>
-                        </>
-                      )}
-                    </View>
-                    <View style={styles.historyStatus}>
-                      <View style={[styles.statusDot, { backgroundColor: Colors.success }]} />
-                      <Text style={styles.historyStatusText}>Entregado</Text>
-                    </View>
-                  </View>
-                ))
+                <View style={{ gap: Spacing.md }}>
+                  {deliveredOrders.map((order) => (
+                    <OrderCard
+                      key={order.id}
+                      order={order}
+                      onPress={(o) => setSelectedOrderForModal(o)}
+                      onRepeat={(o) => {
+                        repeatOrder(o);
+                        _customAlert('Pedido cargado', 'Los artículos se agregaron a tu Carrito.');
+                        router.push('/(tabs)/carrito' as any);
+                      }}
+                    />
+                  ))}
+                </View>
               )}
             </View>
           </View>
@@ -813,7 +815,7 @@ export default function RepartoScreen() {
                       </View>
                     ) : (
                       activeDelivererOrders.map((order) => {
-                        const client = mockClients.find((c) => c.id === order.clienteId);
+                        const client = mockClients.find((c: any) => c.id === order.clienteId);
                         const customer = client || currentCustomer;
                         return (
                           <View key={order.id} style={styles.orderDelivererCard}>
@@ -950,19 +952,20 @@ export default function RepartoScreen() {
               </>
             ) : (
               <>
-                <Text style={styles.sectionTitleList}>Todos los Pedidos Activos ({availableOrders.length})</Text>
+                {/* ---- Pedidos de ENVÍO disponibles ---- */}
+                <Text style={styles.sectionTitleList}>🚚 Pedidos para Enviar ({availableOrders.length})</Text>
 
                 {availableOrders.length === 0 ? (
                   <View style={styles.noActiveDelivery}>
                     <Text style={styles.noDeliveryIcon}>📦</Text>
-                    <Text style={styles.noDeliveryTitle}>No hay pedidos activos</Text>
+                    <Text style={styles.noDeliveryTitle}>No hay pedidos de envío activos</Text>
                     <Text style={styles.noDeliverySubtitle}>
                       Actualmente no hay pedidos pendientes de entregar en el sistema.
                     </Text>
                   </View>
                 ) : (
                   availableOrders.map((order) => {
-                    const client = mockClients.find((c) => c.id === order.clienteId);
+                    const client = mockClients.find((c: any) => c.id === order.clienteId);
                     const customer = client || currentCustomer;
                     return (
                       <View key={order.id} style={styles.orderDelivererCard}>
@@ -1042,6 +1045,17 @@ export default function RepartoScreen() {
 
         <View style={{ height: Spacing.huge }} />
       </ScrollView>
+
+      {/* Modal de detalle de pedido (vista cliente) */}
+      <OrderDetailModal
+        order={selectedOrderForModal}
+        onClose={() => setSelectedOrderForModal(null)}
+        onRepeat={(o) => {
+          repeatOrder(o);
+          _customAlert('Pedido cargado', 'Los artículos se agregaron a tu Carrito.');
+          router.push('/(tabs)/carrito' as any);
+        }}
+      />
     </SafeAreaView>
   );
 }

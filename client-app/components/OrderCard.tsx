@@ -28,6 +28,21 @@ export function OrderCard({ order, onPress, onRepeat, style, compact = false, de
   const statusLabel = ORDER_STATUS_LABELS[order.estado];
   const totalItems = order.items.reduce((sum, i) => sum + i.cantidad, 0);
   const { animatedStyle } = useEntrance({ delay });
+  const deliveryIcon =
+    order.deliveryMethod === 'retiro'
+      ? '🏪 Retiro'
+      : order.deliveryMethod === 'whatsapp'
+      ? '💬 WhatsApp'
+      : '🚚 Reparto';
+
+  const paymentStatus = order.paymentStatus || (order.paymentMethod === 'mercadopago' ? 'pendiente' : 'pendiente');
+  const isPaid = paymentStatus === 'pagado' || paymentStatus === 'approved';
+  const paymentBadgeText =
+    order.paymentMethod === 'transferencia'
+      ? (isPaid ? '🏦 Transf. (Pagado)' : '🏦 Transf. (Pendiente)')
+      : order.paymentMethod === 'mercadopago'
+      ? (isPaid ? '💳 MP (Pagado)' : '💳 MP (Pendiente)')
+      : '💵 Efectivo';
 
   return (
     <Animated.View style={[animatedStyle]}>
@@ -42,9 +57,23 @@ export function OrderCard({ order, onPress, onRepeat, style, compact = false, de
             <Text style={styles.numero}>{order.numero}</Text>
             <Text style={styles.fecha}>{formatShortDate(order.fecha)}</Text>
           </View>
-          <View style={[styles.statusBadge, { backgroundColor: `${statusColor}18` }]}>
-            <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
-            <Text style={[styles.statusText, { color: statusColor }]}>{statusLabel}</Text>
+          <View style={styles.headerBadges}>
+            <View style={[styles.statusBadge, { backgroundColor: `${statusColor}18` }]}>
+              <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
+              <Text style={[styles.statusText, { color: statusColor }]}>{statusLabel}</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Sub-Badges (Entrega y Pago) */}
+        <View style={styles.subBadgesRow}>
+          <View style={styles.subBadge}>
+            <Text style={styles.subBadgeText}>{deliveryIcon}</Text>
+          </View>
+          <View style={[styles.subBadge, { backgroundColor: isPaid ? '#DCFCE7' : '#FEF3C7' }]}>
+            <Text style={[styles.subBadgeText, { color: isPaid ? '#15803D' : '#B45309', fontWeight: 'bold' }]}>
+              {paymentBadgeText}
+            </Text>
           </View>
         </View>
 
@@ -67,14 +96,17 @@ export function OrderCard({ order, onPress, onRepeat, style, compact = false, de
         {/* Footer */}
         <View style={styles.footer}>
           <View>
-            <Text style={styles.totalLabel}>{totalItems} artículos</Text>
+            <Text style={styles.totalLabel}>{totalItems} artículos • Ver detalle ›</Text>
             <Text style={styles.total}>{formatPrice(order.total)}</Text>
           </View>
 
           {onRepeat && order.estado === 'entregado' && (
             <TouchableOpacity
               style={styles.repeatButton}
-              onPress={() => onRepeat(order)}
+              onPress={(e) => {
+                e.stopPropagation();
+                onRepeat(order);
+              }}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               activeOpacity={0.8}
             >
@@ -121,6 +153,9 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     marginTop: 2,
   },
+  headerBadges: {
+    alignItems: 'flex-end',
+  },
   statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -128,6 +163,22 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
     borderRadius: Radius.full,
     gap: 6,
+  },
+  subBadgesRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: Spacing.md,
+  },
+  subBadge: {
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: Radius.sm,
+  },
+  subBadgeText: {
+    fontSize: FontSize.xs,
+    color: Colors.textSecondary,
   },
   statusDot: {
     width: 7,

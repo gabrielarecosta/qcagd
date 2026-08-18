@@ -87,10 +87,6 @@ export default function CarritoScreen() {
   const { addOrder, orders } = useOrderStore();
   const { clientData, isLoggedIn } = useAuthStore();
 
-  if (!isLoggedIn) {
-    return isDesktop ? <DesktopStartScreen /> : <MobileStartScreen />;
-  }
-
 
   useEffect(() => {
     fetchPromotions();
@@ -121,8 +117,6 @@ export default function CarritoScreen() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentOption>('efectivo');
   const [efectivoAbonaCon, setEfectivoAbonaCon] = useState('');
   const [observaciones, setObservaciones] = useState('');
-  const [orderConfirmed, setOrderConfirmed] = useState(false);
-  const [confirmedOrderNum, setConfirmedOrderNum] = useState('');
   const [companySettings, setCompanySettings] = useState<any>(null);
 
   // Estados de franjas horarias (Etapa 7)
@@ -277,9 +271,6 @@ export default function CarritoScreen() {
     fetchCapacities();
   }, [deliveryDate, slots, isSlotDisabled]);
 
-  const [confirmedOrderTotal, setConfirmedOrderTotal] = useState(0);
-  const [confirmedOrderPaymentMethod, setConfirmedOrderPaymentMethod] = useState<PaymentOption>('efectivo');
-
   const clientOrders = useMemo(() => {
     if (!clientData) return [];
     return orders.filter(o => o.clienteId === clientData.id);
@@ -397,33 +388,69 @@ export default function CarritoScreen() {
 
           setIsConfirming(true);
           try {
-            const savedOrder = await addOrder(newOrder, clientData?.email || '');
-            const confirmedNum = savedOrder?.numero || newOrder.numero;
+            await addOrder(newOrder, clientData?.email || '');
+            const confirmedNum = newOrder.numero;
 
-            setConfirmedOrderNum(confirmedNum);
-            setConfirmedOrderTotal(total);
-            setConfirmedOrderPaymentMethod(paymentMethod);
-            setOrderConfirmed(true);
             clearCart();
-            setObservaciones('');
+            const confirmParams = {
+              orderNum: confirmedNum,
+              orderTotal: String(total),
+              deliveryMethod: deliveryMethod,
+              paymentMethod: paymentMethod,
+              deliveryDate: deliveryDate || '',
+              slotNombre: selectedSlot?.nombre || '',
+              slotHoraInicio: selectedSlot?.hora_inicio || '',
+              slotHoraFin: selectedSlot?.hora_fin || '',
+            };
 
-            // Redirección o simulación si es Mercado Pago
+            resetCheckoutState();
+
+            // Redirección directa a Mercado Pago si eligió MP
             if (paymentMethod === 'mercadopago') {
-              setTimeout(() => {
-                customAlert(
-                  'Redirección a Mercado Pago',
-                  'Simulando redirección segura para abonar con Tarjeta o dinero en cuenta...',
-                  [
-                    {
-                      text: 'Ir a Mercado Pago',
-                      onPress: () => {
-                        Linking.openURL('https://www.mercadopago.com.ar');
-                      }
+              try {
+                const backendUrl = process.env.EXPO_PUBLIC_BACKEND_URL || 'http://localhost:3001';
+                const mpRes = await fetch(`${backendUrl}/api/mercadopago/create-preference`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    orderId: newOrder.id,
+                    items: items.map((i) => {
+                      const calc = offerService.calculateFinalPrice(i.producto, i.cantidad, customerType, promotions);
+                      return {
+                        title: i.producto.nombre,
+                        unit_price: calc.priceFinal,
+                        quantity: i.cantidad,
+                      };
+                    }),
+                    payer: {
+                      name: clientData?.nombre || 'Cliente',
+                      email: clientData?.email || '',
+                    },
+                  }),
+                });
+
+                if (mpRes.ok) {
+                  const mpData = await mpRes.json();
+                  const targetUrl = mpData.init_point || mpData.sandbox_init_point;
+                  if (targetUrl) {
+                    if (Platform.OS === 'web') {
+                      window.location.href = targetUrl;
+                    } else {
+                      Linking.openURL(targetUrl);
                     }
-                  ]
-                );
-              }, 600);
+                    return;
+                  }
+                }
+              } catch (mpErr) {
+                console.error('Error iniciando checkout de Mercado Pago:', mpErr);
+              }
             }
+
+            router.push({
+              pathname: '/pedido-confirmado' as any,
+              params: confirmParams,
+            });
+
           } catch (err) {
             console.error('Error confirming order:', err);
             customAlert('Error', 'No se pudo generar el pedido. Por favor, intentá nuevamente.');
@@ -459,140 +486,11 @@ export default function CarritoScreen() {
     }
   }, [repeatOrder]);
 
-  // ──────────────────────────────────────────────────────────────
-  // ESTADO: CONFIRMADO
-  // ──────────────────────────────────────────────────────────────
-  if (orderConfirmed) {
-    const selectedOption = DELIVERY_OPTIONS.find((o) => o.key === deliveryMethod)!;
-    const paymentLabel = confirmedOrderPaymentMethod === 'efectivo'
-      ? 'Efectivo / Contra entrega'
-      : confirmedOrderPaymentMethod === 'mercadopago'
-        ? 'Mercado Pago'
-        : 'Transferencia Bancaria';
-
-    const handleSendReceipt = () => {
-      const waText = encodeURIComponent(
-        `*Comprobante de Pago — Química Deheza*\n` +
-        `Hola! Acabo de realizar la transferencia para mi pedido *${confirmedOrderNum}*\n` +
-        `*Monto:* ${fmtPrice(confirmedOrderTotal)}\n` +
-        `Adjunto aquí abajo la captura del comprobante bancario.`
-      );
-      const targetNumber = companySettings?.whatsapp || '5493511234567';
-      Linking.openURL(`https://wa.me/${targetNumber}?text=${waText}`);
-    };
-
-    return (
-      <SafeAreaView style={styles.safeArea}>
-        <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
-          <View style={styles.confirmedContainer}>
-            <Text style={styles.confirmedIcon}>🎉</Text>
-
-            <Text style={styles.confirmedTitle}>¡Pedido confirmado!</Text>
-            <Text style={styles.confirmedOrderNum}>{confirmedOrderNum}</Text>
-
-            <View style={styles.confirmedInfoCard}>
-              <View style={styles.confirmedInfoRow}>
-                <Text style={styles.confirmedInfoIcon}>{selectedOption.icon}</Text>
-                <View>
-                  <Text style={styles.confirmedInfoLabel}>Forma de entrega</Text>
-                  <Text style={styles.confirmedInfoValue}>{selectedOption.label}</Text>
-                </View>
-              </View>
-              <View style={[styles.confirmedInfoRow, { borderTopWidth: 1, borderTopColor: Colors.border, marginTop: Spacing.lg, paddingTop: Spacing.lg }]}>
-                <Text style={styles.confirmedInfoIcon}>💳</Text>
-                <View>
-                  <Text style={styles.confirmedInfoLabel}>Método de Pago</Text>
-                  <Text style={styles.confirmedInfoValue}>{paymentLabel}</Text>
-                </View>
-              </View>
-              <View style={[styles.confirmedInfoRow, { borderTopWidth: 1, borderTopColor: Colors.border, marginTop: Spacing.lg, paddingTop: Spacing.lg }]}>
-                <Text style={styles.confirmedInfoIcon}>✅</Text>
-                <View>
-                  <Text style={styles.confirmedInfoLabel}>Estado</Text>
-                  <Text style={styles.confirmedInfoValue}>
-                    {deliveryMethod === 'whatsapp'
-                      ? 'En consulta con el local'
-                      : 'Recibido — Lo preparamos ya'}
-                  </Text>
-                </View>
-              </View>
-              {deliveryMethod !== 'retiro' && selectedSlot && (
-                <View style={[styles.confirmedInfoRow, { borderTopWidth: 1, borderTopColor: Colors.border, marginTop: Spacing.lg, paddingTop: Spacing.lg }]}>
-                  <Text style={styles.confirmedInfoIcon}>📅</Text>
-                  <View>
-                    <Text style={styles.confirmedInfoLabel}>Entrega Programada</Text>
-                    <Text style={styles.confirmedInfoValue}>
-                      {deliveryDate} ({selectedSlot.nombre})
-                    </Text>
-                    <Text style={{ fontSize: 12, color: Colors.textSecondary, marginTop: 2 }}>
-                      De {selectedSlot.hora_inicio} a {selectedSlot.hora_fin} hs
-                    </Text>
-                  </View>
-                </View>
-              )}
-            </View>
-
-            {/* Cuadro especial si eligió transferencia */}
-            {confirmedOrderPaymentMethod === 'transferencia' && (
-              <View style={styles.confirmedBankCard}>
-                <Text style={styles.bankCardTitle}>🏦 Completar Transferencia</Text>
-                <Text style={styles.bankCardSubtitle}>Transferí el total de {fmtPrice(confirmedOrderTotal)} a la cuenta de la química:</Text>
-
-                <View style={styles.bankCardDetails}>
-                  <View style={styles.bankCardRow}><Text style={styles.bankCardLabel}>Banco:</Text><Text style={styles.bankCardVal}>{companySettings?.banco || '—'}</Text></View>
-                  <View style={styles.bankCardRow}><Text style={styles.bankCardLabel}>Titular:</Text><Text style={styles.bankCardVal}>{companySettings?.titular || '—'}</Text></View>
-                  <View style={styles.bankCardRow}><Text style={styles.bankCardLabel}>Alias:</Text><Text style={[styles.bankCardVal, { fontWeight: 'bold', color: Colors.primary }]}>{companySettings?.alias_cbu || '—'}</Text></View>
-                  <View style={styles.bankCardRow}><Text style={styles.bankCardLabel}>CBU:</Text><Text style={styles.bankCardVal}>{companySettings?.cbu || '—'}</Text></View>
-                  <View style={styles.bankCardRow}><Text style={styles.bankCardLabel}>CUIT:</Text><Text style={styles.bankCardVal}>{companySettings?.cuit || '—'}</Text></View>
-                </View>
-
-                <TouchableOpacity
-                  style={styles.sendReceiptBtn}
-                  onPress={handleSendReceipt}
-                  activeOpacity={0.85}
-                >
-                  <MaterialCommunityIcons name="whatsapp" size={20} color={Colors.white} style={{ marginRight: 8 }} />
-                  <Text style={styles.sendReceiptBtnText}>Ya pagué, enviar comprobante</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-
-            <Text style={styles.confirmedSubtitle}>
-              {deliveryMethod === 'reparto'
-                ? 'Te avisamos cuando tu pedido salga para reparto'
-                : deliveryMethod === 'retiro'
-                  ? 'Te avisamos cuando esté listo para retirar'
-                  : 'Te contactamos por WhatsApp para coordinar'}
-            </Text>
-
-            <View style={styles.confirmedActions}>
-              <Button
-                title="Ver mis pedidos"
-                variant="primary"
-                size="lg"
-                onPress={() => {
-                  setOrderConfirmed(false);
-                  resetCheckoutState();
-                  router.push('/(tabs)/cuenta');
-                }}
-              />
-              <Button
-                title="Hacer otro pedido"
-                variant="outline"
-                size="md"
-                onPress={() => {
-                  setOrderConfirmed(false);
-                  resetCheckoutState();
-                  router.push('/(tabs)/catalogo');
-                }}
-                style={{ marginTop: 0 }}
-              />
-            </View>
-          </View>
-        </ScrollView>
-      </SafeAreaView>
-    );
+  if (!isLoggedIn) {
+    return isDesktop ? <DesktopStartScreen /> : <MobileStartScreen />;
   }
+
+
 
   // ──────────────────────────────────────────────────────────────
   // ESTADO: CARRITO VACÍO

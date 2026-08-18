@@ -72,12 +72,6 @@ export function DeliveryCard({ delivery }: DeliveryCardProps) {
         </View>
       </View>
 
-      {/* Hora estimada */}
-      <View style={styles.etaContainer}>
-        <Text style={styles.etaLabel}>Entrega estimada</Text>
-        <Text style={styles.etaTime}>{delivery.horaEstimada} hs</Text>
-      </View>
-
       {/* Timeline */}
       <View style={styles.timeline}>
         {STEPS.map((step, index) => {
@@ -229,23 +223,6 @@ const styles = StyleSheet.create({
     fontSize: FontSize.xs,
     fontWeight: FontWeight.bold,
     color: '#16A34A',
-  },
-  etaContainer: {
-    backgroundColor: Colors.primaryLight,
-    borderRadius: Radius.md,
-    padding: Spacing.lg,
-    alignItems: 'center',
-    marginBottom: Spacing.xl,
-  },
-  etaLabel: {
-    fontSize: FontSize.md,
-    color: Colors.primary,
-  },
-  etaTime: {
-    fontSize: FontSize.display,
-    fontWeight: FontWeight.extrabold,
-    color: Colors.primary,
-    letterSpacing: -1,
   },
   timeline: {
     paddingLeft: Spacing.sm,

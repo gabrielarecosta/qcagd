@@ -20,6 +20,8 @@ import { useOrderStore } from '../../store/orderStore';
 import { useCartStore } from '../../store/cartStore';
 import { formatPrice } from '../../utils/formatters';
 import { Order, CustomerAddress } from '../../types';
+import { OrderCard } from '../OrderCard';
+import { OrderDetailModal } from '../OrderDetailModal';
 
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
@@ -57,7 +59,7 @@ const infoStyles = StyleSheet.create({
 export function ClienteAccountScreen() {
   const router = useRouter();
   const { clientData, logout } = useAuthStore();
-  const { orders } = useOrderStore();
+  const { orders, fetchOrders } = useOrderStore();
   const { repeatOrder } = useCartStore();
 
   const [companySettings, setCompanySettings] = useState<any>(null);
@@ -68,6 +70,9 @@ export function ClienteAccountScreen() {
   const [newZona, setNewZona] = useState('Centro');
   const [newIndicaciones, setNewIndicaciones] = useState('');
   const [savingAddress, setSavingAddress] = useState(false);
+  const [selectedOrderForModal, setSelectedOrderForModal] = useState<Order | null>(null);
+  const [deliveryMethodFilter, setDeliveryMethodFilter] = useState<'all' | 'reparto' | 'retiro' | 'whatsapp'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'preparacion' | 'en_camino' | 'entregado' | 'cancelado'>('all');
 
   const loadAddresses = async () => {
     if (!clientData) return;
@@ -137,12 +142,62 @@ export function ClienteAccountScreen() {
     };
     loadSettings();
     loadAddresses();
+    // Fix bug: fetch orders on mount so they appear without visiting the reparto screen
+    if (clientData?.id) {
+      fetchOrders(clientData.id);
+    }
   }, [clientData]);
 
   const clientOrders = useMemo(() => {
     if (!clientData) return [];
     return orders.filter(o => o.clienteId === clientData.id);
   }, [orders, clientData]);
+
+  // Contadores para chips de método de entrega
+  const deliveryCounts = useMemo(() => {
+    const total = clientOrders.length;
+    const reparto = clientOrders.filter(o => o.deliveryMethod === 'reparto' || !o.deliveryMethod).length;
+    const retiro = clientOrders.filter(o => o.deliveryMethod === 'retiro').length;
+    const whatsapp = clientOrders.filter(o => o.deliveryMethod === 'whatsapp').length;
+    return { total, reparto, retiro, whatsapp };
+  }, [clientOrders]);
+
+  // Contadores para chips de estados
+  const statusCounts = useMemo(() => {
+    const total = clientOrders.length;
+    const preparacion = clientOrders.filter(o => o.estado === 'pendiente' || o.estado === 'recibido' || o.estado === 'en_preparacion' || o.estado === 'listo_para_reparto').length;
+    const en_camino = clientOrders.filter(o => o.estado === 'en_camino').length;
+    const entregado = clientOrders.filter(o => o.estado === 'entregado').length;
+    const cancelado = clientOrders.filter(o => (o.estado as string) === 'cancelado' || (o.estado as string) === 'reprogramado').length;
+    return { total, preparacion, en_camino, entregado, cancelado };
+  }, [clientOrders]);
+
+  // Pedidos filtrados según selección de chips
+  const filteredClientOrders = useMemo(() => {
+    return clientOrders.filter((o) => {
+      // Filtro por método de entrega
+      const matchesDelivery =
+        deliveryMethodFilter === 'all'
+          ? true
+          : deliveryMethodFilter === 'reparto'
+          ? o.deliveryMethod === 'reparto' || !o.deliveryMethod
+          : o.deliveryMethod === deliveryMethodFilter;
+
+      // Filtro por estado
+      let matchesStatus = true;
+      if (statusFilter === 'preparacion') {
+        matchesStatus = o.estado === 'pendiente' || o.estado === 'recibido' || o.estado === 'en_preparacion' || o.estado === 'listo_para_reparto';
+      } else if (statusFilter === 'en_camino') {
+        matchesStatus = o.estado === 'en_camino';
+      } else if (statusFilter === 'entregado') {
+        matchesStatus = o.estado === 'entregado';
+      } else if (statusFilter === 'cancelado') {
+        matchesStatus = (o.estado as string) === 'cancelado' || (o.estado as string) === 'reprogramado';
+      }
+
+      return matchesDelivery && matchesStatus;
+    });
+  }, [clientOrders, deliveryMethodFilter, statusFilter]);
 
   // Encontrar el último pedido
   const lastOrder = useMemo(() => {
@@ -205,7 +260,7 @@ export function ClienteAccountScreen() {
         </View>
         <View style={styles.headerInfo}>
           <Text style={styles.customerName}>{clientData.nombre}</Text>
-          {clientData.razonSocial && (
+          {!!clientData.razonSocial && (
             <Text style={styles.razonSocial}>{clientData.razonSocial}</Text>
           )}
           <View style={styles.zonaBadge}>
@@ -392,7 +447,7 @@ export function ClienteAccountScreen() {
           <View style={styles.orderSummaryBox}>
             <Text style={styles.orderSummaryTitle}>Pedido #{lastOrder.numero}</Text>
             <Text style={styles.orderSummaryDate}>Fecha: {new Date(lastOrder.fecha).toLocaleDateString()}</Text>
-            {lastOrder.deliveryDate && (
+            {!!lastOrder.deliveryDate && (
               <Text style={[styles.orderSummaryDate, { color: Colors.primary, fontWeight: '600', marginTop: 2 }]}>
                 🚚 Entrega: {lastOrder.deliveryDate} de {lastOrder.deliveryStartTime} a {lastOrder.deliveryEndTime} hs
               </Text>
@@ -430,26 +485,177 @@ export function ClienteAccountScreen() {
       {/* Mis Pedidos Historial */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Historial de pedidos ({clientOrders.length})</Text>
+
+        {clientOrders.length > 0 && (
+          <View style={{ marginBottom: Spacing.lg, gap: 12 }}>
+            {/* Chips de filtro por Tipo de Entrega */}
+            <View>
+              <Text style={styles.filterSectionHeader}>
+                Tipo de entrega
+              </Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingRight: 16 }}>
+                <TouchableOpacity
+                  style={[
+                    styles.filterChip,
+                    deliveryMethodFilter === 'all' && styles.filterChipActive
+                  ]}
+                  onPress={() => setDeliveryMethodFilter('all')}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.filterChipText, deliveryMethodFilter === 'all' && styles.filterChipTextActive]}>
+                    Todos ({deliveryCounts.total})
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.filterChip,
+                    deliveryMethodFilter === 'reparto' && styles.filterChipActive
+                  ]}
+                  onPress={() => setDeliveryMethodFilter('reparto')}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.filterChipText, deliveryMethodFilter === 'reparto' && styles.filterChipTextActive]}>
+                    🚚 Repartos ({deliveryCounts.reparto})
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.filterChip,
+                    deliveryMethodFilter === 'retiro' && styles.filterChipActive
+                  ]}
+                  onPress={() => setDeliveryMethodFilter('retiro')}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.filterChipText, deliveryMethodFilter === 'retiro' && styles.filterChipTextActive]}>
+                    🏪 Retiros ({deliveryCounts.retiro})
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.filterChip,
+                    deliveryMethodFilter === 'whatsapp' && styles.filterChipActive
+                  ]}
+                  onPress={() => setDeliveryMethodFilter('whatsapp')}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.filterChipText, deliveryMethodFilter === 'whatsapp' && styles.filterChipTextActive]}>
+                    💬 Coordinados ({deliveryCounts.whatsapp})
+                  </Text>
+                </TouchableOpacity>
+              </ScrollView>
+            </View>
+
+            {/* Chips de filtro por Estado */}
+            <View>
+              <Text style={styles.filterSectionHeader}>
+                Estado del pedido
+              </Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingRight: 16 }}>
+                <TouchableOpacity
+                  style={[
+                    styles.filterChip,
+                    statusFilter === 'all' && styles.filterChipActive
+                  ]}
+                  onPress={() => setStatusFilter('all')}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.filterChipText, statusFilter === 'all' && styles.filterChipTextActive]}>
+                    Todos ({statusCounts.total})
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.filterChip,
+                    statusFilter === 'preparacion' && styles.filterChipActive
+                  ]}
+                  onPress={() => setStatusFilter('preparacion')}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.filterChipText, statusFilter === 'preparacion' && styles.filterChipTextActive]}>
+                    📦 En preparación ({statusCounts.preparacion})
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.filterChip,
+                    statusFilter === 'en_camino' && styles.filterChipActive
+                  ]}
+                  onPress={() => setStatusFilter('en_camino')}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.filterChipText, statusFilter === 'en_camino' && styles.filterChipTextActive]}>
+                    🚚 En camino ({statusCounts.en_camino})
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.filterChip,
+                    statusFilter === 'entregado' && styles.filterChipActive
+                  ]}
+                  onPress={() => setStatusFilter('entregado')}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.filterChipText, statusFilter === 'entregado' && styles.filterChipTextActive]}>
+                    ✅ Entregados ({statusCounts.entregado})
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.filterChip,
+                    statusFilter === 'cancelado' && styles.filterChipActive
+                  ]}
+                  onPress={() => setStatusFilter('cancelado')}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.filterChipText, statusFilter === 'cancelado' && styles.filterChipTextActive]}>
+                    ❌ Cancelados ({statusCounts.cancelado})
+                  </Text>
+                </TouchableOpacity>
+              </ScrollView>
+            </View>
+          </View>
+        )}
+
         {clientOrders.length === 0 ? (
           <Text style={styles.emptyText}>No tenés pedidos registrados todavía.</Text>
+        ) : filteredClientOrders.length === 0 ? (
+          <View style={styles.noResultsCard}>
+            <Text style={{ fontSize: 24, marginBottom: 8 }}>🔍</Text>
+            <Text style={styles.noResultsTitle}>
+              Sin pedidos para los filtros seleccionados
+            </Text>
+            <Text style={styles.noResultsSub}>
+              Probá cambiando el tipo de entrega o el estado seleccionado.
+            </Text>
+            <TouchableOpacity
+              style={styles.resetFiltersBtn}
+              onPress={() => {
+                setDeliveryMethodFilter('all');
+                setStatusFilter('all');
+              }}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.resetFiltersBtnText}>Restablecer filtros</Text>
+            </TouchableOpacity>
+          </View>
         ) : (
-          clientOrders.map((o) => (
-            <View key={o.id} style={styles.orderItemCard}>
-              <View style={styles.orderItemHeader}>
-                <Text style={styles.orderNumberText}>Pedido #{o.numero}</Text>
-                <Text style={[styles.orderStatusText, { color: Colors.primary }]}>{o.estado.toUpperCase()}</Text>
-              </View>
-              <Text style={styles.orderDateText}>
-                Fecha: {new Date(o.fecha).toLocaleDateString()}
-              </Text>
-              <Text style={styles.orderTotalText}>
-                Monto: {formatPrice(o.total)}
-              </Text>
-              <TouchableOpacity style={styles.smallRepeatButton} onPress={() => handleRepeatOrder(o)} activeOpacity={0.8}>
-                <Text style={styles.smallRepeatButtonText}>🛒 Repetir pedido</Text>
-              </TouchableOpacity>
-            </View>
-          ))
+          <View style={{ gap: Spacing.md }}>
+            {filteredClientOrders.map((o) => (
+              <OrderCard
+                key={o.id}
+                order={o}
+                onPress={(order) => setSelectedOrderForModal(order)}
+                onRepeat={handleRepeatOrder}
+              />
+            ))}
+          </View>
         )}
       </View>
 
@@ -468,7 +674,7 @@ export function ClienteAccountScreen() {
           <Text style={styles.menuItemArrow}>›</Text>
         </TouchableOpacity>
 
-        {companySettings?.direccion && (
+        {!!companySettings?.direccion && (
           <View style={[styles.menuItem, { borderBottomWidth: 0, paddingBottom: 0 }]}>
             <Text style={styles.menuItemIcon}>📍</Text>
             <View style={{ flex: 1 }}>
@@ -478,7 +684,7 @@ export function ClienteAccountScreen() {
           </View>
         )}
 
-        {companySettings?.instagram && (
+        {!!companySettings?.instagram && (
           <TouchableOpacity 
             style={styles.menuItem} 
             onPress={() => Linking.openURL(`https://instagram.com/${companySettings.instagram}`)}
@@ -489,7 +695,7 @@ export function ClienteAccountScreen() {
           </TouchableOpacity>
         )}
 
-        {companySettings?.facebook && (
+        {!!companySettings?.facebook && (
           <TouchableOpacity 
             style={styles.menuItem} 
             onPress={() => Linking.openURL(`https://facebook.com/${companySettings.facebook}`)}
@@ -509,6 +715,12 @@ export function ClienteAccountScreen() {
       <View style={styles.versionContainer}>
         <Text style={styles.versionText}>Química Deheza · Cliente Final</Text>
       </View>
+
+      <OrderDetailModal
+        order={selectedOrderForModal}
+        onClose={() => setSelectedOrderForModal(null)}
+        onRepeat={handleRepeatOrder}
+      />
     </ScrollView>
   );
 }
@@ -714,7 +926,69 @@ const styles = StyleSheet.create({
     fontSize: FontSize.xl,
     fontWeight: FontWeight.bold,
     color: Colors.textPrimary,
-    marginBottom: Spacing.lg,
+    marginBottom: Spacing.md,
+  },
+  filterSectionHeader: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 6,
+  },
+  filterChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 20,
+    backgroundColor: '#F1F5F9',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  filterChipActive: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+  },
+  filterChipText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#475569',
+  },
+  filterChipTextActive: {
+    color: '#FFFFFF',
+    fontWeight: 'bold',
+  },
+  noResultsCard: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: Radius.md,
+    padding: Spacing.xl,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: Colors.border,
+    marginTop: Spacing.sm,
+  },
+  noResultsTitle: {
+    fontSize: FontSize.md,
+    fontWeight: 'bold',
+    color: Colors.textPrimary,
+    marginBottom: 4,
+    textAlign: 'center',
+  },
+  noResultsSub: {
+    fontSize: FontSize.sm,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+    marginBottom: Spacing.md,
+  },
+  resetFiltersBtn: {
+    backgroundColor: Colors.primary + '18',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: Radius.sm,
+  },
+  resetFiltersBtnText: {
+    fontSize: 13,
+    fontWeight: 'bold',
+    color: Colors.primary,
   },
   emptyText: {
     fontSize: FontSize.md,

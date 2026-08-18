@@ -4,6 +4,8 @@ import dotenv from 'dotenv';
 import { createClient } from '@supabase/supabase-js';
 import { z } from 'zod';
 import https from 'https';
+import { MercadoPagoConfig, Preference, Payment } from 'mercadopago';
+
 
 dotenv.config();
 
@@ -440,6 +442,214 @@ app.post('/api/routes/recalculate-pending', authMiddleware, async (req: Authenti
     res.status(502).json({ error: 'Error del motor de ruteo al calcular trazado parcial' });
   }
 });
+
+// ------------------------------------------------------------
+// MERCADO PAGO SCHEMAS & ENDPOINTS
+// ------------------------------------------------------------
+const createPreferenceSchema = z.object({
+  orderId: z.string(),
+  items: z.array(
+    z.object({
+      title: z.string(),
+      unit_price: z.number(),
+      quantity: z.number(),
+    })
+  ).min(1),
+  payer: z.object({
+    name: z.string().optional(),
+    email: z.string().optional(),
+    phone: z.string().optional(),
+  }).optional(),
+});
+
+// 6. POST /api/mercadopago/create-preference
+app.post('/api/mercadopago/create-preference', async (req: Request, res: Response): Promise<void> => {
+  const result = createPreferenceSchema.safeParse(req.body);
+  if (!result.success) {
+    res.status(400).json({ error: 'Parámetros de preferencia de pago inválidos', details: result.error.errors });
+    return;
+  }
+
+  const { orderId, items, payer } = result.data;
+  const mpAccessToken = process.env.MERCADOPAGO_ACCESS_TOKEN || '';
+
+  if (!mpAccessToken || mpAccessToken === 'your_mercadopago_access_token_here') {
+    res.status(500).json({ error: 'MERCADOPAGO_ACCESS_TOKEN no está configurado en el servidor' });
+    return;
+  }
+
+  try {
+    const clientAppUrl = process.env.CLIENT_APP_URL || 'http://localhost:8081';
+    const backendUrl = process.env.BACKEND_URL || 'http://localhost:3001';
+
+    const client = new MercadoPagoConfig({ accessToken: mpAccessToken });
+    const preference = new Preference(client);
+
+    const isLocalhost = clientAppUrl.includes('localhost') || clientAppUrl.includes('127.0.0.1');
+
+    const preferenceBody: any = {
+      items: items.map((item) => ({
+        id: item.title.slice(0, 256),
+        title: item.title,
+        unit_price: Number(item.unit_price),
+        quantity: Number(item.quantity),
+        currency_id: 'ARS',
+      })),
+      external_reference: orderId,
+      back_urls: {
+        success: `${clientAppUrl}/confirmacion-pago?status=approved&order_id=${encodeURIComponent(orderId)}`,
+        failure: `${clientAppUrl}/confirmacion-pago?status=rejected&order_id=${encodeURIComponent(orderId)}`,
+        pending: `${clientAppUrl}/confirmacion-pago?status=pending&order_id=${encodeURIComponent(orderId)}`,
+      },
+      notification_url: `${backendUrl}/api/mercadopago/webhook`,
+      payer: payer ? {
+        name: payer.name || 'Cliente Química',
+        email: payer.email || 'cliente@quimicadeheza.com',
+      } : undefined,
+    };
+
+    if (!isLocalhost && clientAppUrl.startsWith('https://')) {
+      preferenceBody.auto_return = 'approved';
+    }
+
+    const mpResponse = await preference.create({ body: preferenceBody });
+
+    res.json({
+      preferenceId: mpResponse.id,
+      init_point: mpResponse.init_point,
+      sandbox_init_point: mpResponse.sandbox_init_point,
+    });
+  } catch (err: any) {
+    console.error('Error al crear preferencia en Mercado Pago:', err.message || err);
+    res.status(500).json({ error: 'Error al generar la preferencia de Mercado Pago', details: err.message });
+  }
+});
+
+// 7. POST /api/mercadopago/webhook
+app.post('/api/mercadopago/webhook', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const paymentId = (req.query['data.id'] || req.query.id || req.body?.data?.id || req.body?.id) as string;
+    const type = (req.query.type || req.query.topic || req.body?.type || req.body?.action) as string;
+
+    console.log(`🔔 Webhook recibido de Mercado Pago: type=${type}, paymentId=${paymentId}`);
+
+    if (paymentId && (type === 'payment' || type === 'payment.created' || type === 'payment.updated' || !type)) {
+      const mpAccessToken = process.env.MERCADOPAGO_ACCESS_TOKEN || '';
+      if (!mpAccessToken) {
+        console.error('❌ MERCADOPAGO_ACCESS_TOKEN faltante para procesar webhook');
+        res.status(200).send('OK');
+        return;
+      }
+
+      const client = new MercadoPagoConfig({ accessToken: mpAccessToken });
+      const paymentApi = new Payment(client);
+
+      const paymentInfo = await paymentApi.get({ id: paymentId });
+      const orderId = paymentInfo.external_reference;
+      const status = paymentInfo.status;
+
+      console.log(`💳 Pago MP ID ${paymentId} para pedido ${orderId}: estado=${status}`);
+
+      if (orderId) {
+        const newPaymentStatus = status === 'approved' ? 'pagado' : (status === 'rejected' || status === 'cancelled') ? 'rechazado' : 'pendiente';
+        const updatePayload: any = {
+          payment_status: newPaymentStatus,
+          updated_at: new Date().toISOString(),
+        };
+
+        if (status === 'approved') {
+          updatePayload.estado = 'en_preparacion';
+        }
+
+        const { error: updateErr } = await supabase
+          .from('orders')
+          .update(updatePayload)
+          .eq('id', orderId);
+
+        if (updateErr) {
+          console.error(`Error actualizando estado de pedido ${orderId} en Supabase:`, updateErr.message);
+        } else {
+          console.log(`✅ Pedido ${orderId} actualizado exitosamente a payment_status=${newPaymentStatus}`);
+        }
+      }
+    }
+
+    res.status(200).send('OK');
+  } catch (err: any) {
+    console.error('Error en webhook de Mercado Pago:', err.message || err);
+    res.status(200).send('OK');
+  }
+});
+
+// 8. GET /api/mercadopago/status/:orderId
+app.get('/api/mercadopago/status/:orderId', async (req: Request, res: Response): Promise<void> => {
+  const { orderId } = req.params;
+  const paymentIdQuery = req.query.payment_id as string | undefined;
+
+  if (!orderId) {
+    res.status(400).json({ error: 'Se requiere orderId' });
+    return;
+  }
+
+  try {
+    let { data: order, error } = await supabase
+      .from('orders')
+      .select('*')
+      .or(`id.eq.${orderId},numero.eq.${orderId}`)
+      .maybeSingle();
+
+    if (error) {
+      console.error('Error buscando orden en Supabase:', error.message);
+    }
+
+    if (paymentIdQuery && process.env.MERCADOPAGO_ACCESS_TOKEN && process.env.MERCADOPAGO_ACCESS_TOKEN !== 'APP_USR-TEST-TOKEN') {
+      try {
+        const client = new MercadoPagoConfig({ accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN });
+        const paymentApi = new Payment(client);
+        const paymentInfo = await paymentApi.get({ id: paymentIdQuery });
+
+        if (paymentInfo && paymentInfo.status) {
+          const mpStatus = paymentInfo.status;
+          const livePaymentStatus = mpStatus === 'approved' ? 'pagado' : (mpStatus === 'rejected' || mpStatus === 'cancelled') ? 'rechazado' : 'pendiente';
+
+          if (order && order.payment_status !== livePaymentStatus) {
+            const updatePayload: any = {
+              payment_status: livePaymentStatus,
+              updated_at: new Date().toISOString(),
+            };
+            if (mpStatus === 'approved') {
+              updatePayload.estado = 'en_preparacion';
+            }
+            await supabase.from('orders').update(updatePayload).eq('id', order.id);
+            order.payment_status = livePaymentStatus;
+            if (mpStatus === 'approved') order.estado = 'en_preparacion';
+          }
+        }
+      } catch (mpErr: any) {
+        console.warn('No se pudo verificar pago vivo en MP:', mpErr.message);
+      }
+    }
+
+    if (!order) {
+      res.status(404).json({ error: 'Pedido no encontrado' });
+      return;
+    }
+
+    res.json({
+      id: order.id,
+      numero: order.numero,
+      total: order.total,
+      paymentStatus: order.payment_status || 'pendiente',
+      estado: order.estado,
+      fecha: order.fecha,
+      customerName: order.customer_name,
+    });
+  } catch (err: any) {
+    console.error('Error obteniendo estado de pago del pedido:', err.message);
+    res.status(500).json({ error: 'Error al consultar estado de pago del pedido' });
+  }
+});
+
 
 // Start Server if not loaded from test suite
 if (process.env.NODE_ENV !== 'test') {

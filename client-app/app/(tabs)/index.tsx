@@ -18,6 +18,7 @@ import { Radius, Spacing, TouchTarget } from '../../constants/Spacing';
 import { useOrderStore } from '../../store/orderStore';
 import { useCatalogStore } from '../../store/catalogStore';
 import { OrderCard } from '../../components/OrderCard';
+import { OrderDetailModal } from '../../components/OrderDetailModal';
 import { ProductCard } from '../../components/ProductCard';
 import { useCartStore } from '../../store/cartStore';
 import { getFirstName, formatPrice } from '../../utils/formatters';
@@ -53,6 +54,7 @@ export default function HomeScreen() {
 
   const [bannerIndex, setBannerIndex] = React.useState(0);
   const [selectedOfferDetails, setSelectedOfferDetails] = React.useState<any | null>(null);
+  const [selectedOrderForModal, setSelectedOrderForModal] = React.useState<Order | null>(null);
   const bannerScrollRef = React.useRef<ScrollView>(null);
   const isDraggingBanner = React.useRef(false);
 
@@ -109,6 +111,27 @@ export default function HomeScreen() {
     }
   }, [width]);
 
+  // Calcular los 4 productos más frecuentes basados en el historial de pedidos mock
+  const frequentProducts = React.useMemo(() => {
+    const counts: Record<string, { product: Product; count: number }> = {};
+    (orders || []).forEach((order) => {
+      (order.items || []).forEach((item) => {
+        if (counts[item.producto.id]) {
+          counts[item.producto.id].count += item.cantidad;
+        } else {
+          counts[item.producto.id] = {
+            product: item.producto,
+            count: item.cantidad,
+          };
+        }
+      });
+    });
+    return Object.values(counts)
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 4)
+      .map((x) => x.product);
+  }, [orders]);
+
   const addOfferToCart = (offer: any) => {
     const items: any[] = offer.super_offer_items || [];
     if (items.length === 0) return;
@@ -131,7 +154,6 @@ export default function HomeScreen() {
     return null;
   }
 
-
   const displayName = isLoggedIn && clientData ? clientData.nombre : 'Invitado';
   const firstName = getFirstName(displayName);
   const activeOrder = activeDeliveryOrder();
@@ -152,27 +174,6 @@ export default function HomeScreen() {
       params: { categoria: category }
     });
   };
-
-  // Calcular los 4 productos más frecuentes basados en el historial de pedidos mock
-  const frequentProducts = React.useMemo(() => {
-    const counts: Record<string, { product: Product; count: number }> = {};
-    orders.forEach((order) => {
-      order.items.forEach((item) => {
-        if (counts[item.producto.id]) {
-          counts[item.producto.id].count += item.cantidad;
-        } else {
-          counts[item.producto.id] = {
-            product: item.producto,
-            count: item.cantidad,
-          };
-        }
-      });
-    });
-    return Object.values(counts)
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 4)
-      .map((x) => x.product);
-  }, [orders]);
 
   const handleBannerScroll = (event: any) => {
     const offsetX = event.nativeEvent.contentOffset.x;
@@ -394,6 +395,7 @@ export default function HomeScreen() {
             <Text style={styles.sectionTitle}>Repetir último pedido</Text>
             <OrderCard
               order={lastDelivered}
+              onPress={(order) => setSelectedOrderForModal(order)}
               onRepeat={handleRepeatOrder}
               style={styles.lastOrderCard}
               delay={0}
@@ -563,6 +565,13 @@ export default function HomeScreen() {
           </View>
         </View>
       )}
+
+      {/* Modal de Detalle de Pedido */}
+      <OrderDetailModal
+        order={selectedOrderForModal}
+        onClose={() => setSelectedOrderForModal(null)}
+        onRepeat={handleRepeatOrder}
+      />
     </SafeAreaView>
   );
 }
