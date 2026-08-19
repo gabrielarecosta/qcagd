@@ -479,8 +479,8 @@ app.post('/api/mercadopago/create-preference', async (req: Request, res: Respons
   }
 
   try {
-    const clientAppUrl = process.env.CLIENT_APP_URL || 'http://localhost:8081';
-    const backendUrl = process.env.BACKEND_URL || 'http://localhost:3001';
+    const clientAppUrl = process.env.CLIENT_APP_URL || 'https://quimicagd.com.ar';
+    const backendUrl = process.env.BACKEND_URL || 'https://api.quimicagd.com.ar';
 
     const client = new MercadoPagoConfig({ accessToken: mpAccessToken });
     const preference = new Preference(client);
