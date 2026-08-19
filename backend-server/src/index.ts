@@ -224,7 +224,7 @@ app.get('/api/geocoding/autocomplete', authMiddleware, async (req: Authenticated
     const url = `https://api.geoapify.com/v1/geocode/autocomplete?text=${encodeURIComponent(text)}&filter=countrycode:ar&bias=proximity:${lon},${lat}&limit=5&apiKey=${apiKey}`;
 
     const data = await fetchGeoapify(url);
-    
+
     // Mapear respuesta legible
     const results = (data.features || []).map((f: any) => {
       const p = f.properties;
@@ -305,7 +305,7 @@ app.post('/api/routes/optimize', authMiddleware, async (req: AuthenticatedReques
 
   try {
     const apiKey = process.env.GEOAPIFY_SERVER_API_KEY;
-    
+
     // Construir la petición al Route Planner de Geoapify
     // IMPORTANTE: En el cuerpo JSON de Geoapify, las coordenadas deben ser [longitud, latitud]
     const routePlannerPayload = {
@@ -392,7 +392,7 @@ app.post('/api/routes/calculate', authMiddleware, async (req: AuthenticatedReque
     const url = `https://api.geoapify.com/v1/routing?waypoints=${waypointsQuery}&mode=drive&apiKey=${apiKey}`;
 
     const data = await fetchGeoapify(url);
-    
+
     const route = data.features?.[0];
     if (!route) {
       res.status(404).json({ error: 'No se pudo trazar la ruta de reparto' });
