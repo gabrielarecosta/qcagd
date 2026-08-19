@@ -518,6 +518,7 @@ app.post('/api/mercadopago/create-preference', async (req: Request, res: Respons
       preferenceId: mpResponse.id,
       init_point: mpResponse.init_point,
       sandbox_init_point: mpResponse.sandbox_init_point,
+      mpResponse, preferenceBody
     });
   } catch (err: any) {
     console.error('Error al crear preferencia en Mercado Pago:', err.message || err);
