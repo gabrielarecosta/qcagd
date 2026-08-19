@@ -36,17 +36,28 @@ export default function ConfirmacionPagoScreen() {
   const router = useRouter();
   const rawParams = useLocalSearchParams();
 
-  // Normalizar parámetros para evitar que arrays causen re-renders infinitos en React
-  const orderId = getParamString(rawParams.order_id) || getParamString(rawParams.external_reference);
-  const paymentId = getParamString(rawParams.payment_id) || getParamString(rawParams.collection_id);
-  const urlStatus = getParamString(rawParams.status) || getParamString(rawParams.collection_status);
-
   const [isLoading, setIsLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [orderState, setOrderState] = useState<OrderPaymentState | null>(null);
+
+  // Capturar parámetros UNA SOLA VEZ en un ref para evitar el re-render infinito.
+  // useLocalSearchParams() retorna un objeto nuevo en cada render, por lo que no
+  // puede usarse como dependencia de useEffect sin causar un loop.
+  const paramsRef = useRef({
+    orderId: getParamString(rawParams.order_id) || getParamString(rawParams.external_reference),
+    paymentId: getParamString(rawParams.payment_id) || getParamString(rawParams.collection_id),
+    urlStatus: getParamString(rawParams.status) || getParamString(rawParams.collection_status),
+  });
   const hasFetchedRef = useRef(false);
 
   useEffect(() => {
+    // Garantizar que el fetch se ejecute UNA SOLA VEZ aunque el componente re-renderice.
+    if (hasFetchedRef.current) return;
+    hasFetchedRef.current = true;
+
+    // Leer parámetros desde el ref estable, no desde variables derivadas del render
+    const { orderId, paymentId, urlStatus } = paramsRef.current;
+
     let isMounted = true;
 
     async function fetchPaymentStatus() {
@@ -63,7 +74,7 @@ export default function ConfirmacionPagoScreen() {
       try {
         const backendUrl = process.env.EXPO_PUBLIC_BACKEND_URL || 'https://api.quimicagd.com.ar';
         const queryPaymentId = paymentId ? `?payment_id=${encodeURIComponent(paymentId)}` : '';
-        
+
         let loadedData: OrderPaymentState | null = null;
 
         // 1. Intentar consultar endpoint seguro del backend
@@ -147,7 +158,7 @@ export default function ConfirmacionPagoScreen() {
     return () => {
       isMounted = false;
     };
-  }, [orderId, paymentId, urlStatus]);
+  }, []); // Array vacío: ejecutar solo al montar, los params se leen del ref estable
 
   const fmtPrice = (amount: number) => {
     return new Intl.NumberFormat('es-AR', {
