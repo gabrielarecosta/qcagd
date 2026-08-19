@@ -497,9 +497,9 @@ app.post('/api/mercadopago/create-preference', async (req: Request, res: Respons
       })),
       external_reference: orderId,
       back_urls: {
-        success: `${clientAppUrl}/confirmacion-pago?status=approved&order_id=${encodeURIComponent(orderId)}`,
-        failure: `${clientAppUrl}/confirmacion-pago?status=rejected&order_id=${encodeURIComponent(orderId)}`,
-        pending: `${clientAppUrl}/confirmacion-pago?status=pending&order_id=${encodeURIComponent(orderId)}`,
+        success: `${clientAppUrl}/confirmacion-pago`,
+        failure: `${clientAppUrl}/confirmacion-pago`,
+        pending: `${clientAppUrl}/confirmacion-pago`,
       },
       notification_url: `${backendUrl}/api/mercadopago/webhook`,
       payer: payer ? {

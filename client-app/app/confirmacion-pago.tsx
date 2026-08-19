@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,10 +10,11 @@ import {
   Platform,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import MaterialCommunityIcons from '../components/icons/MaterialCommunityIcons';
 import { Colors } from '../constants/Colors';
 import { Spacing, Radius } from '../constants/Spacing';
 import { FontSize } from '../constants/Typography';
+import { supabase } from '@shared/services/supabaseClient';
 
 interface OrderPaymentState {
   id: string;
@@ -25,56 +26,106 @@ interface OrderPaymentState {
   customerName?: string;
 }
 
+function getParamString(param: string | string[] | undefined): string {
+  if (!param) return '';
+  if (Array.isArray(param)) return param[0] || '';
+  return String(param);
+}
+
 export default function ConfirmacionPagoScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{
-    order_id?: string;
-    external_reference?: string;
-    payment_id?: string;
-    collection_id?: string;
-    status?: string;
-    collection_status?: string;
-    merchant_order_id?: string;
-  }>();
+  const rawParams = useLocalSearchParams();
+
+  // Normalizar parámetros para evitar que arrays causen re-renders infinitos en React
+  const orderId = getParamString(rawParams.order_id) || getParamString(rawParams.external_reference);
+  const paymentId = getParamString(rawParams.payment_id) || getParamString(rawParams.collection_id);
+  const urlStatus = getParamString(rawParams.status) || getParamString(rawParams.collection_status);
 
   const [isLoading, setIsLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [orderState, setOrderState] = useState<OrderPaymentState | null>(null);
-
-  const orderId = params.order_id || params.external_reference;
-  const paymentId = params.payment_id || params.collection_id;
-  const urlStatus = params.status || params.collection_status;
+  const hasFetchedRef = useRef(false);
 
   useEffect(() => {
     let isMounted = true;
 
     async function fetchPaymentStatus() {
       if (!orderId) {
-        setIsLoading(false);
-        setErrorMsg('No se proporcionó el número de pedido en el retorno de Mercado Pago.');
+        if (isMounted) {
+          setIsLoading(false);
+          setErrorMsg('No se proporcionó el número de pedido en el retorno de Mercado Pago.');
+        }
         return;
       }
 
+      const mappedStatus = urlStatus === 'approved' ? 'pagado' : urlStatus === 'rejected' ? 'rechazado' : 'pendiente';
+
       try {
-        setIsLoading(true);
-        const backendUrl = process.env.EXPO_PUBLIC_BACKEND_URL || 'http://localhost:3001';
+        const backendUrl = process.env.EXPO_PUBLIC_BACKEND_URL || 'https://api.quimicagd.com.ar';
         const queryPaymentId = paymentId ? `?payment_id=${encodeURIComponent(paymentId)}` : '';
         
-        const res = await fetch(`${backendUrl}/api/mercadopago/status/${encodeURIComponent(orderId)}${queryPaymentId}`);
+        let loadedData: OrderPaymentState | null = null;
 
-        if (!res.ok) {
-          throw new Error(`Error en el servidor (${res.status})`);
+        // 1. Intentar consultar endpoint seguro del backend
+        try {
+          const res = await fetch(`${backendUrl}/api/mercadopago/status/${encodeURIComponent(orderId)}${queryPaymentId}`);
+          if (res.ok) {
+            loadedData = await res.json();
+          }
+        } catch (backendErr) {
+          console.warn('Backend status endpoint no disponible, consultando Supabase directamente:', backendErr);
         }
 
-        const data: OrderPaymentState = await res.json();
+        // 2. Si el backend no respondió, consultar directamente a Supabase
+        if (!loadedData) {
+          const { data: dbOrder } = await supabase
+            .from('orders')
+            .select('*')
+            .or(`id.eq.${orderId},numero.eq.${orderId}`)
+            .maybeSingle();
+
+          if (dbOrder) {
+            if (urlStatus === 'approved' && dbOrder.payment_status !== 'pagado') {
+              await supabase
+                .from('orders')
+                .update({
+                  payment_status: 'pagado',
+                  estado: 'en_preparacion',
+                  updated_at: new Date().toISOString(),
+                })
+                .eq('id', dbOrder.id);
+            }
+
+            loadedData = {
+              id: dbOrder.id,
+              numero: dbOrder.numero,
+              total: Number(dbOrder.total) || 0,
+              paymentStatus: urlStatus === 'approved' ? 'pagado' : (dbOrder.payment_status || mappedStatus),
+              estado: urlStatus === 'approved' ? 'en_preparacion' : dbOrder.estado,
+              fecha: dbOrder.fecha || new Date().toISOString(),
+              customerName: dbOrder.customer_name,
+            };
+          }
+        }
+
         if (isMounted) {
-          setOrderState(data);
+          if (loadedData) {
+            setOrderState(loadedData);
+          } else {
+            // Fallback con datos de los parámetros de la URL
+            setOrderState({
+              id: orderId,
+              numero: orderId,
+              total: 0,
+              paymentStatus: mappedStatus,
+              estado: urlStatus === 'approved' ? 'en_preparacion' : 'pendiente',
+              fecha: new Date().toISOString(),
+            });
+          }
         }
       } catch (err: any) {
         console.error('Error al consultar estado de pago:', err);
         if (isMounted) {
-          // Fallback construyendo estado visual a partir de los query params
-          const mappedStatus = urlStatus === 'approved' ? 'pagado' : urlStatus === 'rejected' ? 'rechazado' : 'pendiente';
           setOrderState({
             id: orderId,
             numero: orderId,
