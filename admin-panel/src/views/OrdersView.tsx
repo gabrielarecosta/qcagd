@@ -17,7 +17,6 @@ export function OrdersView() {
     activeBranchId, 
     updateOrderStatus,
     updateOrder,
-    drivers,
     globalMinOrderAmount,
     updateGlobalMinOrderAmount
   } = useAdminStore();
@@ -48,17 +47,12 @@ export function OrdersView() {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
 
-  // Chofer asignación rápida
-  const choferes = drivers;
-
   // Filtrado de pedidos
   const filteredOrders = useMemo(() => {
     return orders.filter(o => {
       const client = clients.find(c => c.id === o.clienteId);
       const clientName = client ? (client.nombre || client.razonSocial || '') : '';
       const query = search.toLowerCase();
-
-
 
       const matchesSearch = 
         o.numero.toLowerCase().includes(query) ||
@@ -167,14 +161,6 @@ export function OrdersView() {
     printWindow.print();
   };
 
-  const handleUpdateStatus = (id: string, value: string) => {
-    updateOrderStatus(id, value as OrderStatus);
-  };
-
-  const handleAssignDriver = (orderId: string, driverId: string) => {
-    updateOrder(orderId, { repartidorId: driverId || undefined });
-  };
-
   const handleExportOrders = () => {
     const dataToExport = filteredOrders.map(o => {
       const client = getClientInfo(o.clienteId, o);
@@ -188,7 +174,7 @@ export function OrdersView() {
         Total: o.total,
         MetodoPago: getPaymentMethodLabel(o.paymentMethod),
         EstadoPago: getPaymentStatusLabel(o.paymentStatus),
-        Estado: getOrderStatusLabel(o.estado),
+        EstadoLogistico: getOrderStatusLabel(o.estado),
       };
     });
 
@@ -267,13 +253,13 @@ export function OrdersView() {
               onChange={e => setSearch(e.target.value)}
             />
           </div>
-          <div style={{ width: '180px' }}>
+          <div style={{ width: '200px' }}>
             <select 
               className="form-select"
               value={selectedStatus}
               onChange={e => setSelectedStatus(e.target.value)}
             >
-              <option value="all">Todos los estados</option>
+              <option value="all">Todos los estados logísticos</option>
               <option value="recibido">📥 Recibidos</option>
               <option value="en_preparacion">⚙️ En Preparación</option>
               <option value="listo_para_reparto">📦 Listo para Reparto</option>
@@ -313,8 +299,7 @@ export function OrdersView() {
                 <th>Monto Total</th>
                 <th>Método y Pago</th>
                 <th>Cambio / Vuelto</th>
-                <th>Asignar Repartidor</th>
-                <th>Estado Operativo</th>
+                <th>Estado Logístico</th>
                 <th className="text-right">Acciones</th>
               </tr>
             </thead>
@@ -323,7 +308,6 @@ export function OrdersView() {
                 const client = getClientInfo(o.clienteId, o);
                 const orderStatusLabel = getOrderStatusLabel(o.estado);
                 const orderStatusColor = getOrderStatusColor(o.estado);
-                const activeDriver = choferes.find(d => d.id === o.repartidorId);
 
                 return (
                   <tr key={o.id}>
@@ -369,41 +353,20 @@ export function OrdersView() {
                       )}
                     </td>
                     <td>
-                      <select
-                        className="form-select"
-                        style={{ padding: '4px 8px', fontSize: '12px', width: '130px' }}
-                        value={o.repartidorId || ''}
-                        onChange={e => handleAssignDriver(o.id, e.target.value)}
-                      >
-                        <option value="">-- Sin asignar --</option>
-                        {choferes.map(d => (
-                          <option key={d.id} value={d.id}>{d.nombre}</option>
-                        ))}
-                      </select>
-                    </td>
-                    <td>
-                      <select 
-                        className="form-select"
+                      <span 
+                        className="badge"
                         style={{ 
                           padding: '6px 12px', 
-                          fontSize: '12px', 
+                          fontSize: '11px', 
                           fontWeight: 'bold', 
                           color: '#fff',
                           backgroundColor: orderStatusColor,
-                          border: 'none',
                           borderRadius: '4px',
-                          cursor: 'pointer'
+                          display: 'inline-block'
                         }}
-                        value={o.estado}
-                        onChange={e => handleUpdateStatus(o.id, e.target.value)}
                       >
-                        <option value="recibido" style={{ color: '#000', backgroundColor: '#fff' }}>Recibido</option>
-                        <option value="en_preparacion" style={{ color: '#000', backgroundColor: '#fff' }}>En Preparación</option>
-                        <option value="listo_para_reparto" style={{ color: '#000', backgroundColor: '#fff' }}>Listo para Reparto</option>
-                        <option value="en_reparto" style={{ color: '#000', backgroundColor: '#fff' }}>En Reparto</option>
-                        <option value="entregado" style={{ color: '#000', backgroundColor: '#fff' }}>Entregado</option>
-                        <option value="cancelado" style={{ color: '#000', backgroundColor: '#fff' }}>Cancelado</option>
-                      </select>
+                        {orderStatusLabel}
+                      </span>
                     </td>
                     <td className="text-right">
                       <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
@@ -428,13 +391,13 @@ export function OrdersView() {
               })}
               {orders.length === 0 ? (
                 <tr>
-                  <td colSpan={10} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-disabled)' }}>
+                  <td colSpan={9} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-disabled)' }}>
                     Todavía no hay pedidos cargados.
                   </td>
                 </tr>
               ) : filteredOrders.length === 0 && (
                 <tr>
-                  <td colSpan={10} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-disabled)' }}>
+                  <td colSpan={9} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-disabled)' }}>
                     No se encontraron pedidos con los filtros aplicados.
                   </td>
                 </tr>
