@@ -22,6 +22,7 @@ export interface Order {
   observacionesCliente?: string; // Visibles para cliente
   repartidorId?: string;
   estimatedDelivery?: string;
+  estimatedDeliveryShift?: string;
   paymentMethod: PaymentMethod;
   paymentStatus: PaymentStatus;
   abonaCon?: number;      // Monto con el que abona en caso de efectivo
@@ -49,11 +50,6 @@ export interface Order {
   addressReference?: string;
   locationVerified?: boolean;
   locationStatus?: 'pending' | 'geocoded' | 'manual_pin' | 'verified';
-  deliveryZone?: string;
-  zoneId?: string | null;
-  zoneName?: string;
-  zoneAssignmentType?: 'automatic' | 'manual';
-  zoneAssignedAt?: string;
   customerName?: string;
   customerPhone?: string;
   outOfStockPreference?: 'llamar' | 'reemplazar' | 'cancelar';

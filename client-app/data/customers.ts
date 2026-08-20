@@ -7,7 +7,6 @@ export const currentCustomer: Customer = {
   nombre: 'Sin nombre',
   direccion: 'Sin dirección',
   telefono: '',
-  zona: '',
   localidad: 'General Deheza',
   provincia: 'Córdoba',
 };

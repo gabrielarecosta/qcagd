@@ -9,7 +9,6 @@ export interface Customer {
   whatsapp?: string;
   email?: string;
   direccion: string;
-  zona: string;
   branchId: string; // Sucursal habitual asignada
   tipoCliente: ClientType;
   activo: boolean;
@@ -24,7 +23,6 @@ export interface CustomerAddress {
   id?: string;
   customerId: string;
   direccion: string;
-  zona: string;
   indicaciones?: string;
   latitude?: number;
   longitude?: number;

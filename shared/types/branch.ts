@@ -6,4 +6,6 @@ export interface Branch {
   whatsapp: string;
   horarioAtencion: string;
   activo: boolean;
+  latitude?: number;
+  longitude?: number;
 }

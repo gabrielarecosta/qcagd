@@ -9,6 +9,8 @@ const mapBranch = (d: any): Branch => ({
   whatsapp: d.whatsapp || '',
   horarioAtencion: d.horario_atencion || '',
   activo: d.activo,
+  latitude: d.latitude ? Number(d.latitude) : undefined,
+  longitude: d.longitude ? Number(d.longitude) : undefined,
 });
 
 export const branchService = {
@@ -39,6 +41,8 @@ export const branchService = {
       whatsapp: updates.whatsapp,
       horario_atencion: updates.horarioAtencion,
       activo: updates.activo,
+      latitude: updates.latitude,
+      longitude: updates.longitude,
     };
 
     Object.keys(dbUpdates).forEach(key => dbUpdates[key] === undefined && delete dbUpdates[key]);

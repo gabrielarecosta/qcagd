@@ -26,7 +26,6 @@ export function ClientsView() {
   // Estado para agregar nueva dirección auxiliar
   const [showAddAddress, setShowAddAddress] = useState(false);
   const [newAddrText, setNewAddrText] = useState('');
-  const [newAddrZona, setNewAddrZona] = useState('General');
   const [newAddrIndicaciones, setNewAddrIndicaciones] = useState('');
   const [addingAddr, setAddingAddr] = useState(false);
 
@@ -42,7 +41,6 @@ export function ClientsView() {
     tipoCliente: ClientType;
     activo: boolean;
     observaciones: string;
-    zona: string;
     latitude?: number;
     longitude?: number;
   }>({
@@ -564,20 +562,13 @@ export function ClientsView() {
                       <div style={{ fontSize: '13px', fontWeight: 'bold', marginBottom: '8px', color: '#0284c7' }}>
                         Nueva Dirección Auxiliar
                       </div>
-                      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '8px', marginBottom: '8px' }}>
+                      <div style={{ marginBottom: '8px' }}>
                         <input
                           type="text"
                           className="form-input"
                           placeholder="Ej: Bv. Pueyrredón 552, Depósito 2"
                           value={newAddrText}
                           onChange={e => setNewAddrText(e.target.value)}
-                        />
-                        <input
-                          type="text"
-                          className="form-input"
-                          placeholder="Zona (Ej: Centro)"
-                          value={newAddrZona}
-                          onChange={e => setNewAddrZona(e.target.value)}
                         />
                       </div>
                       <input

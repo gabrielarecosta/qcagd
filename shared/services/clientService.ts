@@ -10,7 +10,6 @@ const mapCustomer = (d: any): Customer => ({
   whatsapp: d.whatsapp || undefined,
   email: d.email || undefined,
   direccion: d.direccion,
-  zona: d.zona,
   branchId: d.branch_id,
   tipoCliente: d.tipo_cliente,
   activo: d.activo,
@@ -52,7 +51,6 @@ export const clientService = {
       whatsapp: updates.whatsapp,
       email: updates.email,
       direccion: updates.direccion,
-      zona: updates.zona,
       branch_id: updates.branchId,
       tipo_cliente: updates.tipoCliente,
       activo: updates.activo,
@@ -86,7 +84,6 @@ export const clientService = {
       whatsapp: client.whatsapp,
       email: client.email,
       direccion: client.direccion,
-      zona: client.zona,
       branch_id: client.branchId,
       tipo_cliente: client.tipoCliente ?? 'minorista',
       activo: client.activo ?? true,
@@ -136,7 +133,6 @@ export const clientService = {
     const dbInsert = {
       customer_id: address.customerId,
       direccion: address.direccion,
-      zona: address.zona,
       indicaciones: address.indicaciones,
       latitude: address.latitude,
       longitude: address.longitude,
@@ -174,7 +170,6 @@ export const clientService = {
   updateAddress: async (id: string, updates: Partial<CustomerAddress>): Promise<CustomerAddress> => {
     const dbUpdates: any = {
       direccion: updates.direccion,
-      zona: updates.zona,
       indicaciones: updates.indicaciones,
       latitude: updates.latitude,
       longitude: updates.longitude,
@@ -214,7 +209,6 @@ const mapAddress = (a: any): CustomerAddress => ({
   id: a.id,
   customerId: a.customer_id,
   direccion: a.direccion,
-  zona: a.zona,
   indicaciones: a.indicaciones || undefined,
   latitude: a.latitude ? Number(a.latitude) : undefined,
   longitude: a.longitude ? Number(a.longitude) : undefined,

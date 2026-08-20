@@ -10,7 +10,7 @@ export interface DehezaStreet {
   altNames: string[];
   approxLat: number;
   approxLng: number;
-  zoneHint?: 'Centro' | 'Norte' | 'Sur' | 'Este' | 'Oeste' | 'Industrial';
+  zoneHint?: string;
 }
 
 export const DEHEZA_STREETS: DehezaStreet[] = [
@@ -186,14 +186,32 @@ export function suggestDehezaStreets(rawInput: string, limit = 5): StreetSuggest
         ? `${street.name} ${streetNumber}, General Deheza, Córdoba`
         : `${street.name}, General Deheza, Córdoba`;
 
+      let calculatedLat = street.approxLat;
+      let calculatedLng = street.approxLng;
+
+      if (streetNumber && !isNaN(Number(streetNumber))) {
+        const num = Number(streetNumber);
+        // Cada 100 números de altura de calle ≈ 0.00085 grados (~90m en Deheza)
+        const offset = (num / 100) * 0.00085;
+        if (street.zoneHint === 'Norte') {
+          calculatedLat -= offset;
+        } else if (street.zoneHint === 'Sur') {
+          calculatedLat += offset;
+        } else if (street.type === 'Calle') {
+          calculatedLat -= offset;
+        } else {
+          calculatedLng += offset;
+        }
+      }
+
       results.push({
         street,
         fullAddress: displayAddress,
         matchedName,
         score: bestScore,
         streetNumber,
-        latitude: street.approxLat,
-        longitude: street.approxLng,
+        latitude: Number(calculatedLat.toFixed(6)),
+        longitude: Number(calculatedLng.toFixed(6)),
       });
     }
   }

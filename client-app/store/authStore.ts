@@ -105,7 +105,6 @@ export const useAuthStore = create<AuthState>()(
               whatsapp: client.whatsapp || '',
               email: client.email || '',
               direccion: client.direccion || '',
-              zona: client.zona || '',
               branchId: client.branch_id || 'branch-gd1',
               tipoCliente: client.tipo_cliente || 'minorista',
               activo: client.activo,

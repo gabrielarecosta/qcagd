@@ -24,7 +24,6 @@ export interface DeliveryRoute {
   repartidorId: string; // ID del usuario interno con rol 'repartidor'
   fecha: string;
   estado: DeliveryStatus;
-  zona: string;
   horarioEstimado: string;
   pedidosIds: string[];
   stops: DeliveryStop[];
@@ -70,9 +69,6 @@ export interface DeliveryRouteStop {
 
 export interface GeoDeliveryRoute {
   id: string;
-  zoneId: string;
-  zoneName?: string;
-  zoneColor?: string;
   driverId?: string | null;
   driverName?: string;
   date: string; // YYYY-MM-DD

@@ -13,7 +13,6 @@ import { ClientsView } from './views/ClientsView';
 import { OrdersView } from './views/OrdersView';
 import { DeliveriesView } from './views/DeliveriesView';
 import { LogisticsView } from './views/LogisticsView';
-import { ZonesView } from './views/ZonesView';
 import { PaymentsView } from './views/PaymentsView';
 import { ClientConfigView } from './views/ClientConfigView';
 import { UsersView } from './views/UsersView';
@@ -300,7 +299,6 @@ function App() {
     { id: 'dashboard', label: 'Dashboard', group: 'Operaciones' },
     { id: 'orders', label: 'Monitor Pedidos', group: 'Operaciones' },
     { id: 'deliveries', label: 'Hojas de Ruta', group: 'Operaciones' },
-    { id: 'logistics', label: 'Planificar Reparto', group: 'Operaciones' },
     { id: 'payments', label: 'Caja / Pagos', group: 'Operaciones' },
 
     
@@ -311,7 +309,6 @@ function App() {
     
     { id: 'branches', label: 'Sucursales', group: 'Configuración' },
     { id: 'sectors', label: 'Sectores Internos', group: 'Configuración' },
-    { id: 'zones', label: 'Zonas y Horarios', group: 'Configuración' },
     { id: 'paymentConfig', label: 'Medios de Pago & CBU', group: 'Configuración' },
     { id: 'clientConfig', label: 'Configuración App', group: 'Configuración' },
     { id: 'users', label: 'Personal / Roles', group: 'Configuración' },
@@ -351,11 +348,8 @@ function App() {
       case 'orders':
         return <OrdersView />;
       case 'deliveries':
-        return <DeliveriesView />;
       case 'logistics':
-        return <LogisticsView />;
-      case 'zones':
-        return <ZonesView />;
+        return <DeliveriesView />;
       case 'payments':
         return <PaymentsView initialTab="caja" />;
       case 'paymentConfig':

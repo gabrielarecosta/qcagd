@@ -406,7 +406,7 @@ export function RepartidorHomeScreen() {
                 activeOpacity={0.8}
               >
                 <Text style={{ fontSize: 12, fontWeight: 'bold', color: selectedRouteId === 'my' ? 'white' : Colors.textPrimary }}>
-                  ⭐ Mi Hoja de Ruta ({todayRoute.zoneName})
+                  ⭐ Mi Hoja de Ruta
                 </Text>
               </TouchableOpacity>
             )}
@@ -420,15 +420,15 @@ export function RepartidorHomeScreen() {
                     paddingVertical: 8,
                     paddingHorizontal: 14,
                     borderRadius: Radius.full,
-                    backgroundColor: isSelected ? (r.zoneColor || Colors.primary) : '#f1f5f9',
+                    backgroundColor: isSelected ? Colors.primary : '#f1f5f9',
                     borderWidth: 1,
-                    borderColor: isSelected ? (r.zoneColor || Colors.primary) : '#cbd5e1',
+                    borderColor: isSelected ? Colors.primary : '#cbd5e1',
                   }}
                   onPress={() => setSelectedRouteId(r.id)}
                   activeOpacity={0.8}
                 >
                   <Text style={{ fontSize: 12, fontWeight: 'bold', color: isSelected ? 'white' : Colors.textPrimary }}>
-                    📍 {r.zoneName} ({r.stops?.length || 0} paradas · {r.driverName || 'Sin chofer'})
+                    📍 Hoja de Ruta ({r.stops?.length || 0} paradas · {r.driverName || 'Sin chofer'})
                   </Text>
                 </TouchableOpacity>
               );
@@ -444,7 +444,7 @@ export function RepartidorHomeScreen() {
             <View style={{ padding: Spacing.md, backgroundColor: '#f8fafc', borderBottomWidth: 1, borderBottomColor: '#e2e8f0', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
               <View>
                 <Text style={{ fontSize: 13, fontWeight: 'bold', color: '#0f172a' }}>
-                  🗺️ Mapa de Recorrido: {activeRoute?.zoneName || 'General Deheza'}
+                  🗺️ Mapa de Recorrido: General Deheza
                 </Text>
                 <Text style={{ fontSize: 11, color: '#64748b' }}>
                   Paradas secuenciadas del #1 al #{orderedStops.length} partiendo de Entre Ríos 151

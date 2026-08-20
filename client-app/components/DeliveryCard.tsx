@@ -58,7 +58,6 @@ export function DeliveryCard({ delivery }: DeliveryCardProps) {
             <Text style={styles.delivererVehicle} numberOfLines={1}>
               {delivery.repartidor.vehiculo}
             </Text>
-            <Text style={styles.delivererZone}>Zona: {delivery.repartidor.zona}</Text>
           </View>
         </View>
 

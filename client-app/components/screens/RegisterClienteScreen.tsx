@@ -18,6 +18,7 @@ import { customAlert } from '../../utils/alert';
 import MaterialCommunityIcons from '../icons/MaterialCommunityIcons';
 import { useEntrance } from '../../hooks/useEntrance';
 import { clientService } from '@shared/services/clientService';
+import { geocodeAddress } from '@shared/utils/geo';
 import { branchService } from '@shared/services/branchService';
 import { Branch } from '@shared/types/branch';
 
@@ -172,7 +173,6 @@ export function RegisterClienteScreen({ onBack }: RegisterClienteScreenProps) {
         whatsapp: telefonoFinal,
         email: emailFinal || undefined,
         direccion: direccionFinal,
-        zona: 'Centro',
         branchId: branchAsignada,
         tipoCliente: isSucursal ? 'sucursal' : 'minorista',
         activo: true,
@@ -187,7 +187,6 @@ export function RegisterClienteScreen({ onBack }: RegisterClienteScreenProps) {
         await clientService.addAddress({
           customerId: newCustomer.id,
           direccion: direccionFinal,
-          zona: 'Centro',
           indicaciones: isSucursal ? `Sucursal ${nombreFinal}` : 'Domicilio principal',
           latitude: regLat,
           longitude: regLng,

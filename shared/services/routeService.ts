@@ -6,7 +6,6 @@ export const routeService = {
    * Crea una nueva ruta de entrega con sus paradas secuenciadas
    */
   async createRoute(params: {
-    zoneId: string;
     driverId: string | null;
     date: string;
     totalDistance: number;
@@ -24,7 +23,6 @@ export const routeService = {
     // 1. Crear registro en delivery_routes
     const routePayload = {
       id: routeId,
-      zone_id: params.zoneId,
       driver_id: params.driverId || null,
       date: params.date,
       status: 'pendiente',
@@ -78,7 +76,6 @@ export const routeService = {
 
     return {
       id: routeData.id,
-      zoneId: routeData.zone_id,
       driverId: routeData.driver_id,
       date: routeData.date,
       status: routeData.status as RouteStatus,
@@ -299,13 +296,8 @@ export const routeService = {
         return method !== 'retiro' && method !== 'whatsapp';
       });
 
-      const zoneInfo = Array.isArray(route.delivery_zones) ? route.delivery_zones[0] : route.delivery_zones;
-
       return {
         id: route.id,
-        zoneId: route.zone_id || '',
-        zoneName: zoneInfo?.name || zoneInfo?.nombre || route.zona || 'Zona Asignada',
-        zoneColor: zoneInfo?.color || '#1A56DB',
         driverId: route.driver_id || route.repartidor_id || driverId,
         driverName: driverName || 'Chofer Asignado',
         date: route.date || route.fecha || targetDate,
@@ -461,13 +453,8 @@ export const routeService = {
           };
         });
 
-        const zoneInfo = Array.isArray(route.delivery_zones) ? route.delivery_zones[0] : route.delivery_zones;
-
         results.push({
           id: route.id,
-          zoneId: route.zone_id || '',
-          zoneName: zoneInfo?.name || zoneInfo?.nombre || (route as any).zona || 'Zona General',
-          zoneColor: zoneInfo?.color || '#1A56DB',
           driverId: effectiveDriverId,
           driverName,
           date: route.date || route.fecha,

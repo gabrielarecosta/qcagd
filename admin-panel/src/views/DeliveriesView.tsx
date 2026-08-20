@@ -9,14 +9,7 @@ import * as XLSX from 'xlsx';
 import { supabase } from '@shared/services/supabaseClient';
 import * as maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
-
-// Punto de Inicio 1: SUCURSAL CENTRAL QGD (Por defecto)
-const SUCURSAL_CENTRAL_QGD = {
-  name: 'SUCURSAL CENTRAL QGD',
-  address: 'Entre Ríos 151, General Deheza, Córdoba, Argentina',
-  latitude: -32.7650,
-  longitude: -63.7860,
-};
+import { getCentralBranchInfo } from '@shared/utils/branchHelper';
 
 export function DeliveriesView() {
   const { 
@@ -25,7 +18,6 @@ export function DeliveriesView() {
     clients, 
     branches, 
     users, 
-    zones, 
     activeBranchId, 
     createDelivery, 
     updateDeliveryStatus,
@@ -34,6 +26,8 @@ export function DeliveriesView() {
     updateDriver,
     fetchData
   } = useAdminStore();
+
+  const centralBranchInfo = useMemo(() => getCentralBranchInfo(branches), [branches]);
 
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
   const [isPlanning, setIsPlanning] = useState(false);
@@ -48,13 +42,13 @@ export function DeliveriesView() {
   // Form State for planning new route
   const [formBranchId, setFormBranchId] = useState('branch-gd1');
   const [formDriverId, setFormDriverId] = useState('');
-  const [formZona, setFormZona] = useState('all'); // 'all' = Todas las zonas
-  const [formTurno, setFormTurno] = useState('all'); // 'all' = Todos los rangos horarios
+  const [formFecha, setFormFecha] = useState('all'); // 'all' = Todas las fechas pendientes
+  const [formTurno, setFormTurno] = useState('08:00 - 12:00 (Mañana)'); // Obligatorio franja horaria específica por hoja de ruta
 
   // ── PUNTO DE INICIO (SUCURSAL CENTRAL O GALPÓN/DEPÓSITO) ──
   const [startPointType, setStartPointType] = useState<'sucursal_central' | 'galpon_deposito'>('sucursal_central');
-  const [customGalponAddress, setCustomGalponAddress] = useState('Ruta Nacional 158 km 220, General Deheza');
-  const [startPointCoords, setStartPointCoords] = useState<{ latitude: number; longitude: number; name: string; address: string }>(SUCURSAL_CENTRAL_QGD);
+  const [customGalponAddress, setCustomGalponAddress] = useState('Bv. Pueyrredón 850, General Deheza');
+  const [startPointCoords, setStartPointCoords] = useState(centralBranchInfo);
   const [calculatingGalpon, setCalculatingGalpon] = useState(false);
 
   const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
@@ -66,6 +60,13 @@ export function DeliveriesView() {
   const mapModalInstanceRef = useRef<maplibregl.Map | null>(null);
   const modalMarkersRef = useRef<maplibregl.Marker[]>([]);
 
+  // Actualizar coordenadas de casa central al modificar branches
+  useEffect(() => {
+    if (startPointType === 'sucursal_central') {
+      setStartPointCoords(centralBranchInfo);
+    }
+  }, [centralBranchInfo, startPointType]);
+
   // Set default driver on open planning modal
   const handleOpenPlanning = () => {
     setIsPlanning(true);
@@ -73,10 +74,10 @@ export function DeliveriesView() {
     setFormBranchId(firstBranch);
     const branchDrivers = drivers.filter(d => d.branchId === firstBranch);
     setFormDriverId(branchDrivers[0]?.id || drivers[0]?.id || '');
-    setFormZona('all'); // Por defecto 'TODAS' para agrupar todo si hay 1 solo repartidor
-    setFormTurno('all'); // Por defecto 'TODOS'
+    setFormFecha('all');
+    setFormTurno('08:00 - 12:00 (Mañana)'); // Obligatorio franja horaria específica
     setStartPointType('sucursal_central');
-    setStartPointCoords(SUCURSAL_CENTRAL_QGD);
+    setStartPointCoords(centralBranchInfo);
     setSelectedOrderIds([]);
     setOptimizedPlan(null);
   };
@@ -85,7 +86,7 @@ export function DeliveriesView() {
   const handleSelectStartPointType = async (type: 'sucursal_central' | 'galpon_deposito') => {
     setStartPointType(type);
     if (type === 'sucursal_central') {
-      setStartPointCoords(SUCURSAL_CENTRAL_QGD);
+      setStartPointCoords(centralBranchInfo);
     } else {
       await handleGeocodeCustomGalpon(customGalponAddress);
     }
@@ -139,35 +140,50 @@ export function DeliveriesView() {
     });
   }, [orders, deliveries, formBranchId]);
 
-  // Pedidos elegibles filtrados según la zona y el rango horario seleccionados
+  // Lista única de fechas de entrega de los pedidos elegibles
+  const availableDeliveryDates = useMemo(() => {
+    const datesSet = new Set<string>();
+    allEligibleOrders.forEach(o => {
+      const d = o.deliveryDate || (o.fecha ? o.fecha.split('T')[0] : '');
+      if (d) datesSet.add(d);
+    });
+    return Array.from(datesSet).sort();
+  }, [allEligibleOrders]);
+
+  // Pedidos elegibles filtrados según fecha y rango horario
   const filteredEligibleOrders = useMemo(() => {
     return allEligibleOrders.filter(o => {
-      // 1. Filtro por Zona
-      if (formZona !== 'all') {
-        const client = clients.find(c => c.id === o.clienteId);
-        const orderZoneId = o.zoneId;
-        const matchedZone = zones.find(z => z.id === orderZoneId || z.nombre === formZona || z.name === formZona);
-        const clientZone = client?.zona || '';
-
-        const matchesZone = (matchedZone && (matchedZone.nombre === formZona || matchedZone.name === formZona || matchedZone.id === formZona)) ||
-                            clientZone.toLowerCase().includes(formZona.toLowerCase());
-
-        if (!matchesZone) return false;
+      // 0. Filtro por Fecha de Entrega (Día)
+      if (formFecha !== 'all') {
+        const orderDate = o.deliveryDate || (o.fecha ? o.fecha.split('T')[0] : '');
+        if (orderDate && orderDate !== formFecha) return false;
       }
 
-      // 2. Filtro por Turno / Rango Horario
-      if (formTurno !== 'all') {
-        const shift = (o as any).estimatedDeliveryShift || (o as any).deliveryTimeSlotId || (o as any).turno || (o as any).horarioEstimado || '';
-        if (shift) {
-          if (formTurno.includes('Mañana') && !shift.toLowerCase().includes('mañana') && !shift.toLowerCase().includes('08:00')) return false;
-          if (formTurno.includes('Mediodía') && !shift.toLowerCase().includes('mediodía') && !shift.toLowerCase().includes('12:00')) return false;
-          if (formTurno.includes('Tarde') && !shift.toLowerCase().includes('tarde') && !shift.toLowerCase().includes('16:00')) return false;
-        }
+      // 1. Filtro por Turno / Rango Horario
+      const shift = (
+        (o as any).estimatedDeliveryShift ||
+        (o as any).deliveryStartTime ||
+        (o as any).deliveryTimeSlotId ||
+        (o as any).turno ||
+        (o as any).horarioEstimado ||
+        ''
+      ).toLowerCase();
+      const target = formTurno.toLowerCase();
+
+      if (target.includes('mañana') || target.includes('08:00')) {
+        const matchesMorning = !shift || shift.includes('mañana') || shift.includes('manana') || shift.includes('morning') || shift.includes('08:00') || shift.includes('slot-morning') || shift.includes('slot-1');
+        if (!matchesMorning) return false;
+      } else if (target.includes('mediodía') || target.includes('mediodia') || target.includes('12:00')) {
+        const matchesMidday = shift.includes('mediodía') || shift.includes('mediodia') || shift.includes('siesta') || shift.includes('midday') || shift.includes('12:00') || shift.includes('slot-midday') || shift.includes('slot-2');
+        if (!matchesMidday) return false;
+      } else if (target.includes('tarde') || target.includes('16:00')) {
+        const matchesAfternoon = shift.includes('tarde') || shift.includes('afternoon') || shift.includes('noche') || shift.includes('16:00') || shift.includes('slot-afternoon') || shift.includes('slot-3');
+        if (!matchesAfternoon) return false;
       }
 
       return true;
     });
-  }, [allEligibleOrders, formZona, formTurno, clients, zones]);
+  }, [allEligibleOrders, formFecha, formTurno]);
 
   // Recalcular trayecto por coordenadas automáticamente cada vez que cambian las órdenes o el punto de inicio
   useEffect(() => {
@@ -182,7 +198,8 @@ export function DeliveriesView() {
       setIsGeocoding(true);
       const stopsToOptimize: any[] = [];
 
-      for (const orderId of selectedOrderIds) {
+      for (let i = 0; i < selectedOrderIds.length; i++) {
+        const orderId = selectedOrderIds[i];
         const order = orders.find(o => o.id === orderId);
         if (!order) continue;
 
@@ -190,12 +207,12 @@ export function DeliveriesView() {
         let lat = order.latitude || (client as any)?.latitude;
         let lng = order.longitude || (client as any)?.longitude;
 
-        // Si no tiene coordenadas válidas, geocodificar por dirección automáticamente
+        // Si no tiene coordenadas válidas, resolver con geocodificación precisa y sugerencia de calle
         if (!lat || !lng) {
           const address = order.formattedAddress || order.originalAddress || client?.direccion || '';
           try {
             const geo = await geocodeAddress(address, 'General Deheza', 'Córdoba');
-            if (geo) {
+            if (geo && (geo.latitude !== -32.7561 || geo.longitude !== -63.7845)) {
               lat = geo.latitude;
               lng = geo.longitude;
             } else {
@@ -204,22 +221,27 @@ export function DeliveriesView() {
                 lat = dehezaSug[0].latitude;
                 lng = dehezaSug[0].longitude;
               } else {
-                lat = -32.7561;
-                lng = -63.7845;
+                lat = -32.7561 + (i * 0.0005);
+                lng = -63.7845 + (i * 0.0005);
               }
             }
-            // Actualizar coordenadas en segundo plano
-            await supabase.from('orders').update({ latitude: lat, longitude: lng, location_verified: true }).eq('id', order.id);
-            order.latitude = lat;
-            order.longitude = lng;
           } catch (e) {
-            lat = -32.7561;
-            lng = -63.7845;
+            const dehezaSug = suggestDehezaStreets(address, 1);
+            if (dehezaSug.length > 0) {
+              lat = dehezaSug[0].latitude;
+              lng = dehezaSug[0].longitude;
+            } else {
+              lat = -32.7561 + (i * 0.0005);
+              lng = -63.7845 + (i * 0.0005);
+            }
           }
+
+          // Actualizar coordenadas en el objeto order en memoria y Supabase
+          order.latitude = lat;
+          order.longitude = lng;
+          supabase.from('orders').update({ latitude: lat, longitude: lng, location_verified: true }).eq('id', order.id);
         }
 
-
-        const client = clients.find(c => c.id === order.clienteId);
         stopsToOptimize.push({
           orderId: order.id,
           latitude: lat,
@@ -231,153 +253,203 @@ export function DeliveriesView() {
         });
       }
 
+      // Evitar marcadores completamente solapados (offset diminuto por coordenadas idénticas)
+      const coordCounts = new Map<string, number>();
+      stopsToOptimize.forEach((stop) => {
+        const key = `${stop.latitude.toFixed(4)},${stop.longitude.toFixed(4)}`;
+        const count = coordCounts.get(key) || 0;
+        if (count > 0) {
+          stop.latitude += count * 0.00035;
+          stop.longitude += count * 0.00035;
+        }
+        coordCounts.set(key, count + 1);
+      });
+
       setIsGeocoding(false);
 
       if (stopsToOptimize.length > 0) {
         // Optimizar recorrido iniciando desde el punto seleccionado (Sucursal Central o Galpón/Depósito)
         const result = optimizeRouteStops(startPointCoords, stopsToOptimize, 8, 30);
         setOptimizedPlan(result);
+      } else {
+        setOptimizedPlan(null);
       }
     };
 
     runOptimization();
   }, [selectedOrderIds, startPointCoords, isPlanning]);
 
-  // Renderizar mapa interactivo del modal de planificación
+  // Renderizar mapa interactivo Leaflet del modal de planificación
   useEffect(() => {
-    if (!isPlanning || !mapModalContainerRef.current) return;
+    if (!isPlanning) return;
 
-    if (!mapModalInstanceRef.current) {
-      const map = new maplibregl.Map({
-        container: mapModalContainerRef.current,
-        style: {
-          version: 8,
-          sources: {
-            osm: {
-              type: 'raster',
-              tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
-              tileSize: 256,
-              attribution: '© OpenStreetMap contributors | Química General Deheza',
-            },
-          },
-          layers: [
-            {
-              id: 'osm-tiles',
-              type: 'raster',
-              source: 'osm',
-              minzoom: 0,
-              maxzoom: 19,
-            },
-          ],
-        },
-        center: [startPointCoords.longitude, startPointCoords.latitude],
-        zoom: 13.8,
+    let isMounted = true;
+
+    const initAndRenderMap = async () => {
+      // Cargar CSS y Script de Leaflet vía CDN si aún no están presentes
+      if (!(window as any).L) {
+        if (!document.getElementById('leaflet-css-cdn')) {
+          const link = document.createElement('link');
+          link.id = 'leaflet-css-cdn';
+          link.rel = 'stylesheet';
+          link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+          document.head.appendChild(link);
+        }
+
+        await new Promise((resolve) => {
+          if ((window as any).L) return resolve(true);
+          const script = document.createElement('script');
+          script.id = 'leaflet-js-cdn';
+          script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+          script.onload = () => resolve(true);
+          document.head.appendChild(script);
+        });
+      }
+
+      if (!isMounted) return;
+
+      const L = (window as any).L;
+      if (!L) return;
+
+      const container = document.getElementById('deliveries-modal-map-container');
+      if (!container) return;
+
+      // Inicializar instancia de mapa Leaflet si aún no existe
+      if (!mapModalInstanceRef.current) {
+        (container as any)._leaflet_id = null;
+
+        const map = L.map(container, {
+          center: [startPointCoords.latitude, startPointCoords.longitude],
+          zoom: 14,
+          zoomControl: true,
+        });
+
+        L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          maxZoom: 19,
+          attribution: '© OpenStreetMap contributors | Química General Deheza',
+        }).addTo(map);
+
+        mapModalInstanceRef.current = map;
+      }
+
+      const map = mapModalInstanceRef.current;
+      setTimeout(() => {
+        try { map.invalidateSize(); } catch (e) {}
+      }, 150);
+
+      // Limpiar marcadores y polilíneas previos
+      modalMarkersRef.current.forEach(m => {
+        try { m.remove(); } catch (e) {}
       });
-
-      map.addControl(new maplibregl.NavigationControl(), 'top-right');
-      mapModalInstanceRef.current = map;
-    }
-
-    const map = mapModalInstanceRef.current;
-
-    const updateMapElements = () => {
-      // Limpiar marcadores previos
-      modalMarkersRef.current.forEach(m => m.remove());
       modalMarkersRef.current = [];
 
       // Marcador del Punto de Inicio Seleccionado (Sucursal Central o Galpón)
-      const startEl = document.createElement('div');
       const isCentral = startPointType === 'sucursal_central';
-      startEl.innerHTML = `
-        <div style="background: ${isCentral ? '#0f172a' : '#ea580c'}; color: white; padding: 4px 8px; border-radius: 12px; font-weight: bold; font-size: 11px; box-shadow: 0 2px 6px rgba(0,0,0,0.3); border: 2px solid white; display: flex; align-items: center; gap: 4px;">
+      const startHtml = `
+        <div style="background: ${isCentral ? '#0f172a' : '#ea580c'}; color: white; padding: 4px 8px; border-radius: 12px; font-weight: bold; font-size: 11px; box-shadow: 0 2px 6px rgba(0,0,0,0.3); border: 2px solid white; white-space: nowrap;">
           ${isCentral ? '🏬 SUCURSAL CENTRAL QGD' : '🏭 GALPÓN / DEPÓSITO'}
         </div>
       `;
-      const startMarker = new maplibregl.Marker({ element: startEl })
-        .setLngLat([startPointCoords.longitude, startPointCoords.latitude])
-        .addTo(map);
+      const startIcon = L.divIcon({
+        html: startHtml,
+        className: 'start-leaflet-marker',
+        iconSize: [160, 26],
+        iconAnchor: [80, 13],
+      });
+      const startMarker = L.marker([startPointCoords.latitude, startPointCoords.longitude], { icon: startIcon })
+        .addTo(map)
+        .bindPopup(`<b>Punto de Origen</b><br/>${startPointCoords.name}`);
       modalMarkersRef.current.push(startMarker);
 
-      if (optimizedPlan && optimizedPlan.orderedStops.length > 0) {
-        // Marcadores de paradas ordenadas
-        optimizedPlan.orderedStops.forEach((stop: any) => {
-          const el = document.createElement('div');
-          el.innerHTML = `
-            <div style="background: #10b981; color: white; width: 26px; height: 26px; border-radius: 13px; font-weight: bold; font-size: 12px; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(0,0,0,0.3); border: 2px solid white;">
-              #${stop.stopOrder}
+      // Renderizar TODOS los pedidos filtrados en el mapa
+      filteredEligibleOrders.forEach((o, idx) => {
+        const client = clients.find(c => c.id === o.clienteId);
+        let lat = o.latitude || (client as any)?.latitude;
+        let lng = o.longitude || (client as any)?.longitude;
+
+        if (!lat || !lng) {
+          const address = o.formattedAddress || o.originalAddress || client?.direccion || '';
+          const sug = suggestDehezaStreets(address, 1);
+          if (sug.length > 0) {
+            lat = sug[0].latitude;
+            lng = sug[0].longitude;
+          } else {
+            lat = -32.7561 + (idx * 0.0008);
+            lng = -63.7845 + (idx * 0.0008);
+          }
+        }
+
+        const isSelected = selectedOrderIds.includes(o.id);
+        const matchedStop = optimizedPlan?.orderedStops?.find((s: any) => s.orderId === o.id);
+
+        let iconHtml = '';
+        if (isSelected && matchedStop) {
+          iconHtml = `
+            <div style="background: #10b981; color: white; width: 28px; height: 28px; border-radius: 14px; font-weight: bold; font-size: 12px; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(0,0,0,0.3); border: 2px solid white; cursor: pointer;">
+              #${matchedStop.stopOrder}
             </div>
           `;
+        } else {
+          iconHtml = `
+            <div style="background: #64748b; color: white; padding: 2px 6px; border-radius: 10px; font-weight: 600; font-size: 10px; display: flex; align-items: center; gap: 2px; box-shadow: 0 2px 4px rgba(0,0,0,0.2); border: 1.5px solid white; opacity: 0.85; cursor: pointer; white-space: nowrap;">
+              📦 #${o.numero}
+            </div>
+          `;
+        }
 
-          const popup = new maplibregl.Popup({ offset: 15 }).setHTML(`
-            <div style="padding: 4px; font-family: sans-serif;">
-              <strong>Parada #${stop.stopOrder}</strong><br/>
-              <span style="font-size: 12px; color: #0f172a;">${stop.customerName}</span><br/>
-              <span style="font-size: 11px; color: #64748b;">${stop.formattedAddress}</span>
+        const customIcon = L.divIcon({
+          html: iconHtml,
+          className: 'order-leaflet-marker',
+          iconSize: [30, 30],
+          iconAnchor: [15, 15],
+        });
+
+        const marker = L.marker([lat, lng], { icon: customIcon })
+          .addTo(map)
+          .bindPopup(`
+            <div style="font-family: sans-serif; padding: 2px;">
+              <strong>Pedido #${o.numero}</strong> ${isSelected && matchedStop ? `<span style="color:#10b981; font-weight:bold;">(Parada #${matchedStop.stopOrder})</span>` : ''}<br/>
+              <span style="font-size: 12px;">${client?.razonSocial || client?.nombre || 'Cliente'}</span><br/>
+              <span style="font-size: 11px; color: #64748b;">${o.formattedAddress || client?.direccion || 'General Deheza'}</span>
             </div>
           `);
 
-          const marker = new maplibregl.Marker({ element: el })
-            .setLngLat([stop.longitude, stop.latitude])
-            .setPopup(popup)
-            .addTo(map);
-
-          modalMarkersRef.current.push(marker);
+        marker.on('click', () => {
+          toggleOrderSelection(o.id);
         });
 
-        // Trazar línea de recorrido / trayecto desde el punto de inicio
-        const routeCoords = [
-          [startPointCoords.longitude, startPointCoords.latitude],
-          ...optimizedPlan.orderedStops.map((s: any) => [s.longitude, s.latitude]),
+        modalMarkersRef.current.push(marker);
+      });
+
+      // Trazar línea de recorrido si hay paradas seleccionadas
+      if (optimizedPlan && optimizedPlan.orderedStops && optimizedPlan.orderedStops.length > 0) {
+        const polylineCoords: [number, number][] = [
+          [startPointCoords.latitude, startPointCoords.longitude],
+          ...optimizedPlan.orderedStops.map((s: any) => [s.latitude, s.longitude] as [number, number]),
         ];
 
-        const geojson: any = {
-          type: 'FeatureCollection',
-          features: [
-            {
-              type: 'Feature',
-              properties: {},
-              geometry: {
-                type: 'LineString',
-                coordinates: routeCoords,
-              },
-            },
-          ],
-        };
+        const polyline = L.polyline(polylineCoords, {
+          color: '#10b981',
+          weight: 4,
+          opacity: 0.85,
+          dashArray: '6, 6',
+        }).addTo(map);
 
-        if (map.getSource('modal-route-source')) {
-          (map.getSource('modal-route-source') as any).setData(geojson);
-        } else if (map.isStyleLoaded()) {
-          map.addSource('modal-route-source', {
-            type: 'geojson',
-            data: geojson,
-          });
+        modalMarkersRef.current.push(polyline);
 
-          map.addLayer({
-            id: 'modal-route-line',
-            type: 'line',
-            source: 'modal-route-source',
-            paint: {
-              'line-color': '#10b981',
-              'line-width': 4,
-              'line-opacity': 0.85,
-            },
-          });
-        }
-
-        // Ajustar vista a las coordenadas
-        const bounds = new maplibregl.LngLatBounds();
-        bounds.extend([startPointCoords.longitude, startPointCoords.latitude]);
-        optimizedPlan.orderedStops.forEach((s: any) => bounds.extend([s.longitude, s.latitude]));
-        map.fitBounds(bounds, { padding: 40, maxZoom: 15 });
+        const bounds = L.latLngBounds(polylineCoords);
+        map.fitBounds(bounds, { padding: [40, 40], maxZoom: 15 });
+      } else {
+        map.setView([startPointCoords.latitude, startPointCoords.longitude], 13.8);
       }
     };
 
-    if (map.isStyleLoaded()) {
-      updateMapElements();
-    } else {
-      map.on('load', updateMapElements);
-    }
-  }, [isPlanning, optimizedPlan, startPointCoords, startPointType]);
+    initAndRenderMap();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isPlanning, selectedOrderIds, optimizedPlan, startPointCoords, startPointType, filteredEligibleOrders]);
 
   // Filter deliveries list
   const filteredDeliveries = useMemo(() => {
@@ -441,7 +513,7 @@ export function DeliveriesView() {
 
     if (isDraftPlan && optimizedPlan) {
       driverName = getDriverName(formDriverId);
-      zoneTitle = formZona === 'all' ? 'General Deheza (Todas las Zonas)' : formZona;
+      zoneTitle = 'General Deheza';
       shiftTitle = formTurno === 'all' ? 'Todos los Horarios (08:00 a 20:00)' : formTurno;
       startPointText = `${startPointCoords.name} (${startPointCoords.address})`;
       totalKm = String(optimizedPlan.totalDistanceKm || 0);
@@ -465,7 +537,7 @@ export function DeliveriesView() {
       const d = deliveryOrPlan;
       routeDate = d.fecha || routeDate;
       driverName = getDriverName(d.repartidorId || '');
-      zoneTitle = d.zona || 'Zona General';
+      zoneTitle = 'General Deheza';
       shiftTitle = d.horarioEstimado || 'Turno Regular';
       startPointText = d.observaciones?.includes('Punto de inicio:') 
         ? d.observaciones.split('|')[0].replace('Punto de inicio:', '').trim()
@@ -643,7 +715,7 @@ export function DeliveriesView() {
     });
 
     const targetDate = new Date().toISOString().split('T')[0];
-    const displayZoneName = formZona === 'all' ? 'General Deheza (Todas las Zonas)' : formZona;
+    const displayZoneName = 'General Deheza';
     const displayTurnoName = formTurno === 'all' ? 'Todos los Horarios (08:00 a 20:00)' : formTurno;
     const startPointLabel = `${startPointCoords.name} (${startPointCoords.address})`;
 
@@ -1034,24 +1106,27 @@ export function DeliveriesView() {
                   )}
                 </div>
 
-                {/* ── SECCIÓN 2: MENÚS DE AGRUPACIÓN (ZONAS Y RANGOS HORARIOS) ── */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px', marginBottom: '16px', backgroundColor: '#f8fafc', padding: '14px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                  {/* Menú de Zonas */}
+                {/* ── SECCIÓN 2: MENÚS DE AGRUPACIÓN (FECHA, ZONAS Y RANGOS HORARIOS) ── */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '14px', marginBottom: '16px', backgroundColor: '#f8fafc', padding: '14px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                  {/* Menú de Fecha de Entrega */}
                   <div className="form-group" style={{ margin: 0 }}>
                     <label className="form-label" style={{ fontWeight: 'bold', color: '#0f172a', display: 'flex', justifyContent: 'space-between' }}>
-                      <span>📍 Zona de Reparto</span>
-                      <span style={{ fontSize: '11px', color: '#0284c7' }}>{formZona === 'all' ? 'Integral' : 'Específica'}</span>
+                      <span>📅 Fecha / Día</span>
+                      <span style={{ fontSize: '11px', color: '#0284c7' }}>{formFecha === 'all' ? 'Todas' : 'Día'}</span>
                     </label>
                     <select 
                       className="form-select"
-                      value={formZona}
-                      onChange={e => setFormZona(e.target.value)}
+                      value={formFecha}
+                      onChange={e => {
+                        setFormFecha(e.target.value);
+                        setSelectedOrderIds([]);
+                      }}
                       style={{ fontWeight: '600' }}
                     >
-                      <option value="all">🌟 TODOS (General Deheza Completo)</option>
-                      {zones.map(z => (
-                        <option key={z.id} value={z.nombre || z.name}>
-                          📍 {z.nombre || z.name}
+                      <option value="all">🌟 TODAS LAS FECHAS</option>
+                      {availableDeliveryDates.map(dateStr => (
+                        <option key={dateStr} value={dateStr}>
+                          📅 {dateStr}
                         </option>
                       ))}
                     </select>
@@ -1060,16 +1135,19 @@ export function DeliveriesView() {
                   {/* Menú de Rangos Horarios */}
                   <div className="form-group" style={{ margin: 0 }}>
                     <label className="form-label" style={{ fontWeight: 'bold', color: '#0f172a', display: 'flex', justifyContent: 'space-between' }}>
-                      <span>⏰ Rango Horario de Entrega</span>
-                      <span style={{ fontSize: '11px', color: '#0284c7' }}>{formTurno === 'all' ? 'Todo el día' : 'Franja'}</span>
+                      <span>⏰ Turno / Rango Horario de Entrega</span>
+                      <span style={{ fontSize: '11px', color: '#0284c7', fontWeight: 'bold' }}>Turno único por hoja de ruta</span>
                     </label>
                     <select 
                       className="form-select"
                       value={formTurno}
-                      onChange={e => setFormTurno(e.target.value)}
+                      onChange={e => {
+                        setFormTurno(e.target.value);
+                        setSelectedOrderIds([]);
+                      }}
                       style={{ fontWeight: '600' }}
+                      required
                     >
-                      <option value="all">🌟 TODOS LOS RANGOS HORARIOS</option>
                       <option value="08:00 - 12:00 (Mañana)">🌅 08:00 - 12:00 (Turno Mañana)</option>
                       <option value="12:00 - 16:00 (Mediodía)">☀️ 12:00 - 16:00 (Turno Mediodía)</option>
                       <option value="16:00 - 20:00 (Tarde)">🌇 16:00 - 20:00 (Turno Tarde)</option>
@@ -1115,7 +1193,7 @@ export function DeliveriesView() {
                         </div>
                       )}
                     </div>
-                    <div ref={mapModalContainerRef} style={{ flex: 1, minHeight: '280px', width: '100%' }} />
+                    <div id="deliveries-modal-map-container" ref={mapModalContainerRef} style={{ flex: 1, minHeight: '280px', width: '100%' }} />
                   </div>
 
                   {/* Tabla de Selección de Pedidos */}
@@ -1178,7 +1256,13 @@ export function DeliveriesView() {
                                     <input 
                                       type="checkbox" 
                                       checked={isSelected}
-                                      onChange={() => {}}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        toggleOrderSelection(o.id);
+                                      }}
+                                      onChange={(e) => {
+                                        e.stopPropagation();
+                                      }}
                                     />
                                   </td>
                                   <td style={{ fontWeight: 'bold', padding: '6px', whiteSpace: 'nowrap' }}>

@@ -250,11 +250,9 @@ export default function CarritoScreen() {
         let allSlots = await deliverySlotService.getAll();
         if (!allSlots || allSlots.length === 0) {
           allSlots = [
-            { id: 'slot-morning', nombre: 'Mañana', hora_inicio: '08:00', hora_fin: '12:00', max_pedidos: 15, activo: true },
-            { id: 'slot-midday', nombre: 'Mediodía', hora_inicio: '12:00', hora_fin: '14:00', max_pedidos: 15, activo: true },
-            { id: 'slot-siesta', nombre: 'Siesta', hora_inicio: '14:00', hora_fin: '16:00', max_pedidos: 15, activo: true },
-            { id: 'slot-afternoon', nombre: 'Tarde', hora_inicio: '16:00', hora_fin: '19:30', max_pedidos: 15, activo: true },
-            { id: 'slot-night', nombre: 'Tarde Noche', hora_inicio: '19:30', hora_fin: '22:00', max_pedidos: 15, activo: true }
+            { id: 'slot-morning', nombre: '08:00 - 12:00 (Mañana)', hora_inicio: '08:00', hora_fin: '12:00', max_pedidos: 15, activo: true },
+            { id: 'slot-midday', nombre: '12:00 - 16:00 (Mediodía)', hora_inicio: '12:00', hora_fin: '16:00', max_pedidos: 15, activo: true },
+            { id: 'slot-afternoon', nombre: '16:00 - 20:00 (Tarde)', hora_inicio: '16:00', hora_fin: '20:00', max_pedidos: 15, activo: true }
           ];
         }
         const activeSlots = allSlots.filter((s: any) => s.activo);
@@ -266,11 +264,9 @@ export default function CarritoScreen() {
       } catch (err) {
         console.error('Error loading slots, using fallback:', err);
         const fallback = [
-          { id: 'slot-morning', nombre: 'Mañana', hora_inicio: '08:00', hora_fin: '12:00', max_pedidos: 15, activo: true },
-          { id: 'slot-midday', nombre: 'Mediodía', hora_inicio: '12:00', hora_fin: '14:00', max_pedidos: 15, activo: true },
-          { id: 'slot-siesta', nombre: 'Siesta', hora_inicio: '14:00', hora_fin: '16:00', max_pedidos: 15, activo: true },
-          { id: 'slot-afternoon', nombre: 'Tarde', hora_inicio: '16:00', hora_fin: '19:30', max_pedidos: 15, activo: true },
-          { id: 'slot-night', nombre: 'Tarde Noche', hora_inicio: '19:30', hora_fin: '22:00', max_pedidos: 15, activo: true }
+          { id: 'slot-morning', nombre: '08:00 - 12:00 (Mañana)', hora_inicio: '08:00', hora_fin: '12:00', max_pedidos: 15, activo: true },
+          { id: 'slot-midday', nombre: '12:00 - 16:00 (Mediodía)', hora_inicio: '12:00', hora_fin: '16:00', max_pedidos: 15, activo: true },
+          { id: 'slot-afternoon', nombre: '16:00 - 20:00 (Tarde)', hora_inicio: '16:00', hora_fin: '20:00', max_pedidos: 15, activo: true }
         ];
         setSlots(fallback);
         if (!deliveryDate) {
@@ -447,7 +443,6 @@ export default function CarritoScreen() {
 
             addressReference: deliveryMethod === 'reparto' ? (selectedAddress?.indicaciones || undefined) : undefined,
             locationVerified: deliveryMethod === 'reparto' ? (selectedAddress?.locationVerified || false) : false,
-            deliveryZone: deliveryMethod === 'reparto' ? (selectedAddress?.zona || clientData?.zona || 'Centro') : undefined,
 
             // Campos de pago
             paymentMethod: paymentMethod,
@@ -808,7 +803,7 @@ export default function CarritoScreen() {
                     🏠 Dirección principal de tu perfil:
                   </Text>
                   <Text style={{ fontSize: 13, color: Colors.textSecondary, marginTop: 4 }}>
-                    {clientData?.direccion} (Zona {clientData?.zona || 'Centro'})
+                    {clientData?.direccion}
                   </Text>
                   <Text style={{ fontSize: 12, color: Colors.textSecondary, fontStyle: 'italic', marginTop: 4 }}>
                     Podés cargar direcciones adicionales desde tu pestaña de Cuenta.
@@ -844,7 +839,6 @@ export default function CarritoScreen() {
                           )}
                         </View>
                         <Text style={{ fontSize: 13, color: Colors.textPrimary }}>{addr.direccion}</Text>
-                        <Text style={{ fontSize: 11, color: Colors.textSecondary }}>Zona {addr.zona}</Text>
                         {addr.indicaciones ? (
                           <Text style={{ fontSize: 11, color: '#0ea5e9', fontStyle: 'italic', marginTop: 2 }}>
                             ℹ️ Referencia: {addr.indicaciones}

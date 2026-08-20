@@ -2,8 +2,7 @@ import { supabase } from './supabaseClient';
 import { Order, OrderStatus } from '../types/order';
 import { OrderItem } from '../types/orderItem';
 import { PaymentMethod, PaymentStatus } from '../types/payment';
-import { geocodeAddress, findZoneForCoordinates } from '../utils/geo';
-import { zoneService } from './zoneService';
+import { geocodeAddress } from '../utils/geo';
 
 const mapOrderItem = (i: any): OrderItem => ({
   producto: {
@@ -34,6 +33,7 @@ const mapOrder = (o: any, items: any[] = []): Order => ({
   observacionesCliente: o.observaciones_cliente || undefined,
   repartidorId: o.repartidor_id || undefined,
   estimatedDelivery: o.estimated_delivery_date || undefined,
+  estimatedDeliveryShift: o.estimated_delivery_shift || undefined,
   paymentMethod: o.payment_method as PaymentMethod,
   paymentStatus: o.payment_status as PaymentStatus,
   abonaCon: o.abona_con ? Number(o.abona_con) : undefined,
@@ -57,10 +57,6 @@ const mapOrder = (o: any, items: any[] = []): Order => ({
   addressReference: o.address_reference || undefined,
   locationVerified: o.location_verified || false,
   locationStatus: o.location_status || (o.latitude && o.longitude ? 'geocoded' : 'pending'),
-  deliveryZone: o.delivery_zone || undefined,
-  zoneId: o.zone_id || undefined,
-  zoneAssignmentType: o.zone_assignment_type || 'automatic',
-  zoneAssignedAt: o.zone_assigned_at || undefined,
   customerName: o.customer_name || undefined,
   customerPhone: o.customer_phone || undefined,
   outOfStockPreference: o.out_of_stock_preference || undefined,
@@ -102,14 +98,13 @@ export const orderService = {
     if (orderErr) throw orderErr;
     if (!o) return undefined;
 
-    const { data: items, error: itemsErr } = await supabase
+    const { data: itemsData, error: itemsErr } = await supabase
       .from('order_items')
       .select('*')
       .eq('order_id', id);
 
     if (itemsErr) throw itemsErr;
-
-    return mapOrder(o, items || []);
+    return mapOrder(o, itemsData || []);
   },
 
   updateStatus: async (id: string, status: OrderStatus, notes?: string, userMail?: string): Promise<Order> => {
@@ -153,21 +148,7 @@ export const orderService = {
 
     let lat = updates.latitude;
     let lon = updates.longitude;
-    let zoneId = updates.zoneId;
-    let assignmentType = updates.zoneAssignmentType || 'automatic';
     let locationStatus = updates.locationStatus;
-
-    // Si se actualizan coordenadas y no es manual, autocalcular zona
-    if (lat && lon && assignmentType !== 'manual') {
-      try {
-        const zones = await zoneService.getAll();
-        const matchedZone = findZoneForCoordinates(lat, lon, zones);
-        zoneId = matchedZone ? matchedZone.id : null;
-        assignmentType = 'automatic';
-      } catch (e) {
-        console.warn('Error al determinar zona en update:', e);
-      }
-    }
 
     const dbUpdates: any = {
       estado: updates.estado,
@@ -176,7 +157,6 @@ export const orderService = {
       repartidor_id: updates.repartidorId,
       estimated_delivery_date: updates.estimatedDelivery,
       estimated_delivery_shift: updates.estimatedDeliveryShift,
-      delivery_zone: updates.deliveryZone,
       delivery_route_id: updates.deliveryRouteId,
       payment_method: updates.paymentMethod,
       payment_status: updates.paymentStatus,
@@ -200,9 +180,6 @@ export const orderService = {
       latitude: lat,
       longitude: lon,
       location_status: locationStatus,
-      zone_id: zoneId,
-      zone_assignment_type: assignmentType,
-      zone_assigned_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
 
@@ -231,43 +208,28 @@ export const orderService = {
   },
 
   /**
-   * Actualiza la ubicación (pin manual o geocodificado) y asigna zona
+   * Actualiza la ubicación (pin manual o geocodificado)
    */
-  updateLocationAndZone: async (
+  updateOrderCoordinates: async (
     orderId: string,
     params: {
       latitude: number;
       longitude: number;
-      zoneId?: string | null;
-      assignmentType?: 'automatic' | 'manual';
       locationStatus?: 'manual_pin' | 'geocoded' | 'verified';
     }
   ): Promise<void> => {
-    let finalZoneId = params.zoneId;
-    const assignmentType = params.assignmentType || 'automatic';
-
-    if (assignmentType === 'automatic' || finalZoneId === undefined) {
-      const zones = await zoneService.getAll();
-      const matched = findZoneForCoordinates(params.latitude, params.longitude, zones);
-      finalZoneId = matched ? matched.id : null;
-    }
-
     const { error } = await supabase
       .from('orders')
       .update({
         latitude: params.latitude,
         longitude: params.longitude,
-        zone_id: finalZoneId,
-        zone_assignment_type: assignmentType,
-        zone_assigned_at: new Date().toISOString(),
         location_status: params.locationStatus || 'manual_pin',
-        location_verified: true,
         updated_at: new Date().toISOString(),
       })
       .eq('id', orderId);
 
     if (error) {
-      throw new Error(`Error al actualizar ubicación y zona: ${error.message}`);
+      throw new Error(`Error al actualizar ubicación: ${error.message}`);
     }
   },
 
@@ -301,8 +263,6 @@ export const orderService = {
     let lat = order.latitude;
     let lon = order.longitude;
     let locationStatus = order.locationStatus || 'pending';
-    let zoneId = order.zoneId;
-    let assignmentType = order.zoneAssignmentType || 'automatic';
 
     // Si no tiene coordenadas pero tiene dirección, intentar geocodificar automáticamente
     const addressToGeocode = order.formattedAddress || order.originalAddress;
@@ -316,17 +276,6 @@ export const orderService = {
         }
       } catch (e) {
         console.warn('Geocodificación automática en creación falló:', e);
-      }
-    }
-
-    // Si tenemos coordenadas y asignación automática, determinar zona por polígono
-    if (lat && lon && assignmentType !== 'manual') {
-      try {
-        const zones = await zoneService.getAll();
-        const matched = findZoneForCoordinates(lat, lon, zones);
-        zoneId = matched ? matched.id : null;
-      } catch (e) {
-        console.warn('Asignación de zona en creación falló:', e);
       }
     }
 
@@ -363,9 +312,6 @@ export const orderService = {
       latitude: lat,
       longitude: lon,
       location_status: locationStatus,
-      zone_id: zoneId,
-      zone_assignment_type: assignmentType,
-      zone_assigned_at: new Date().toISOString(),
       address_reference: order.addressReference,
       location_verified: order.locationVerified || locationStatus === 'geocoded',
       customer_name: order.customerName,

@@ -11,7 +11,6 @@ import {
   DeliveryStatus,
   DeliveryStop,
   OrderStatus,
-  DeliveryZone,
   BranchSchedule,
   InternalNotification,
   PaymentLog,
@@ -26,7 +25,6 @@ import {
   deliveryService,
   paymentService,
   notificationService,
-  zoneService,
   routeService,
   supabase
 } from '@shared/services';
@@ -46,7 +44,6 @@ interface AdminStore {
   stocks: ProductStock[];
   orders: Order[];
   deliveries: DeliveryRoute[];
-  zones: DeliveryZone[];
   schedules: BranchSchedule[];
   notifications: InternalNotification[];
   payments: PaymentLog[];
@@ -200,9 +197,6 @@ export const useAdminStore = create<AdminStore>((set, get) => ({
         disponible: Number(s.stock) > 0
       }));
 
-      // Load delivery zones
-      const zones = await zoneService.getAll();
-
       // Load schedules from system settings
       const { data: schedData } = await supabase
         .from('system_settings')
@@ -255,7 +249,6 @@ export const useAdminStore = create<AdminStore>((set, get) => ({
         stocks,
         orders,
         deliveries,
-        zones,
         schedules,
         payments,
         notifications,

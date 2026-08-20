@@ -72,7 +72,6 @@ export function ClienteAccountScreen() {
   const [loadingAddresses, setLoadingAddresses] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
   const [newDireccion, setNewDireccion] = useState('');
-  const [newZona, setNewZona] = useState('Centro');
   const [newIndicaciones, setNewIndicaciones] = useState('');
   const [savingAddress, setSavingAddress] = useState(false);
   const [selectedOrderForModal, setSelectedOrderForModal] = useState<Order | null>(null);
@@ -115,7 +114,6 @@ export function ClienteAccountScreen() {
         id: `main-${clientData.id}`,
         customerId: clientData.id,
         direccion: clientData.direccion,
-        zona: clientData.zona || 'Centro',
         indicaciones: 'Domicilio principal de registro',
         latitude: clientData.latitude || -32.7561,
         longitude: clientData.longitude || -63.7845,
@@ -278,11 +276,6 @@ export function ClienteAccountScreen() {
 
   const handleSelectStreetSuggestion = (sug: StreetSuggestion) => {
     setNewDireccion(sug.fullAddress);
-    if (sug.street.zoneHint) {
-      if (sug.street.zoneHint === 'Centro') setNewZona('Centro');
-      else if (sug.street.zoneHint === 'Norte') setNewZona('Norte');
-      else if (sug.street.zoneHint === 'Sur' || sug.street.zoneHint === 'Industrial') setNewZona('Sur');
-    }
     handleSearchAddressInMap(sug.fullAddress);
   };
 
@@ -313,7 +306,6 @@ export function ClienteAccountScreen() {
           await clientService.addAddress({
             customerId: clientData.id,
             direccion: clientData.direccion,
-            zona: clientData.zona || 'Centro',
             indicaciones: 'Domicilio principal de registro',
             latitude: clientData.latitude || -32.7561,
             longitude: clientData.longitude || -63.7845,
@@ -328,7 +320,6 @@ export function ClienteAccountScreen() {
       await clientService.addAddress({
         customerId: clientData.id,
         direccion: newDireccion,
-        zona: newZona,
         indicaciones: newIndicaciones || undefined,
         latitude: lat,
         longitude: lon,
@@ -477,9 +468,6 @@ export function ClienteAccountScreen() {
           {!!clientData.razonSocial && (
             <Text style={styles.razonSocial}>{clientData.razonSocial}</Text>
           )}
-          <View style={styles.zonaBadge}>
-            <Text style={styles.zonaBadgeText}>Zona {clientData.zona || 'Centro'}</Text>
-          </View>
         </View>
       </View>
 
@@ -529,7 +517,6 @@ export function ClienteAccountScreen() {
               </View>
             </View>
             <Text style={styles.addressText}>{addr.direccion}</Text>
-            <Text style={styles.addressSub}>Zona {addr.zona}</Text>
             {addr.indicaciones ? (
               <Text style={{ fontSize: 12, color: Colors.textSecondary, fontStyle: 'italic', marginTop: 2 }}>
                 ℹ️ {addr.indicaciones}
@@ -639,29 +626,6 @@ export function ClienteAccountScreen() {
               </View>
             )}
 
-
-            <Text style={{ fontSize: 12, color: Colors.textSecondary, marginBottom: 4 }}>Zona de Entrega</Text>
-            <View style={{ flexDirection: 'row', gap: 8, marginBottom: Spacing.md }}>
-              {['Centro', 'Norte', 'Sur'].map((z) => (
-                <TouchableOpacity
-                  key={z}
-                  style={{
-                    flex: 1,
-                    paddingVertical: 8,
-                    borderRadius: Radius.sm,
-                    borderWidth: 1,
-                    borderColor: newZona === z ? Colors.primary : Colors.border,
-                    backgroundColor: newZona === z ? Colors.primary + '15' : 'white',
-                    alignItems: 'center',
-                  }}
-                  onPress={() => setNewZona(z)}
-                >
-                  <Text style={{ fontSize: 13, fontWeight: 'bold', color: newZona === z ? Colors.primary : Colors.textSecondary }}>
-                    {z}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
 
             <Text style={{ fontSize: 12, color: Colors.textSecondary, marginBottom: 4 }}>Indicaciones / Referencia (Opcional)</Text>
             <View style={{ backgroundColor: 'white', borderRadius: Radius.sm, borderWidth: 1, borderColor: Colors.border, paddingHorizontal: 10, paddingVertical: 8, marginBottom: Spacing.lg }}>

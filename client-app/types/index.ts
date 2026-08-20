@@ -203,7 +203,6 @@ export interface Customer {
   direccion: string;
   localidad: string;
   provincia: string;
-  zona: string;
   branchId?: string;
   tipoCliente?: 'minorista' | 'mayorista' | 'sucursal' | 'consumidor_final';
 }
@@ -212,7 +211,6 @@ export interface CustomerAddress {
   id?: string;
   customerId: string;
   direccion: string;
-  zona: string;
   indicaciones?: string;
   latitude?: number;
   longitude?: number;
@@ -230,7 +228,6 @@ export interface Deliverer {
   telefono: string;
   vehiculo: string;
   patente: string;
-  zona: string;
   activo: boolean;
   avatar?: string;
 }
