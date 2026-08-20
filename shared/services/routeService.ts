@@ -208,7 +208,6 @@ export const routeService = {
           if (!route) {
             route = {
               id: `route-virtual-${driverId}`,
-              zone_id: 'zone-gd',
               driver_id: driverId,
               date: targetDate,
               status: 'active',

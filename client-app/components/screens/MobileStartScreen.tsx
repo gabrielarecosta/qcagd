@@ -276,7 +276,6 @@ export function MobileStartScreen() {
         whatsapp: cleanedPhone,
         email: trimmedEmail.toLowerCase(),
         direccion: regAddress.trim() || 'General Deheza',
-        zona: regLocalidad.trim(),
         branch_id: 'branch-gd1',
         tipo_cliente: 'minorista',
         activo: true,

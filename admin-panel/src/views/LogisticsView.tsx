@@ -92,7 +92,6 @@ export function LogisticsView() {
     return `${y}-${m}-${d}`;
   });
   const [filterSlotId, setFilterSlotId] = useState<string>('all');
-  const [filterZone, setFilterZone] = useState<string>('all');
   const [searchAddress, setSearchAddress] = useState<string>('');
   const [filterPriority, setFilterPriority] = useState<string>('all');
 
@@ -524,7 +523,6 @@ export function LogisticsView() {
         repartidor_id: selectedDriverId,
         fecha: filterDate,
         estado: 'armado',
-        zona: filterZone === 'all' ? 'Multizona' : filterZone,
       };
 
       const { error: routeErr } = await supabase

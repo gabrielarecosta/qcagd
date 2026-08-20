@@ -389,7 +389,7 @@ export default function RepartoScreen() {
           <Text style={styles.guestIcon}>🚚</Text>
           <Text style={styles.guestTitle}>Seguimiento de Reparto</Text>
           <Text style={styles.guestText}>
-            Iniciá sesión con tu cuenta para consultar el estado de tu reparto, chofer asignado y zona en tiempo real.
+            Iniciá sesión con tu cuenta para consultar el estado de tu reparto y chofer asignado en tiempo real.
           </Text>
           <TouchableOpacity
             style={styles.guestButton}
@@ -815,7 +815,6 @@ export default function RepartoScreen() {
                           nombre: order.customerName || 'Cliente',
                           direccion: order.formattedAddress || order.originalAddress || 'Sin dirección',
                           telefono: order.customerPhone || '',
-                          zona: order.deliveryZone || 'Centro',
                           branchId: order.branchId || 'branch-gd1',
                         };
                         return (
@@ -874,9 +873,9 @@ export default function RepartoScreen() {
                                 <Text style={styles.rowInfoValue}>{customer.direccion}</Text>
                               </View>
                               <View style={styles.rowInfo}>
-                                <Text style={styles.rowInfoLabel}>Zona / Sucursal:</Text>
+                                <Text style={styles.rowInfoLabel}>Sucursal:</Text>
                                 <Text style={styles.rowInfoValue}>
-                                  {customer.zona} · {customer.branchId === 'branch-gd1' ? 'GD 1' : 'GD 2'}
+                                  {customer.branchId === 'branch-gd1' ? 'GD 1' : 'GD 2'}
                                 </Text>
                               </View>
                               {customer.telefono ? (
@@ -970,7 +969,6 @@ export default function RepartoScreen() {
                       nombre: order.customerName || 'Cliente',
                       direccion: order.formattedAddress || order.originalAddress || 'Sin dirección',
                       telefono: order.customerPhone || '',
-                      zona: order.deliveryZone || 'Centro',
                       branchId: order.branchId || 'branch-gd1',
                     };
                     return (
@@ -1004,8 +1002,8 @@ export default function RepartoScreen() {
                             <Text style={styles.rowInfoValue}>{order.originalAddress || customer.direccion}</Text>
                           </View>
                           <View style={styles.rowInfo}>
-                            <Text style={styles.rowInfoLabel}>Zona:</Text>
-                            <Text style={styles.rowInfoValue}>{order.deliveryZone || customer.zona}</Text>
+                            <Text style={styles.rowInfoLabel}>Sucursal:</Text>
+                            <Text style={styles.rowInfoValue}>{customer.branchId === 'branch-gd1' ? 'GD 1' : 'GD 2'}</Text>
                           </View>
                           {order.addressReference ? (
                             <View style={styles.rowInfo}>

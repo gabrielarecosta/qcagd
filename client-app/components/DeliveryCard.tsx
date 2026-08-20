@@ -183,12 +183,6 @@ const styles = StyleSheet.create({
     fontSize: FontSize.sm,
     color: Colors.textSecondary,
   },
-  delivererZone: {
-    fontSize: FontSize.sm,
-    fontWeight: FontWeight.semibold,
-    color: Colors.primary,
-    marginTop: 2,
-  },
   actionsContainer: {
     gap: Spacing.sm,
     alignItems: 'stretch',

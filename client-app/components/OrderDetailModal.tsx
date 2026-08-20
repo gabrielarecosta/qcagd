@@ -212,13 +212,6 @@ export function OrderDetailModal({ order, onClose, onRepeat }: OrderDetailModalP
                 </View>
               )}
 
-              {order.deliveryZone && (
-                <View style={styles.infoRow}>
-                  <Text style={styles.infoLabel}>Zona:</Text>
-                  <Text style={styles.infoValue}>Zona {order.deliveryZone}</Text>
-                </View>
-              )}
-
               {order.deliveryDate && (
                 <View style={styles.infoRow}>
                   <Text style={styles.infoLabel}>Entrega programada:</Text>

@@ -183,7 +183,6 @@ export interface Order {
   longitude?: number;
   addressReference?: string;
   locationVerified?: boolean;
-  deliveryZone?: string;
   customerName?: string;
   customerPhone?: string;
   outOfStockPreference?: 'llamar' | 'reemplazar' | 'cancelar';

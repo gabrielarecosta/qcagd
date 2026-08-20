@@ -233,26 +233,7 @@ export const orderService = {
     }
   },
 
-  /**
-   * Reasignación manual de zona protegiendo el override
-   */
-  reassignZoneManually: async (orderId: string, zoneId: string | null): Promise<void> => {
-    const { error } = await supabase
-      .from('orders')
-      .update({
-        zone_id: zoneId,
-        zone_assignment_type: 'manual',
-        zone_assigned_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', orderId);
-
-    if (error) {
-      throw new Error(`Error al reasignar zona: ${error.message}`);
-    }
-  },
-
-  create: async (order: Omit<Order, 'id'> & { id?: string, estimatedDeliveryShift?: 'mañana' | 'tarde', deliveryZone?: string }, userMail?: string): Promise<Order> => {
+  create: async (order: Omit<Order, 'id'> & { id?: string, estimatedDeliveryShift?: 'mañana' | 'tarde' }, userMail?: string): Promise<Order> => {
     const orderId = order.id || `ord-${Date.now()}`;
     const orderNum = order.numero || `PED-${Date.now().toString().slice(-6)}`;
 
@@ -293,7 +274,6 @@ export const orderService = {
       repartidor_id: order.repartidorId,
       estimated_delivery_date: order.estimatedDelivery,
       estimated_delivery_shift: order.estimatedDeliveryShift,
-      delivery_zone: order.deliveryZone,
       payment_method: order.paymentMethod || 'efectivo',
       payment_status: order.paymentStatus || 'pendiente',
       abona_con: order.abonaCon,

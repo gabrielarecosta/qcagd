@@ -251,13 +251,6 @@ export default function OrderDetailScreen() {
               </View>
             )}
 
-            {targetOrder.deliveryZone && (
-              <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Zona:</Text>
-                <Text style={styles.infoValue}>Zona {targetOrder.deliveryZone}</Text>
-              </View>
-            )}
-
             {targetOrder.deliveryDate && (
               <View style={styles.infoRow}>
                 <Text style={styles.infoLabel}>Entrega programada:</Text>
