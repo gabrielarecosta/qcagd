@@ -20,7 +20,6 @@ export function ClientsView() {
   const [loadingAddresses, setLoadingAddresses] = useState(false);
   const [editingAddressId, setEditingAddressId] = useState<string | null>(null);
   const [editAddrText, setEditAddrText] = useState('');
-  const [editAddrZona, setEditAddrZona] = useState('');
   const [editAddrIndicaciones, setEditAddrIndicaciones] = useState('');
   
   // Estado para agregar nueva dirección auxiliar
@@ -54,7 +53,6 @@ export function ClientsView() {
     tipoCliente: 'minorista' as ClientType,
     activo: true,
     observaciones: '',
-    zona: 'General',
   });
 
   const fetchAddresses = async (customerId: string) => {
@@ -74,7 +72,6 @@ export function ClientsView() {
     setEditingAddressId(null);
     setShowAddAddress(false);
     setNewAddrText('');
-    setNewAddrZona(c.zona || 'General');
     setNewAddrIndicaciones('');
     setFormClient({
       nombre: c.nombre || '',
@@ -87,7 +84,6 @@ export function ClientsView() {
       tipoCliente: c.tipoCliente,
       activo: c.activo,
       observaciones: c.observaciones || '',
-      zona: c.zona || 'General',
       latitude: c.latitude,
       longitude: c.longitude,
     });
@@ -107,7 +103,6 @@ export function ClientsView() {
       tipoCliente: 'minorista',
       activo: true,
       observaciones: '',
-      zona: 'General',
       latitude: undefined,
       longitude: undefined,
     });
@@ -122,7 +117,6 @@ export function ClientsView() {
       await clientService.addAddress({
         customerId: editingClient.id,
         direccion: newAddrText.trim(),
-        zona: newAddrZona.trim() || 'General',
         indicaciones: newAddrIndicaciones.trim() || undefined,
       });
       setNewAddrText('');
@@ -139,7 +133,6 @@ export function ClientsView() {
   const handleStartEditAuxAddr = (addr: CustomerAddress) => {
     setEditingAddressId(addr.id);
     setEditAddrText(addr.direccion);
-    setEditAddrZona(addr.zona || 'General');
     setEditAddrIndicaciones(addr.indicaciones || '');
   };
 
@@ -148,7 +141,6 @@ export function ClientsView() {
     try {
       await clientService.updateAddress(addrId, {
         direccion: editAddrText.trim(),
-        zona: editAddrZona.trim() || 'General',
         indicaciones: editAddrIndicaciones.trim() || undefined,
       });
       setEditingAddressId(null);
@@ -217,7 +209,6 @@ export function ClientsView() {
       Teléfono: c.telefono,
       Email: c.email || '',
       Dirección: c.direccion,
-      Zona: c.zona,
       Sucursal: getBranchName(c.branchId),
       Segmento: c.tipoCliente,
       Estado: c.activo ? 'Activo' : 'Suspendido',
@@ -516,17 +507,6 @@ export function ClientsView() {
                       <option value="false">Suspendido / En Mora</option>
                     </select>
                   </div>
-                </div>
-
-                <div className="form-group" style={{ marginBottom: '16px' }}>
-                  <label className="form-label">Zona de Entrega</label>
-                  <input 
-                    type="text" 
-                    className="form-input" 
-                    value={formClient.zona}
-                    onChange={e => setFormClient({ ...formClient, zona: e.target.value })}
-                    required
-                  />
                 </div>
 
                 <div className="form-group">
