@@ -329,6 +329,22 @@ export default function CarritoScreen() {
   const handleConfirmOrder = useCallback(() => {
     const selectedOption = DELIVERY_OPTIONS.find((o) => o.key === deliveryMethod)!;
 
+    // Validar dirección de envío requerida para repartos a domicilio
+    const mainDir = (clientData?.direccion || '').trim();
+    const hasMainDir = mainDir !== '' && mainDir !== 'Sin dirección registrada' && mainDir !== 'Sin dirección';
+    
+    if (deliveryMethod === 'reparto' && !selectedAddress && !hasMainDir) {
+      customAlert(
+        'Dirección requerida',
+        'No tenés configurada una dirección de envío. Por favor, agregá tu dirección en tu Cuenta para poder solicitar un pedido a domicilio.',
+        [
+          { text: 'Ir a Mi Cuenta', onPress: () => router.push('/(tabs)/cuenta') },
+          { text: 'Cancelar', style: 'cancel' }
+        ]
+      );
+      return;
+    }
+
     // Validar franja horaria requerida para despacho/reparto
     if (deliveryMethod !== 'retiro' && !selectedSlot) {
       customAlert('Horario requerido', 'Por favor, seleccioná una fecha y franja horaria de entrega válidas.');

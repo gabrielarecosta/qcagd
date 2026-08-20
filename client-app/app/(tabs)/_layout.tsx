@@ -15,6 +15,7 @@ import { RegisterClienteScreen } from '../../components/screens/RegisterClienteS
 import { LoginRepartidorScreen } from '../../components/screens/LoginRepartidorScreen';
 import { DesktopStartScreen } from '../../components/screens/DesktopStartScreen';
 import { MobileStartScreen } from '../../components/screens/MobileStartScreen';
+import { NoAddressBanner } from '../../components/ui/NoAddressBanner';
 
 // Íconos con MaterialCommunityIcons para mayor calidad visual
 function HomeIcon({ focused }: { focused: boolean }) {
@@ -245,6 +246,7 @@ export default function TabsLayout() {
 
         {/* Contenedor principal de contenido (centrado con max width) */}
         <View style={desktopStyles.desktopContentWrapper}>
+          <NoAddressBanner />
           <Tabs
             screenOptions={{
               headerShown: false,
@@ -263,56 +265,59 @@ export default function TabsLayout() {
   }
 
   return (
-    <Tabs
-      screenOptions={{
-        headerShown: false,
-        tabBarStyle: styles.tabBar,
-        tabBarActiveTintColor: Colors.tabActive,
-        tabBarInactiveTintColor: Colors.tabInactive,
-        tabBarLabelStyle: styles.tabLabel,
-      }}
-    >
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: 'Inicio',
-          href: isRepartidor ? null : undefined,
-          tabBarIcon: ({ focused }) => <HomeIcon focused={focused} />,
+    <View style={{ flex: 1 }}>
+      <NoAddressBanner />
+      <Tabs
+        screenOptions={{
+          headerShown: false,
+          tabBarStyle: styles.tabBar,
+          tabBarActiveTintColor: Colors.tabActive,
+          tabBarInactiveTintColor: Colors.tabInactive,
+          tabBarLabelStyle: styles.tabLabel,
         }}
-      />
-      <Tabs.Screen
-        name="catalogo"
-        options={{
-          title: 'Catálogo',
-          href: isRepartidor ? null : undefined,
-          tabBarIcon: ({ focused }) => <CatalogIcon focused={focused} />,
-        }}
-      />
-      <Tabs.Screen
-        name="carrito"
-        options={{
-          title: 'Mis Pedidos',
-          href: isRepartidor ? null : undefined,
-          tabBarIcon: ({ focused }) => (
-            <CartIcon focused={focused} count={totalItems} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="reparto"
-        options={{
-          title: 'Mis Repartos',
-          tabBarIcon: ({ focused }) => <DeliveryIcon focused={focused} />,
-        }}
-      />
-      <Tabs.Screen
-        name="cuenta"
-        options={{
-          title: 'Mi Cuenta',
-          tabBarIcon: ({ focused }) => <AccountIcon focused={focused} />,
-        }}
-      />
-    </Tabs>
+      >
+        <Tabs.Screen
+          name="index"
+          options={{
+            title: 'Inicio',
+            href: isRepartidor ? null : undefined,
+            tabBarIcon: ({ focused }) => <HomeIcon focused={focused} />,
+          }}
+        />
+        <Tabs.Screen
+          name="catalogo"
+          options={{
+            title: 'Catálogo',
+            href: isRepartidor ? null : undefined,
+            tabBarIcon: ({ focused }) => <CatalogIcon focused={focused} />,
+          }}
+        />
+        <Tabs.Screen
+          name="carrito"
+          options={{
+            title: 'Mis Pedidos',
+            href: isRepartidor ? null : undefined,
+            tabBarIcon: ({ focused }) => (
+              <CartIcon focused={focused} count={totalItems} />
+            ),
+          }}
+        />
+        <Tabs.Screen
+          name="reparto"
+          options={{
+            title: 'Mis Repartos',
+            tabBarIcon: ({ focused }) => <DeliveryIcon focused={focused} />,
+          }}
+        />
+        <Tabs.Screen
+          name="cuenta"
+          options={{
+            title: 'Mi Cuenta',
+            tabBarIcon: ({ focused }) => <AccountIcon focused={focused} />,
+          }}
+        />
+      </Tabs>
+    </View>
   );
 }
 

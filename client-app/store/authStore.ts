@@ -65,8 +65,9 @@ export const useAuthStore = create<AuthState>()(
       loginAsCliente: async (username, password) => {
         const u = username.trim().toLowerCase();
         
+        const customerCols = 'id, nombre, razon_social, cuit, telefono, whatsapp, email, direccion, branch_id, tipo_cliente, activo, observaciones, fecha_alta';
         // Buscar en la tabla de clientes de Supabase
-        let query = supabase.from('customers').select('*').eq('activo', true).is('deleted_at', null);
+        let query = supabase.from('customers').select(customerCols).eq('activo', true).is('deleted_at', null);
         
         // Si contiene '@', buscar por email; si es número puro, por cuit/telefono; si no, por nombre
         if (u.includes('@')) {
@@ -84,7 +85,7 @@ export const useAuthStore = create<AuthState>()(
         if (!client && (u === 'ana' || u.includes('ana'))) {
           const { data: ana } = await supabase
             .from('customers')
-            .select('*')
+            .select(customerCols)
             .eq('email', 'ana@gmail.com')
             .maybeSingle();
           client = ana;

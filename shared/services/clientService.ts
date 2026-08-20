@@ -20,9 +20,11 @@ const mapCustomer = (d: any): Customer => ({
   locationVerified: d.location_verified || false,
 });
 
+const CUSTOMER_COLUMNS = 'id, nombre, razon_social, cuit, telefono, whatsapp, email, direccion, branch_id, tipo_cliente, activo, observaciones, fecha_alta, latitude, longitude, location_verified';
+
 export const clientService = {
   getAll: async (branchId?: string): Promise<Customer[]> => {
-    let query = supabase.from('customers').select('*').is('deleted_at', null);
+    let query = supabase.from('customers').select(CUSTOMER_COLUMNS).is('deleted_at', null);
     if (branchId && branchId !== 'all') {
       query = query.eq('branch_id', branchId);
     }
@@ -34,7 +36,7 @@ export const clientService = {
   getById: async (id: string): Promise<Customer | undefined> => {
     const { data, error } = await supabase
       .from('customers')
-      .select('*')
+      .select(CUSTOMER_COLUMNS)
       .eq('id', id)
       .is('deleted_at', null)
       .maybeSingle();
@@ -67,7 +69,7 @@ export const clientService = {
       .from('customers')
       .update(dbUpdates)
       .eq('id', id)
-      .select('*')
+      .select(CUSTOMER_COLUMNS)
       .single();
     if (error) throw error;
     return mapCustomer(data);
@@ -97,7 +99,7 @@ export const clientService = {
     const { data, error } = await supabase
       .from('customers')
       .insert(dbInsert)
-      .select('*')
+      .select(CUSTOMER_COLUMNS)
       .single();
     if (error) throw error;
     return mapCustomer(data);

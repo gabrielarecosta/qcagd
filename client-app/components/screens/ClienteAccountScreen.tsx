@@ -63,7 +63,7 @@ const infoStyles = StyleSheet.create({
 
 export function ClienteAccountScreen() {
   const router = useRouter();
-  const { clientData, logout } = useAuthStore();
+  const { clientData, logout, setClienteSession } = useAuthStore();
   const { orders, fetchOrders } = useOrderStore();
   const { repeatOrder } = useCartStore();
 
@@ -300,22 +300,7 @@ export function ClienteAccountScreen() {
         }
       }
 
-      // Si la base de datos no tiene aún la dirección original de registro en customer_addresses, preservarla primero
-      if (addresses.length === 0 && clientData.direccion) {
-        try {
-          await clientService.addAddress({
-            customerId: clientData.id,
-            direccion: clientData.direccion,
-            indicaciones: 'Domicilio principal de registro',
-            latitude: clientData.latitude || -32.7561,
-            longitude: clientData.longitude || -63.7845,
-            locationVerified: clientData.locationVerified || false,
-            defaultAddress: true,
-          });
-        } catch (origErr) {
-          console.warn('Error registrando dirección original inicial:', origErr);
-        }
-      }
+      const isFirstAddress = addresses.length === 0;
 
       await clientService.addAddress({
         customerId: clientData.id,
@@ -324,14 +309,34 @@ export function ClienteAccountScreen() {
         latitude: lat,
         longitude: lon,
         locationVerified: verified,
-        defaultAddress: false,
+        defaultAddress: isFirstAddress,
       });
+
+      if (isFirstAddress) {
+        try {
+          await clientService.update(clientData.id, {
+            direccion: newDireccion,
+            latitude: lat,
+            longitude: lon,
+            locationVerified: verified,
+          });
+          setClienteSession({
+            ...clientData,
+            direccion: newDireccion,
+            latitude: lat,
+            longitude: lon,
+            locationVerified: verified,
+          });
+        } catch (updateErr) {
+          console.warn('Error al actualizar dirección principal en perfil:', updateErr);
+        }
+      }
 
       await loadAddresses();
       setNewDireccion('');
       setNewIndicaciones('');
       setShowAddForm(false);
-      customAlert('Éxito', 'Dirección agregada correctamente.');
+      customAlert('Éxito', 'Dirección de envío agregada correctamente.');
     } catch (e) {
       console.error(e);
       customAlert('Error', 'No se pudo agregar la dirección.');

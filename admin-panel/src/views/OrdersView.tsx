@@ -15,8 +15,6 @@ export function OrdersView() {
     branches, 
     users,
     activeBranchId, 
-    updateOrderStatus,
-    updateOrder,
     globalMinOrderAmount,
     updateGlobalMinOrderAmount
   } = useAdminStore();

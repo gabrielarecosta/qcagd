@@ -83,7 +83,6 @@ export function RegisterClienteScreen({ onBack }: RegisterClienteScreenProps) {
   const [regName, setRegName] = useState('');
   const [regPhone, setRegPhone] = useState('');
   const [regEmail, setRegEmail] = useState('');
-  const [regAddress, setRegAddress] = useState('');
   const [regCuit, setRegCuit] = useState('');
 
   // Campos Sucursal
@@ -92,7 +91,6 @@ export function RegisterClienteScreen({ onBack }: RegisterClienteScreenProps) {
   const [branchCuit, setBranchCuit] = useState('');
   const [branchPhone, setBranchPhone] = useState('');
   const [branchEmail, setBranchEmail] = useState('');
-  const [branchAddress, setBranchAddress] = useState('');
   const [selectedBranchId, setSelectedBranchId] = useState('branch-gd1');
   const [availableBranches, setAvailableBranches] = useState<Branch[]>([]);
 
@@ -123,13 +121,13 @@ export function RegisterClienteScreen({ onBack }: RegisterClienteScreenProps) {
     setError(null);
 
     if (accountType === 'consumidor_final') {
-      if (!regName.trim() || !regPhone.trim() || !regAddress.trim()) {
-        setError('Por favor completá los campos obligatorios: Nombre, Teléfono y Dirección.');
+      if (!regName.trim() || !regPhone.trim()) {
+        setError('Por favor completá los campos obligatorios: Nombre y Teléfono.');
         return;
       }
     } else {
-      if (!branchName.trim() || !branchContact.trim() || !branchPhone.trim() || !branchAddress.trim()) {
-        setError('Por favor completá: Nombre de Sucursal, Contacto responsable, Teléfono y Dirección.');
+      if (!branchName.trim() || !branchContact.trim() || !branchPhone.trim()) {
+        setError('Por favor completá los campos obligatorios: Nombre de Sucursal, Contacto responsable y Teléfono.');
         return;
       }
     }
@@ -147,24 +145,10 @@ export function RegisterClienteScreen({ onBack }: RegisterClienteScreenProps) {
       const contactoFinal = isSucursal ? branchContact.trim() : regName.trim();
       const telefonoFinal = isSucursal ? branchPhone.trim() : regPhone.trim();
       const emailFinal = isSucursal ? branchEmail.trim() : regEmail.trim();
-      const direccionFinal = isSucursal ? branchAddress.trim() : regAddress.trim();
       const cuitFinal = isSucursal ? branchCuit.trim() : regCuit.trim();
       const branchAsignada = isSucursal ? selectedBranchId : 'branch-gd1';
 
-      let regLat = -32.7561;
-      let regLng = -63.7845;
-      let isVerified = false;
-
-      try {
-        const geoResult = await geocodeAddress(direccionFinal, 'General Deheza', 'Córdoba');
-        if (geoResult) {
-          regLat = geoResult.latitude;
-          regLng = geoResult.longitude;
-          isVerified = true;
-        }
-      } catch (_) {}
-
-      // 1. Crear el cliente en Supabase con coordenadas
+      // 1. Crear el cliente en Supabase sin dirección inicial
       const newCustomer = await clientService.create({
         nombre: nombreFinal,
         razonSocial: isSucursal ? nombreFinal : undefined,
@@ -172,30 +156,12 @@ export function RegisterClienteScreen({ onBack }: RegisterClienteScreenProps) {
         telefono: telefonoFinal,
         whatsapp: telefonoFinal,
         email: emailFinal || undefined,
-        direccion: direccionFinal,
+        direccion: '',
         branchId: branchAsignada,
         tipoCliente: isSucursal ? 'sucursal' : 'minorista',
         activo: true,
         observaciones: isSucursal ? `Sucursal registrada - Responsable: ${contactoFinal}` : 'Registro particular desde App',
-        latitude: regLat,
-        longitude: regLng,
-        locationVerified: isVerified,
       });
-
-      // 2. Guardar su dirección en customer_addresses con coordenadas
-      try {
-        await clientService.addAddress({
-          customerId: newCustomer.id,
-          direccion: direccionFinal,
-          indicaciones: isSucursal ? `Sucursal ${nombreFinal}` : 'Domicilio principal',
-          latitude: regLat,
-          longitude: regLng,
-          locationVerified: isVerified,
-          defaultAddress: true,
-        });
-      } catch (addrErr) {
-        console.warn('No se pudo guardar dirección complementaria:', addrErr);
-      }
 
 
       // 3. Loguear directamente al usuario con sus nuevos datos
@@ -314,19 +280,12 @@ export function RegisterClienteScreen({ onBack }: RegisterClienteScreenProps) {
             />
 
             <AnimatedInput
-              placeholder="Dirección de Entrega *"
-              value={regAddress}
-              onChangeText={setRegAddress}
-              delay={200}
-            />
-
-            <AnimatedInput
               placeholder="Email (Opcional)"
               value={regEmail}
               onChangeText={setRegEmail}
               keyboardType="email-address"
               autoCapitalize="none"
-              delay={250}
+              delay={200}
             />
 
             <AnimatedInput
@@ -335,7 +294,7 @@ export function RegisterClienteScreen({ onBack }: RegisterClienteScreenProps) {
               onChangeText={setRegCuit}
               keyboardType="numeric"
               autoCapitalize="none"
-              delay={300}
+              delay={250}
             />
           </View>
         )}
@@ -412,13 +371,6 @@ export function RegisterClienteScreen({ onBack }: RegisterClienteScreenProps) {
               keyboardType="email-address"
               autoCapitalize="none"
               delay={300}
-            />
-
-            <AnimatedInput
-              placeholder="Dirección Completa de la Sucursal *"
-              value={branchAddress}
-              onChangeText={setBranchAddress}
-              delay={350}
             />
           </View>
         )}
