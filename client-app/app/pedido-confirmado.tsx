@@ -17,6 +17,8 @@ import { Radius, Spacing } from '../constants/Spacing';
 import { Button } from '../components/ui/Button';
 import { companySettingsService } from '@shared/services/companySettingsService';
 import { formatPrice } from '../utils/formatters';
+import { buildWhatsAppOrderMessage, WhatsAppOrderItem } from '@shared/utils/whatsappOrderMessage';
+import { useAuthStore } from '../store/authStore';
 
 const DELIVERY_OPTIONS: Record<string, { icon: string; label: string }> = {
   reparto: {
@@ -35,7 +37,9 @@ const DELIVERY_OPTIONS: Record<string, { icon: string; label: string }> = {
 
 export default function PedidoConfirmadoScreen() {
   const router = useRouter();
+  const clientData = useAuthStore((state) => state.clientData);
   const params = useLocalSearchParams<{
+    orderId?: string;
     orderNum?: string;
     orderTotal?: string;
     deliveryMethod?: string;
@@ -44,6 +48,9 @@ export default function PedidoConfirmadoScreen() {
     slotNombre?: string;
     slotHoraInicio?: string;
     slotHoraFin?: string;
+    outOfStockPreference?: string;
+    observaciones?: string;
+    itemsJson?: string;
   }>();
 
   const [companySettings, setCompanySettings] = useState<any>(null);
@@ -56,6 +63,17 @@ export default function PedidoConfirmadoScreen() {
   const slotNombre = params.slotNombre || '';
   const slotHoraInicio = params.slotHoraInicio || '';
   const slotHoraFin = params.slotHoraFin || '';
+  const outOfStockPreference = params.outOfStockPreference || 'llamar';
+  const observaciones = params.observaciones || '';
+
+  const parsedItems: WhatsAppOrderItem[] = React.useMemo(() => {
+    if (!params.itemsJson) return [];
+    try {
+      return JSON.parse(params.itemsJson);
+    } catch {
+      return [];
+    }
+  }, [params.itemsJson]);
 
   const selectedOption = DELIVERY_OPTIONS[deliveryMethod] || DELIVERY_OPTIONS['reparto'];
   const paymentLabel =
@@ -78,14 +96,25 @@ export default function PedidoConfirmadoScreen() {
   }, []);
 
   const handleSendReceipt = () => {
-    const waText = encodeURIComponent(
-      `*Comprobante de Pago — Química Deheza*\n` +
-      `Hola! Acabo de realizar la transferencia para mi pedido *${orderNum}*\n` +
-      `*Monto:* ${formatPrice(orderTotal)}\n` +
-      `Adjunto aquí abajo la captura del comprobante bancario.`
-    );
-    const targetNumber = companySettings?.whatsapp || '5493511234567';
-    Linking.openURL(`https://wa.me/${targetNumber}?text=${waText}`);
+    const waMessage = buildWhatsAppOrderMessage({
+      orderNum: orderNum,
+      customerName: clientData?.nombre || 'Cliente',
+      customerPhone: clientData?.telefono || '',
+      items: parsedItems,
+      total: orderTotal,
+      deliveryMethod: deliveryMethod,
+      deliveryDate: deliveryDate || undefined,
+      deliveryTimeSlot: slotHoraInicio && slotHoraFin ? `${slotHoraInicio} a ${slotHoraFin} hs` : undefined,
+      address: clientData?.direccion,
+      outOfStockPreference: outOfStockPreference,
+      observaciones: observaciones,
+      paymentMethod: paymentMethod,
+      isTransferReceipt: true,
+    });
+
+    const targetNumber = companySettings?.whatsapp_transferencias || companySettings?.whatsapp || '5493511234567';
+    const cleanPhone = targetNumber.replace(/[^0-9]/g, '');
+    Linking.openURL(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(waMessage)}`);
   };
 
   return (

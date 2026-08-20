@@ -1,8 +1,11 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useAdminStore } from '../store/adminStore';
-import type { Customer, ClientType } from '@shared/types/client';
+import type { Customer, ClientType, CustomerAddress } from '@shared/types/client';
+import { clientService } from '@shared/services/clientService';
 import * as XLSX from 'xlsx';
 import { supabase } from '@shared/services/supabaseClient';
+
+import { AddressLocationPicker } from '../components/AddressLocationPicker';
 
 export function ClientsView() {
   const { clients, branches, updateClient, createClient, activeBranchId } = useAdminStore();
@@ -12,8 +15,37 @@ export function ClientsView() {
   const [editingClient, setEditingClient] = useState<Customer | null>(null);
   const [isCreating, setIsCreating] = useState(false);
 
+  // Estados para Direcciones Adicionales / Auxiliares
+  const [clientAddresses, setClientAddresses] = useState<CustomerAddress[]>([]);
+  const [loadingAddresses, setLoadingAddresses] = useState(false);
+  const [editingAddressId, setEditingAddressId] = useState<string | null>(null);
+  const [editAddrText, setEditAddrText] = useState('');
+  const [editAddrZona, setEditAddrZona] = useState('');
+  const [editAddrIndicaciones, setEditAddrIndicaciones] = useState('');
+  
+  // Estado para agregar nueva dirección auxiliar
+  const [showAddAddress, setShowAddAddress] = useState(false);
+  const [newAddrText, setNewAddrText] = useState('');
+  const [newAddrZona, setNewAddrZona] = useState('General');
+  const [newAddrIndicaciones, setNewAddrIndicaciones] = useState('');
+  const [addingAddr, setAddingAddr] = useState(false);
+
   // Form State
-  const [formClient, setFormClient] = useState({
+  const [formClient, setFormClient] = useState<{
+    nombre: string;
+    razonSocial: string;
+    cuit: string;
+    email: string;
+    telefono: string;
+    direccion: string;
+    branchId: string;
+    tipoCliente: ClientType;
+    activo: boolean;
+    observaciones: string;
+    zona: string;
+    latitude?: number;
+    longitude?: number;
+  }>({
     nombre: '',
     razonSocial: '',
     cuit: '',
@@ -27,8 +59,25 @@ export function ClientsView() {
     zona: 'General',
   });
 
+  const fetchAddresses = async (customerId: string) => {
+    setLoadingAddresses(true);
+    try {
+      const addrs = await clientService.getAddresses(customerId);
+      setClientAddresses(addrs);
+    } catch (err) {
+      console.warn('Error cargando direcciones auxiliares:', err);
+    } finally {
+      setLoadingAddresses(false);
+    }
+  };
+
   const handleOpenEdit = (c: Customer) => {
     setEditingClient(c);
+    setEditingAddressId(null);
+    setShowAddAddress(false);
+    setNewAddrText('');
+    setNewAddrZona(c.zona || 'General');
+    setNewAddrIndicaciones('');
     setFormClient({
       nombre: c.nombre || '',
       razonSocial: c.razonSocial || '',
@@ -41,7 +90,10 @@ export function ClientsView() {
       activo: c.activo,
       observaciones: c.observaciones || '',
       zona: c.zona || 'General',
+      latitude: c.latitude,
+      longitude: c.longitude,
     });
+    fetchAddresses(c.id);
   };
 
   const handleOpenCreate = () => {
@@ -58,7 +110,64 @@ export function ClientsView() {
       activo: true,
       observaciones: '',
       zona: 'General',
+      latitude: undefined,
+      longitude: undefined,
     });
+  };
+
+
+  const handleAddAuxAddress = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingClient || !newAddrText.trim()) return;
+    setAddingAddr(true);
+    try {
+      await clientService.addAddress({
+        customerId: editingClient.id,
+        direccion: newAddrText.trim(),
+        zona: newAddrZona.trim() || 'General',
+        indicaciones: newAddrIndicaciones.trim() || undefined,
+      });
+      setNewAddrText('');
+      setNewAddrIndicaciones('');
+      setShowAddAddress(false);
+      await fetchAddresses(editingClient.id);
+    } catch (err: any) {
+      alert('Error agregando dirección auxiliar: ' + err.message);
+    } finally {
+      setAddingAddr(false);
+    }
+  };
+
+  const handleStartEditAuxAddr = (addr: CustomerAddress) => {
+    setEditingAddressId(addr.id);
+    setEditAddrText(addr.direccion);
+    setEditAddrZona(addr.zona || 'General');
+    setEditAddrIndicaciones(addr.indicaciones || '');
+  };
+
+  const handleSaveAuxAddress = async (addrId: string) => {
+    if (!editingClient || !editAddrText.trim()) return;
+    try {
+      await clientService.updateAddress(addrId, {
+        direccion: editAddrText.trim(),
+        zona: editAddrZona.trim() || 'General',
+        indicaciones: editAddrIndicaciones.trim() || undefined,
+      });
+      setEditingAddressId(null);
+      await fetchAddresses(editingClient.id);
+    } catch (err: any) {
+      alert('Error guardando dirección: ' + err.message);
+    }
+  };
+
+  const handleDeleteAuxAddress = async (addrId: string) => {
+    if (!editingClient || !confirm('¿Confirma eliminar esta dirección secundaria del cliente?')) return;
+    try {
+      await clientService.deleteAddress(addrId);
+      await fetchAddresses(editingClient.id);
+    } catch (err: any) {
+      alert('Error eliminando dirección: ' + err.message);
+    }
   };
 
   const handleSaveEdit = (e: React.FormEvent) => {
@@ -182,15 +291,16 @@ export function ClientsView() {
               </select>
             </div>
           )}
-          <div style={{ width: '180px' }}>
+          <div style={{ width: '210px' }}>
             <select 
               className="form-select"
               value={selectedType}
               onChange={e => setSelectedType(e.target.value)}
             >
               <option value="all">Todos los segmentos</option>
-              <option value="minorista">Minorista</option>
+              <option value="minorista">Minorista (Consumidor Final)</option>
               <option value="mayorista">Mayorista</option>
+              <option value="sucursal">Sucursal / Empresa</option>
             </select>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', color: 'var(--text-secondary)', fontSize: '14px' }}>
@@ -199,40 +309,48 @@ export function ClientsView() {
         </div>
       </div>
 
-      {/* Tabla de Clientes */}
+      {/* Tabla Principal */}
       <div className="card-wrapper">
         <div className="table-container">
           <table className="admin-table">
             <thead>
               <tr>
-                <th>Razón Social / Nombre</th>
+                <th>Cliente / Razón Social</th>
+                <th>CUIT</th>
                 <th>Contacto</th>
-                <th>Dirección / Sucursal</th>
+                <th>Ubicación y Sucursal</th>
                 <th>Segmento</th>
-                <th>Notas Despacho</th>
+                <th>Observaciones</th>
                 <th>Estado</th>
-                <th className="text-right">Acción</th>
+                <th className="text-right">Acciones</th>
               </tr>
             </thead>
             <tbody>
               {filteredClients.map(c => (
                 <tr key={c.id}>
                   <td>
-                    <div style={{ fontWeight: 'bold' }}>{c.nombre}</div>
-                    {c.razonSocial && <div style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>{c.razonSocial}</div>}
-                    {c.cuit && <div style={{ fontSize: '11px', color: 'var(--text-secondary)', fontFamily: 'monospace' }}>CUIT: {c.cuit}</div>}
+                    <div style={{ fontWeight: 'bold', color: 'var(--text-primary)' }}>{c.nombre}</div>
+                    {c.razonSocial && c.razonSocial !== c.nombre && (
+                      <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{c.razonSocial}</div>
+                    )}
+                  </td>
+                  <td style={{ fontFamily: 'monospace', fontSize: '13px' }}>
+                    {c.cuit || <span style={{ color: 'var(--text-disabled)' }}>Sin CUIT</span>}
                   </td>
                   <td>
-                    {c.email && <div style={{ fontSize: '13px' }}>✉️ {c.email}</div>}
-                    <div style={{ fontSize: '13px' }}>📞 {c.telefono}</div>
+                    <div>📞 {c.telefono}</div>
+                    {c.email && <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>✉️ {c.email}</div>}
                   </td>
                   <td>
                     <div>{c.direccion}</div>
                     <div style={{ fontSize: '11px', color: 'var(--accent-color)', fontWeight: 'bold' }}>📍 {getBranchName(c.branchId)}</div>
                   </td>
                   <td>
-                    <span className={`badge ${c.tipoCliente === 'mayorista' ? 'badge-warning' : 'badge-neutral'}`}>
-                      {c.tipoCliente.toUpperCase()}
+                    <span className={`badge ${
+                      c.tipoCliente === 'mayorista' ? 'badge-warning' : 
+                      c.tipoCliente === 'sucursal' ? 'badge-primary' : 'badge-neutral'
+                    }`}>
+                      {c.tipoCliente === 'sucursal' ? 'SUCURSAL' : c.tipoCliente.toUpperCase()}
                     </span>
                   </td>
                   <td>
@@ -341,17 +459,30 @@ export function ClientsView() {
                       onChange={e => setFormClient({ ...formClient, email: e.target.value })}
                     />
                   </div>
-                  <div className="form-group">
-                    <label className="form-label">Dirección de Entrega</label>
-                    <input 
-                      type="text" 
-                      className="form-input" 
-                      value={formClient.direccion}
-                      onChange={e => setFormClient({ ...formClient, direccion: e.target.value })}
-                      required
-                    />
-                  </div>
                 </div>
+
+                <div className="form-group" style={{ marginBottom: '16px' }}>
+
+                  <label className="form-label" style={{ fontWeight: 'bold', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    📍 Dirección de Entrega y Ubicación en Mapa (Confirmar Pin)
+                  </label>
+                  <AddressLocationPicker
+                    initialAddress={{
+                      formattedAddress: formClient.direccion,
+                      latitude: formClient.latitude,
+                      longitude: formClient.longitude,
+                    }}
+                    onAddressSelect={(geo) => {
+                      setFormClient(prev => ({
+                        ...prev,
+                        direccion: geo.formattedAddress,
+                        latitude: geo.latitude,
+                        longitude: geo.longitude,
+                      }));
+                    }}
+                  />
+                </div>
+
 
                 <div className="form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px', marginBottom: '16px' }}>
                   <div className="form-group">
@@ -371,8 +502,9 @@ export function ClientsView() {
                       value={formClient.tipoCliente}
                       onChange={e => setFormClient({ ...formClient, tipoCliente: e.target.value as ClientType })}
                     >
-                      <option value="minorista">Minorista</option>
+                      <option value="minorista">Minorista (Consumidor Final)</option>
                       <option value="mayorista">Mayorista (Precios diferenciados)</option>
+                      <option value="sucursal">Sucursal / Empresa</option>
                     </select>
                   </div>
                   <div className="form-group">
@@ -408,6 +540,154 @@ export function ClientsView() {
                     value={formClient.observaciones}
                     onChange={e => setFormClient({ ...formClient, observaciones: e.target.value })}
                   />
+                </div>
+
+                {/* Seccion de Direcciones Adicionales del Cliente */}
+                <div style={{ marginTop: '20px', paddingTop: '16px', borderTop: '1px solid #e2e8f0' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                    <label className="form-label" style={{ fontWeight: 'bold', color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      🏠 Direcciones Secundarias / Alternativas ({clientAddresses.length})
+                    </label>
+                    <button 
+                      type="button" 
+                      className="btn btn-secondary" 
+                      style={{ padding: '4px 10px', fontSize: '12px' }}
+                      onClick={() => setShowAddAddress(!showAddAddress)}
+                    >
+                      {showAddAddress ? '✕ Cancelar' : '➕ Agregar Otra Dirección'}
+                    </button>
+                  </div>
+
+                  {/* Formulario para Agregar Nueva Dirección */}
+                  {showAddAddress && (
+                    <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1', marginBottom: '12px' }}>
+                      <div style={{ fontSize: '13px', fontWeight: 'bold', marginBottom: '8px', color: '#0284c7' }}>
+                        Nueva Dirección Auxiliar
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '8px', marginBottom: '8px' }}>
+                        <input
+                          type="text"
+                          className="form-input"
+                          placeholder="Ej: Bv. Pueyrredón 552, Depósito 2"
+                          value={newAddrText}
+                          onChange={e => setNewAddrText(e.target.value)}
+                        />
+                        <input
+                          type="text"
+                          className="form-input"
+                          placeholder="Zona (Ej: Centro)"
+                          value={newAddrZona}
+                          onChange={e => setNewAddrZona(e.target.value)}
+                        />
+                      </div>
+                      <input
+                        type="text"
+                        className="form-input"
+                        placeholder="Indicaciones / Referencias (Opcional)"
+                        value={newAddrIndicaciones}
+                        onChange={e => setNewAddrIndicaciones(e.target.value)}
+                        style={{ marginBottom: '8px' }}
+                      />
+                      <button
+                        type="button"
+                        className="btn btn-primary"
+                        style={{ padding: '6px 12px', fontSize: '12px' }}
+                        disabled={addingAddr || !newAddrText.trim()}
+                        onClick={handleAddAuxAddress}
+                      >
+                        {addingAddr ? 'Guardando...' : '💾 Guardar Dirección'}
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Lista de Direcciones Auxiliares Existentes */}
+                  {loadingAddresses ? (
+                    <div style={{ fontSize: '12px', color: '#64748b' }}>Cargando direcciones...</div>
+                  ) : clientAddresses.length === 0 ? (
+                    <div style={{ fontSize: '12px', color: '#94a3b8', fontStyle: 'italic' }}>
+                      Este cliente no posee direcciones adicionales registradas.
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {clientAddresses.map(addr => (
+                        <div key={addr.id} style={{ background: '#f1f5f9', padding: '10px 12px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                          {editingAddressId === addr.id ? (
+                            <div>
+                              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '8px', marginBottom: '6px' }}>
+                                <input
+                                  type="text"
+                                  className="form-input"
+                                  value={editAddrText}
+                                  onChange={e => setEditAddrText(e.target.value)}
+                                />
+                                <input
+                                  type="text"
+                                  className="form-input"
+                                  value={editAddrZona}
+                                  onChange={e => setEditAddrZona(e.target.value)}
+                                />
+                              </div>
+                              <input
+                                type="text"
+                                className="form-input"
+                                placeholder="Indicaciones"
+                                value={editAddrIndicaciones}
+                                onChange={e => setEditAddrIndicaciones(e.target.value)}
+                                style={{ marginBottom: '6px' }}
+                              />
+                              <div style={{ display: 'flex', gap: '6px' }}>
+                                <button
+                                  type="button"
+                                  className="btn btn-primary"
+                                  style={{ padding: '4px 8px', fontSize: '11px' }}
+                                  onClick={() => handleSaveAuxAddress(addr.id)}
+                                >
+                                  💾 Guardar
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn btn-secondary"
+                                  style={{ padding: '4px 8px', fontSize: '11px' }}
+                                  onClick={() => setEditingAddressId(null)}
+                                >
+                                  Cancelar
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <div>
+                                <div style={{ fontWeight: 'bold', fontSize: '13px', color: '#0f172a' }}>
+                                  📍 {addr.direccion}
+                                </div>
+                                <div style={{ fontSize: '11px', color: '#64748b' }}>
+                                  Zona: <strong>{addr.zona}</strong> {addr.indicaciones ? `| Ref: ${addr.indicaciones}` : ''}
+                                </div>
+                              </div>
+                              <div style={{ display: 'flex', gap: '4px' }}>
+                                <button
+                                  type="button"
+                                  className="btn btn-secondary"
+                                  style={{ padding: '3px 8px', fontSize: '11px' }}
+                                  onClick={() => handleStartEditAuxAddr(addr)}
+                                >
+                                  ✏️ Modificar
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn btn-danger"
+                                  style={{ padding: '3px 8px', fontSize: '11px', background: '#ef4444', color: '#fff', border: 'none', borderRadius: '4px' }}
+                                  onClick={() => handleDeleteAuxAddress(addr.id)}
+                                >
+                                  🗑️ Eliminar
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
               <div className="modal-footer">
@@ -488,18 +768,30 @@ export function ClientsView() {
                       onChange={e => setFormClient({ ...formClient, email: e.target.value })}
                     />
                   </div>
-                  <div className="form-group">
-                    <label className="form-label">Dirección de Entrega</label>
-                    <input 
-                      type="text" 
-                      className="form-input" 
-                      placeholder="Ej: Bv. Belgrano 120, General Deheza"
-                      value={formClient.direccion}
-                      onChange={e => setFormClient({ ...formClient, direccion: e.target.value })}
-                      required
-                    />
-                  </div>
                 </div>
+
+                <div className="form-group" style={{ marginBottom: '16px' }}>
+
+                  <label className="form-label" style={{ fontWeight: 'bold', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    📍 Dirección de Entrega y Ubicación en Mapa (Confirmar Pin)
+                  </label>
+                  <AddressLocationPicker
+                    initialAddress={{
+                      formattedAddress: formClient.direccion,
+                      latitude: formClient.latitude,
+                      longitude: formClient.longitude,
+                    }}
+                    onAddressSelect={(geo) => {
+                      setFormClient(prev => ({
+                        ...prev,
+                        direccion: geo.formattedAddress,
+                        latitude: geo.latitude,
+                        longitude: geo.longitude,
+                      }));
+                    }}
+                  />
+                </div>
+
 
                 <div className="form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px', marginBottom: '16px' }}>
                   <div className="form-group">
@@ -519,8 +811,9 @@ export function ClientsView() {
                       value={formClient.tipoCliente}
                       onChange={e => setFormClient({ ...formClient, tipoCliente: e.target.value as ClientType })}
                     >
-                      <option value="minorista">Minorista</option>
+                      <option value="minorista">Minorista (Consumidor Final)</option>
                       <option value="mayorista">Mayorista (Precios diferenciados)</option>
+                      <option value="sucursal">Sucursal / Empresa</option>
                     </select>
                   </div>
                 </div>

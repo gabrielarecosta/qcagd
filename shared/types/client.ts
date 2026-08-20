@@ -1,4 +1,4 @@
-export type ClientType = 'mayorista' | 'minorista';
+export type ClientType = 'mayorista' | 'minorista' | 'sucursal' | 'consumidor_final';
 
 export interface Customer {
   id: string;
@@ -15,6 +15,9 @@ export interface Customer {
   activo: boolean;
   observaciones?: string;
   fechaAlta: string;
+  latitude?: number;
+  longitude?: number;
+  locationVerified?: boolean;
 }
 
 export interface CustomerAddress {

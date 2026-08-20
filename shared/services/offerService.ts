@@ -45,7 +45,7 @@ export const offerService = {
   calculateFinalPrice: (
     product: Product,
     quantity: number,
-    customerType: 'mayorista' | 'minorista' = 'minorista',
+    customerType: string = 'minorista',
     promotions: Promotion[] = []
   ) => {
     const minoristaBasePrice = Number(product.precio || 0);

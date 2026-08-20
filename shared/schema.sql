@@ -1,6 +1,6 @@
 -- ============================================================
 -- SCRIPT DE MIGRACIÓN Y ESQUEMA DE BASE DE DATOS
--- Sistema de Distribución y Gestión de Química Deheza
+-- Sistema de Distribución y Gestión de Química General Deheza
 -- ============================================================
 
 -- 1. LIMPIEZA DE TABLAS PREVIAS (Para inicialización controlada)

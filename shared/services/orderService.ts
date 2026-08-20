@@ -2,6 +2,8 @@ import { supabase } from './supabaseClient';
 import { Order, OrderStatus } from '../types/order';
 import { OrderItem } from '../types/orderItem';
 import { PaymentMethod, PaymentStatus } from '../types/payment';
+import { geocodeAddress, findZoneForCoordinates } from '../utils/geo';
+import { zoneService } from './zoneService';
 
 const mapOrderItem = (i: any): OrderItem => ({
   producto: {
@@ -10,7 +12,7 @@ const mapOrderItem = (i: any): OrderItem => ({
     nombre: i.nombre,
     presentacion: i.presentacion || '',
     precio: Number(i.precio_unitario),
-    categoria: 'limpieza', // default fallback, will be hydrated from product if needed
+    categoria: 'limpieza',
     unidad: 'unidad',
     activo: true,
   },
@@ -46,15 +48,23 @@ const mapOrder = (o: any, items: any[] = []): Order => ({
   deliveredAt: o.delivered_at || undefined,
   originalAddress: o.original_address || undefined,
   formattedAddress: o.formatted_address || undefined,
+  street: o.street || undefined,
+  streetNumber: o.street_number || undefined,
+  city: o.city || 'General Deheza',
+  province: o.province || 'Córdoba',
   latitude: o.latitude ? Number(o.latitude) : undefined,
   longitude: o.longitude ? Number(o.longitude) : undefined,
   addressReference: o.address_reference || undefined,
   locationVerified: o.location_verified || false,
+  locationStatus: o.location_status || (o.latitude && o.longitude ? 'geocoded' : 'pending'),
   deliveryZone: o.delivery_zone || undefined,
+  zoneId: o.zone_id || undefined,
+  zoneAssignmentType: o.zone_assignment_type || 'automatic',
+  zoneAssignedAt: o.zone_assigned_at || undefined,
   customerName: o.customer_name || undefined,
   customerPhone: o.customer_phone || undefined,
+  outOfStockPreference: o.out_of_stock_preference || undefined,
 });
-
 
 export const orderService = {
   getAll: async (branchId?: string): Promise<Order[]> => {
@@ -67,7 +77,6 @@ export const orderService = {
 
     if (!ordersData || ordersData.length === 0) return [];
 
-    // Fetch all items for these orders
     const orderIds = ordersData.map((o: any) => o.id);
     const { data: itemsData, error: itemsErr } = await supabase
       .from('order_items')
@@ -104,7 +113,6 @@ export const orderService = {
   },
 
   updateStatus: async (id: string, status: OrderStatus, notes?: string, userMail?: string): Promise<Order> => {
-    // Si se pasa userMail, configurar la variable de sesión para el trigger/auditoría
     if (userMail) {
       await supabase.rpc('set_config', { placeholder: 'app.current_user_email', value: userMail, is_local: false });
     }
@@ -129,7 +137,6 @@ export const orderService = {
 
     if (error) throw error;
 
-    // Fetch order items to reconstruct full Order object
     const { data: items, error: itemsErr } = await supabase
       .from('order_items')
       .select('*')
@@ -139,9 +146,27 @@ export const orderService = {
     return mapOrder(updated, items || []);
   },
 
-  update: async (id: string, updates: Partial<Order> & { estimatedDeliveryShift?: 'mañana' | 'tarde', deliveryZone?: string, deliveryRouteId?: string }, userMail?: string): Promise<Order> => {
+  update: async (id: string, updates: Partial<Order> & { estimatedDeliveryShift?: 'mañana' | 'tarde', deliveryRouteId?: string }, userMail?: string): Promise<Order> => {
     if (userMail) {
       await supabase.rpc('set_config', { placeholder: 'app.current_user_email', value: userMail, is_local: false });
+    }
+
+    let lat = updates.latitude;
+    let lon = updates.longitude;
+    let zoneId = updates.zoneId;
+    let assignmentType = updates.zoneAssignmentType || 'automatic';
+    let locationStatus = updates.locationStatus;
+
+    // Si se actualizan coordenadas y no es manual, autocalcular zona
+    if (lat && lon && assignmentType !== 'manual') {
+      try {
+        const zones = await zoneService.getAll();
+        const matchedZone = findZoneForCoordinates(lat, lon, zones);
+        zoneId = matchedZone ? matchedZone.id : null;
+        assignmentType = 'automatic';
+      } catch (e) {
+        console.warn('Error al determinar zona en update:', e);
+      }
     }
 
     const dbUpdates: any = {
@@ -166,6 +191,18 @@ export const orderService = {
       taken_by_id: updates.takenById,
       taken_at: updates.takenAt,
       delivered_at: updates.deliveredAt,
+      original_address: updates.originalAddress,
+      formatted_address: updates.formattedAddress,
+      street: updates.street,
+      street_number: updates.streetNumber,
+      city: updates.city,
+      province: updates.province,
+      latitude: lat,
+      longitude: lon,
+      location_status: locationStatus,
+      zone_id: zoneId,
+      zone_assignment_type: assignmentType,
+      zone_assigned_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
 
@@ -184,7 +221,6 @@ export const orderService = {
 
     if (error) throw error;
 
-    // Fetch items
     const { data: items, error: itemsErr } = await supabase
       .from('order_items')
       .select('*')
@@ -194,12 +230,104 @@ export const orderService = {
     return mapOrder(updated, items || []);
   },
 
+  /**
+   * Actualiza la ubicación (pin manual o geocodificado) y asigna zona
+   */
+  updateLocationAndZone: async (
+    orderId: string,
+    params: {
+      latitude: number;
+      longitude: number;
+      zoneId?: string | null;
+      assignmentType?: 'automatic' | 'manual';
+      locationStatus?: 'manual_pin' | 'geocoded' | 'verified';
+    }
+  ): Promise<void> => {
+    let finalZoneId = params.zoneId;
+    const assignmentType = params.assignmentType || 'automatic';
+
+    if (assignmentType === 'automatic' || finalZoneId === undefined) {
+      const zones = await zoneService.getAll();
+      const matched = findZoneForCoordinates(params.latitude, params.longitude, zones);
+      finalZoneId = matched ? matched.id : null;
+    }
+
+    const { error } = await supabase
+      .from('orders')
+      .update({
+        latitude: params.latitude,
+        longitude: params.longitude,
+        zone_id: finalZoneId,
+        zone_assignment_type: assignmentType,
+        zone_assigned_at: new Date().toISOString(),
+        location_status: params.locationStatus || 'manual_pin',
+        location_verified: true,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', orderId);
+
+    if (error) {
+      throw new Error(`Error al actualizar ubicación y zona: ${error.message}`);
+    }
+  },
+
+  /**
+   * Reasignación manual de zona protegiendo el override
+   */
+  reassignZoneManually: async (orderId: string, zoneId: string | null): Promise<void> => {
+    const { error } = await supabase
+      .from('orders')
+      .update({
+        zone_id: zoneId,
+        zone_assignment_type: 'manual',
+        zone_assigned_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', orderId);
+
+    if (error) {
+      throw new Error(`Error al reasignar zona: ${error.message}`);
+    }
+  },
+
   create: async (order: Omit<Order, 'id'> & { id?: string, estimatedDeliveryShift?: 'mañana' | 'tarde', deliveryZone?: string }, userMail?: string): Promise<Order> => {
     const orderId = order.id || `ord-${Date.now()}`;
     const orderNum = order.numero || `PED-${Date.now().toString().slice(-6)}`;
 
     if (userMail) {
       await supabase.rpc('set_config', { placeholder: 'app.current_user_email', value: userMail, is_local: false });
+    }
+
+    let lat = order.latitude;
+    let lon = order.longitude;
+    let locationStatus = order.locationStatus || 'pending';
+    let zoneId = order.zoneId;
+    let assignmentType = order.zoneAssignmentType || 'automatic';
+
+    // Si no tiene coordenadas pero tiene dirección, intentar geocodificar automáticamente
+    const addressToGeocode = order.formattedAddress || order.originalAddress;
+    if ((!lat || !lon) && addressToGeocode) {
+      try {
+        const geoResult = await geocodeAddress(addressToGeocode, order.city || 'General Deheza', order.province || 'Córdoba');
+        if (geoResult) {
+          lat = geoResult.latitude;
+          lon = geoResult.longitude;
+          locationStatus = 'geocoded';
+        }
+      } catch (e) {
+        console.warn('Geocodificación automática en creación falló:', e);
+      }
+    }
+
+    // Si tenemos coordenadas y asignación automática, determinar zona por polígono
+    if (lat && lon && assignmentType !== 'manual') {
+      try {
+        const zones = await zoneService.getAll();
+        const matched = findZoneForCoordinates(lat, lon, zones);
+        zoneId = matched ? matched.id : null;
+      } catch (e) {
+        console.warn('Asignación de zona en creación falló:', e);
+      }
     }
 
     // 1. Insert header
@@ -228,14 +356,22 @@ export const orderService = {
       delivery_method: order.deliveryMethod,
       original_address: order.originalAddress,
       formatted_address: order.formattedAddress,
-      latitude: order.latitude,
-      longitude: order.longitude,
+      street: order.street,
+      street_number: order.streetNumber,
+      city: order.city || 'General Deheza',
+      province: order.province || 'Córdoba',
+      latitude: lat,
+      longitude: lon,
+      location_status: locationStatus,
+      zone_id: zoneId,
+      zone_assignment_type: assignmentType,
+      zone_assigned_at: new Date().toISOString(),
       address_reference: order.addressReference,
-      location_verified: order.locationVerified,
+      location_verified: order.locationVerified || locationStatus === 'geocoded',
       customer_name: order.customerName,
       customer_phone: order.customerPhone,
+      outOfStockPreference: order.outOfStockPreference || 'llamar',
     };
-
 
     const { data: insertedOrder, error: orderErr } = await supabase
       .from('orders')
@@ -257,30 +393,28 @@ export const orderService = {
       subtotal: item.subtotal,
     }));
 
-    const { data: insertedItems, error: itemsErr } = await supabase
-      .from('order_items')
-      .insert(dbItems)
-      .select('*');
-
-    if (itemsErr) {
-      // Intentar limpiar cabecera si fallan los items (rollback manual en caso de no soportar transacciones complejas)
-      await supabase.from('orders').delete().eq('id', orderId);
-      throw itemsErr;
+    if (dbItems.length > 0) {
+      const { error: itemsErr } = await supabase
+        .from('order_items')
+        .insert(dbItems);
+      if (itemsErr) throw itemsErr;
     }
 
-    return mapOrder(insertedOrder, insertedItems || []);
+    return mapOrder(insertedOrder, order.items);
   },
 
-  delete: async (id: string, deletedBy?: string): Promise<boolean> => {
+  delete: async (id: string, userMail?: string): Promise<void> => {
+    if (userMail) {
+      await supabase.rpc('set_config', { placeholder: 'app.current_user_email', value: userMail, is_local: false });
+    }
     const { error } = await supabase
       .from('orders')
       .update({
         deleted_at: new Date().toISOString(),
-        deleted_by: deletedBy || 'admin',
-        estado: 'cancelado'
+        deleted_by: userMail || 'Sistema',
       })
       .eq('id', id);
+
     if (error) throw error;
-    return true;
   }
 };

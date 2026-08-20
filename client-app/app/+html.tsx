@@ -9,7 +9,7 @@ export default function Root({ children }: PropsWithChildren) {
         {/* PWA Manifest Link */}
         <link rel="manifest" href="/manifest.json" />
         <meta name="theme-color" content="#1A56DB" />
-        <meta name="description" content="Sistema de Distribución y Gestión de Química Deheza" />
+        <meta name="description" content="Sistema de Distribución y Gestión de Química General Deheza" />
       </head>
       <body>{children}</body>
     </html>

@@ -120,8 +120,8 @@ export default function TabsLayout() {
         <View style={desktopStyles.desktopHeader}>
           <View style={desktopStyles.desktopHeaderInner}>
             <View style={desktopStyles.desktopBrand}>
-              <Image source={require('../../assets/logo.png')} style={desktopStyles.desktopLogo} />
-              <Text style={desktopStyles.desktopBrandText}>Química Deheza</Text>
+              <Image source={require('../../assets/logo2.png')} style={desktopStyles.desktopLogo} resizeMode="cover" />
+              <Text style={desktopStyles.desktopBrandText}>Química General Deheza</Text>
             </View>
 
             <View style={desktopStyles.desktopNav}>
@@ -518,8 +518,9 @@ const desktopStyles = StyleSheet.create({
     ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
   desktopLogo: {
-    width: 38,
-    height: 38,
+    width: 40,
+    height: 40,
+    borderRadius: Radius.sm,
   },
   desktopBrandText: {
     fontSize: 18,

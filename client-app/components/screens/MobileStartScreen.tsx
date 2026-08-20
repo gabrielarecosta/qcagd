@@ -19,6 +19,7 @@ import { useAuthStore } from '../../store/authStore';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import MaterialCommunityIcons from '../icons/MaterialCommunityIcons';
 import { supabase } from '@shared/services/supabaseClient';
+import { AppFooter } from '../AppFooter';
 
 const CAROUSEL_IMAGES = [
   {
@@ -342,7 +343,7 @@ export function MobileStartScreen() {
             <Image
               source={require('../../assets/logo2.png')}
               style={styles.compactLogo}
-              resizeMode="contain"
+              resizeMode="cover"
             />
           </View>
 
@@ -837,6 +838,9 @@ export function MobileStartScreen() {
           </View>
         </View>
 
+        {/* Footer con FAQs, Términos & Condiciones y Botón de Arrepentimiento */}
+        <AppFooter />
+
         {/* Padding final para safe-area y navegadores */}
         <View style={{ height: Math.max(insets.bottom, 24) }} />
       </ScrollView>
@@ -895,8 +899,9 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   compactLogo: {
-    width: 60,
-    height: 30,
+    width: 44,
+    height: 44,
+    borderRadius: 10,
   },
   heroContentContainer: {
     position: 'absolute',

@@ -40,12 +40,22 @@ export interface Order {
 
   originalAddress?: string;
   formattedAddress?: string;
+  street?: string;
+  streetNumber?: string;
+  city?: string;
+  province?: string;
   latitude?: number;
   longitude?: number;
   addressReference?: string;
   locationVerified?: boolean;
+  locationStatus?: 'pending' | 'geocoded' | 'manual_pin' | 'verified';
   deliveryZone?: string;
+  zoneId?: string | null;
+  zoneName?: string;
+  zoneAssignmentType?: 'automatic' | 'manual';
+  zoneAssignedAt?: string;
   customerName?: string;
   customerPhone?: string;
+  outOfStockPreference?: 'llamar' | 'reemplazar' | 'cancelar';
 }
 

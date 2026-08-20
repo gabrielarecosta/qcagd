@@ -15,8 +15,9 @@ import { Colors } from '../constants/Colors';
 import { FontSize, FontWeight } from '../constants/Typography';
 import { Radius, Spacing } from '../constants/Spacing';
 import { Order, ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from '../types';
-import { formatPrice, formatDate } from '../utils/formatters';
+import { formatPrice, formatDate, formatTime } from '../utils/formatters';
 import { companySettingsService } from '@shared/services/companySettingsService';
+import { buildWhatsAppOrderMessage } from '@shared/utils/whatsappOrderMessage';
 import { useRouter } from 'expo-router';
 
 interface OrderDetailModalProps {
@@ -30,10 +31,12 @@ export function OrderDetailModal({ order, onClose, onRepeat }: OrderDetailModalP
   const [companySettings, setCompanySettings] = useState<any>(null);
 
   useEffect(() => {
-    if (order) {
-      companySettingsService.get().then(setCompanySettings).catch(console.warn);
-    }
-  }, [order]);
+    const loadSettings = async () => {
+      const settings = await companySettingsService.get();
+      setCompanySettings(settings);
+    };
+    loadSettings();
+  }, []);
 
   if (!order) return null;
 
@@ -47,6 +50,10 @@ export function OrderDetailModal({ order, onClose, onRepeat }: OrderDetailModalP
       ? '💳 Mercado Pago'
       : order.paymentMethod === 'transferencia'
       ? '🏦 Transferencia Bancaria'
+      : order.paymentMethod === 'pago_a_acordar'
+      ? '🤝 Pago a acordar'
+      : order.paymentMethod === 'cuenta_corriente'
+      ? '📋 Cuenta Corriente'
       : order.paymentMethod || 'Efectivo';
 
   const paymentStatus = order.paymentStatus || (order.paymentMethod === 'mercadopago' ? 'pendiente' : 'pendiente');
@@ -58,17 +65,34 @@ export function OrderDetailModal({ order, onClose, onRepeat }: OrderDetailModalP
       ? '🏪 Retiro en local'
       : order.deliveryMethod === 'whatsapp'
       ? '💬 Coordinar por WhatsApp'
-      : '🚚 Envío por reparto';
+      : '🚚 Reparto a domicilio';
 
   const handleSendReceipt = () => {
-    const waText = encodeURIComponent(
-      `*Comprobante de Pago — Química Deheza*\n` +
-      `Hola! Acabo de realizar la transferencia para mi pedido *${order.numero}*\n` +
-      `*Monto:* ${formatPrice(order.total)}\n` +
-      `Adjunto aquí abajo la captura del comprobante bancario.`
-    );
-    const targetNumber = companySettings?.whatsapp || '5493511234567';
-    Linking.openURL(`https://wa.me/${targetNumber}?text=${waText}`);
+    const waMessage = buildWhatsAppOrderMessage({
+      orderNum: order.numero,
+      customerName: order.customerName,
+      customerPhone: order.customerPhone,
+      items: (order.items || []).map((it) => ({
+        name: it.producto?.nombre || 'Producto',
+        presentation: it.producto?.presentacion,
+        qty: it.cantidad,
+        unitPrice: it.precioUnitario,
+        subtotal: it.subtotal,
+      })),
+      total: order.total,
+      deliveryMethod: order.deliveryMethod,
+      deliveryDate: order.deliveryDate,
+      deliveryTimeSlot: order.deliveryStartTime && order.deliveryEndTime ? `${order.deliveryStartTime} a ${order.deliveryEndTime} hs` : undefined,
+      address: order.formattedAddress || order.originalAddress,
+      outOfStockPreference: order.outOfStockPreference,
+      observaciones: order.observaciones,
+      paymentMethod: order.paymentMethod,
+      isTransferReceipt: true,
+    });
+
+    const targetNumber = companySettings?.whatsapp_transferencias || companySettings?.whatsapp || '5493511234567';
+    const cleanPhone = targetNumber.replace(/[^0-9]/g, '');
+    Linking.openURL(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(waMessage)}`);
   };
 
   return (
@@ -79,7 +103,7 @@ export function OrderDetailModal({ order, onClose, onRepeat }: OrderDetailModalP
           <View style={styles.header}>
             <View style={styles.headerTitleCol}>
               <Text style={styles.orderTitle}>Pedido {order.numero}</Text>
-              <Text style={styles.orderDate}>{formatDate(order.fecha)}</Text>
+              <Text style={styles.orderDate}>{formatDate(order.fecha)} a las {formatTime(order.fecha)} hs</Text>
             </View>
             <View style={styles.headerActions}>
               {/* Abrir en pantalla completa */}
@@ -214,6 +238,15 @@ export function OrderDetailModal({ order, onClose, onRepeat }: OrderDetailModalP
                   <Text style={styles.infoLabel}>Abona con:</Text>
                   <Text style={styles.infoValue}>
                     {formatPrice(order.abonaCon)} {order.cambioEstimado ? `(Vuelto: ${formatPrice(order.cambioEstimado)})` : ''}
+                  </Text>
+                </View>
+              )}
+
+              {order.outOfStockPreference && (
+                <View style={styles.infoRow}>
+                  <Text style={styles.infoLabel}>Ante falta de stock:</Text>
+                  <Text style={[styles.infoValue, { fontWeight: FontWeight.semibold, color: Colors.primary }]}>
+                    {order.outOfStockPreference === 'reemplazar' ? '🔄 Elegir artículo similar' : '📞 Llamarme para consultar'}
                   </Text>
                 </View>
               )}

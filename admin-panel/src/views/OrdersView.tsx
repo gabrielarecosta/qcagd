@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { useAdminStore } from '../store/adminStore';
 import { Order, OrderStatus } from '@shared/types/order';
 import { formatPrice } from '@shared/utils/formatCurrency';
@@ -86,18 +87,25 @@ export function OrdersView() {
     return b ? b.nombre : 'Sin sucursal';
   };
 
+  const getItemCode = (item: any) => item?.producto?.codigo || item?.codigo || '-';
+  const getItemName = (item: any) => item?.producto?.nombre || item?.nombre || 'Artículo sin nombre';
+  const getItemPresentation = (item: any) => item?.producto?.presentacion || item?.presentacion || '';
+  const getItemPrice = (item: any) => Number(item?.precioUnitario || item?.precio_unitario || item?.producto?.precio || 0);
+  const getItemQty = (item: any) => Number(item?.cantidad || 0);
+
   const handlePrint = (order: Order) => {
     const client = getClientInfo(order.clienteId, order);
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
 
-    const itemsRows = order.items.map(item => `
+    const itemsList = order.items || [];
+    const itemsRows = itemsList.map(item => `
       <tr>
-        <td style="padding: 8px; border-bottom: 1px solid #ddd;">${item.producto.codigo}</td>
-        <td style="padding: 8px; border-bottom: 1px solid #ddd;">${item.producto.nombre} - ${item.producto.presentacion}</td>
-        <td style="padding: 8px; border-bottom: 1px solid #ddd; text-align: center;">${item.cantidad}</td>
-        <td style="padding: 8px; border-bottom: 1px solid #ddd; text-align: right;">${formatPrice(item.precioUnitario)}</td>
-        <td style="padding: 8px; border-bottom: 1px solid #ddd; text-align: right;">${formatPrice(item.precioUnitario * item.cantidad)}</td>
+        <td style="padding: 8px; border-bottom: 1px solid #ddd;">${getItemCode(item)}</td>
+        <td style="padding: 8px; border-bottom: 1px solid #ddd;">${getItemName(item)}${getItemPresentation(item) ? ` - ${getItemPresentation(item)}` : ''}</td>
+        <td style="padding: 8px; border-bottom: 1px solid #ddd; text-align: center;">${getItemQty(item)}</td>
+        <td style="padding: 8px; border-bottom: 1px solid #ddd; text-align: right;">${formatPrice(getItemPrice(item))}</td>
+        <td style="padding: 8px; border-bottom: 1px solid #ddd; text-align: right;">${formatPrice(getItemPrice(item) * getItemQty(item))}</td>
       </tr>
     `).join('');
 
@@ -127,6 +135,7 @@ export function OrdersView() {
             <p><strong>Dirección:</strong> ${client.dir}</p>
             <p><strong>Teléfono:</strong> ${client.tel}</p>
             <p><strong>Método de Pago:</strong> ${getPaymentMethodLabel(order.paymentMethod)} (${getPaymentStatusLabel(order.paymentStatus)})</p>
+            ${order.outOfStockPreference ? `<p><strong>Ante falta de stock:</strong> ${order.outOfStockPreference === 'reemplazar' ? '🔄 Elegir artículo similar por el cliente' : '📞 Llamar al cliente para consultar'}</p>` : ''}
             ${order.abonaCon ? `<p><strong>Abona con:</strong> ${formatPrice(order.abonaCon)} | <strong>Vuelto:</strong> ${formatPrice(order.cambioEstimado || 0)}</p>` : ''}
             ${order.observacionesCliente ? `<p><strong>Notas Cliente:</strong> ${order.observacionesCliente}</p>` : ''}
           </div>
@@ -171,7 +180,7 @@ export function OrdersView() {
       const client = getClientInfo(o.clienteId, o);
       return {
         Número: o.numero,
-        Fecha: new Date(o.fecha).toLocaleString(),
+        Fecha: `${new Date(o.fecha).toLocaleDateString()} ${new Date(o.fecha).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} hs`,
         Sucursal: getBranchName(o.branchId),
         Cliente: client.name,
         Dirección: client.dir,
@@ -321,7 +330,7 @@ export function OrdersView() {
                     <td>
                       <div style={{ fontWeight: 'bold', fontSize: '14px' }}>#{o.numero}</div>
                       <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
-                        {new Date(o.fecha).toLocaleDateString()} {new Date(o.fecha).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        {new Date(o.fecha).toLocaleDateString()} {new Date(o.fecha).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} hs
                       </div>
                     </td>
                     <td>
@@ -335,7 +344,7 @@ export function OrdersView() {
                     </td>
                     <td>
                       <div style={{ fontSize: '13px' }}>
-                        <strong>{o.items.reduce((acc, it) => acc + it.cantidad, 0)}</strong> ítems
+                        <strong>{(o.items || []).reduce((acc, it) => acc + (Number(it?.cantidad) || 0), 0)}</strong> ítems
                       </div>
                     </td>
                     <td style={{ fontWeight: 'bold', fontSize: '14px' }}>
@@ -435,15 +444,20 @@ export function OrdersView() {
         </div>
       </div>
 
-      {/* Modal Detalle de Pedido */}
-      {selectedOrder && (
-        <div className="modal-overlay">
-          <div className="modal-content" style={{ maxWidth: '600px' }}>
+      {/* Modal Detalle de Pedido con Portal para centrado exacto en pantalla */}
+      {selectedOrder && createPortal(
+        <div 
+          className="modal-overlay" 
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setSelectedOrder(null);
+          }}
+        >
+          <div className="modal-content" style={{ maxWidth: '600px' }} onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <div>
                 <h2 className="card-title" style={{ margin: 0 }}>Detalle de Pedido #{selectedOrder.numero}</h2>
                 <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-                  Ingresado el {new Date(selectedOrder.fecha).toLocaleString()}
+                  Ingresado el {new Date(selectedOrder.fecha).toLocaleDateString()} a las {new Date(selectedOrder.fecha).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} hs
                 </div>
               </div>
               <button type="button" className="btn-close" onClick={() => setSelectedOrder(null)}>✕</button>
@@ -479,15 +493,22 @@ export function OrdersView() {
                     </tr>
                   </thead>
                   <tbody>
-                    {selectedOrder.items.map((item, idx) => (
+                    {(selectedOrder.items || []).map((item, idx) => (
                       <tr key={idx}>
-                        <td style={{ fontFamily: 'monospace', padding: '6px' }}>{item.producto.codigo}</td>
-                        <td style={{ padding: '6px' }}>{item.producto.nombre} ({item.producto.presentacion})</td>
-                        <td style={{ textAlign: 'center', padding: '6px' }}>{item.cantidad}</td>
-                        <td style={{ textAlign: 'right', padding: '6px' }}>{formatPrice(item.precioUnitario)}</td>
-                        <td style={{ textAlign: 'right', padding: '6px', fontWeight: 'bold' }}>{formatPrice(item.precioUnitario * item.cantidad)}</td>
+                        <td style={{ fontFamily: 'monospace', padding: '6px' }}>{getItemCode(item)}</td>
+                        <td style={{ padding: '6px' }}>{getItemName(item)} {getItemPresentation(item) ? `(${getItemPresentation(item)})` : ''}</td>
+                        <td style={{ textAlign: 'center', padding: '6px' }}>{getItemQty(item)}</td>
+                        <td style={{ textAlign: 'right', padding: '6px' }}>{formatPrice(getItemPrice(item))}</td>
+                        <td style={{ textAlign: 'right', padding: '6px', fontWeight: 'bold' }}>{formatPrice(getItemPrice(item) * getItemQty(item))}</td>
                       </tr>
                     ))}
+                    {(!selectedOrder.items || selectedOrder.items.length === 0) && (
+                      <tr>
+                        <td colSpan={5} style={{ textAlign: 'center', padding: '16px', color: 'var(--text-disabled)' }}>
+                          No hay artículos registrados para este pedido.
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -520,6 +541,18 @@ export function OrdersView() {
                 </div>
               </div>
 
+              {selectedOrder.outOfStockPreference && (
+                <div style={{ marginTop: '16px', padding: '12px 14px', background: 'rgba(59, 130, 246, 0.08)', border: '1px solid rgba(59, 130, 246, 0.25)', borderRadius: '8px', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '16px' }}>{selectedOrder.outOfStockPreference === 'reemplazar' ? '🔄' : '📞'}</span>
+                  <div>
+                    <strong>Instrucción ante falta de stock: </strong>
+                    <span style={{ color: 'var(--text-primary)', fontWeight: '600' }}>
+                      {selectedOrder.outOfStockPreference === 'reemplazar' ? 'Elegir artículo similar por el cliente' : 'Llamar al cliente para consultar'}
+                    </span>
+                  </div>
+                </div>
+              )}
+
               {selectedOrder.observacionesCliente && (
                 <div style={{ marginTop: '16px', padding: '10px', background: '#fffbeb', border: '1px solid #fef3c7', borderRadius: '6px', fontSize: '13px' }}>
                   <strong>Observaciones del Cliente:</strong>
@@ -533,7 +566,8 @@ export function OrdersView() {
               <button className="btn btn-primary" onClick={() => { handlePrint(selectedOrder); setSelectedOrder(null); }}>🖨️ Imprimir Factura / Remito</button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

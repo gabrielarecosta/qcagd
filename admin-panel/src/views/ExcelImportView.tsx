@@ -386,37 +386,49 @@ export function ExcelImportView() {
       {/* ──────────────────────────────────────────────────────── */}
       {step === 'preview' && (
         <div>
-          <div className="preview-summary-grid">
+          <div className="preview-summary-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
             <div className="preview-summary-card">
-              <div className="preview-summary-num" style={{ color: '#10B981' }}>{stats.created}</div>
-              <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Nuevos a Crear</div>
-            </div>
-            <div className="preview-summary-card">
-              <div className="preview-summary-num" style={{ color: '#3B82F6' }}>{stats.updated}</div>
-              <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Actualizar por Código</div>
+              <div className="preview-summary-num" style={{ color: '#3B82F6' }}>{stats.updated + stats.replaced}</div>
+              <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Productos a Actualizar (Stock/Precio)</div>
             </div>
             <div className="preview-summary-card">
               <div className="preview-summary-num" style={{ color: '#8B5CF6' }}>{stats.replaced}</div>
-              <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Cambios de Código</div>
-            </div>
-            <div className="preview-summary-card" style={{ border: stats.conflicts > 0 ? '1px solid rgba(239, 68, 68, 0.4)' : '' }}>
-              <div className="preview-summary-num" style={{ color: stats.conflicts > 0 ? '#EF4444' : '#64748b' }}>{stats.conflicts}</div>
-              <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Conflictos a Revisar</div>
+              <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Códigos Nuevos Unificados</div>
             </div>
             <div className="preview-summary-card">
-              <div className="preview-summary-num" style={{ color: stats.errors > 0 ? '#F59E0B' : '#64748b' }}>{stats.errors}</div>
+              <div className="preview-summary-num" style={{ color: '#10B981' }}>{stats.created}</div>
+              <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Nuevos a Incorporar</div>
+            </div>
+            <div className="preview-summary-card">
+              <div className="preview-summary-num" style={{ color: stats.errors > 0 ? '#EF4444' : '#64748b' }}>{stats.errors}</div>
               <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Filas con Error</div>
             </div>
           </div>
 
-          {/* Listado de Conflictos */}
+          <div style={{ 
+            backgroundColor: 'rgba(59, 130, 246, 0.08)', 
+            border: '1px solid rgba(59, 130, 246, 0.25)', 
+            borderRadius: '12px', 
+            padding: '16px 20px', 
+            marginBottom: '24px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '14px'
+          }}>
+            <span style={{ fontSize: '24px' }}>⚡</span>
+            <div style={{ fontSize: '13px', color: 'var(--text-primary)', lineHeight: '19px' }}>
+              <strong>Detección inteligente de productos activa:</strong> Si el Excel contiene artículos con el mismo nombre que ya existen en el catálogo, el sistema sincroniza automáticamente su código y actualiza su stock y precio para dejarlos listos para la venta de inmediato sin requerir revisión manual.
+            </div>
+          </div>
+
+          {/* Listado de Conflictos (si hubiera alguno manual pendiente) */}
           {stats.conflicts > 0 && (
             <div className="card-wrapper" style={{ padding: '24px', marginBottom: '24px' }}>
               <h2 className="card-title" style={{ marginBottom: '16px', color: '#f87171' }}>
                 ⚠️ Conflictos Detectados ({stats.conflicts})
               </h2>
               <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '20px' }}>
-                El archivo contiene descripciones que coinciden con variantes existentes o códigos duplicados. Por favor, selecciona una resolución manual para cada una:
+                El archivo contiene descripciones que requieren una confirmación de unificación:
               </p>
 
               {stagedRows.filter(r => r.estado === 'requires_review').map(row => (
@@ -500,10 +512,11 @@ export function ExcelImportView() {
               className="btn btn-primary"
               disabled={stats.conflicts > 0}
               onClick={handleConfirmAndProcess}
+              style={{ padding: '12px 24px', fontSize: '15px', fontWeight: 'bold' }}
             >
               {stats.conflicts > 0 
                 ? 'Resuelva los conflictos antes de confirmar' 
-                : `Confirmar e Importar ${stagedRows.length - stats.errors} Filas ❯`}
+                : `Confirmar e Importar ${stagedRows.length - stats.errors} Productos ❯`}
             </button>
           </div>
         </div>

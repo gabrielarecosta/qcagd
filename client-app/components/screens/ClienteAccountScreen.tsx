@@ -1,4 +1,5 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
+
 import {
   View,
   Text,
@@ -7,6 +8,7 @@ import {
   TouchableOpacity,
   Linking,
   TextInput,
+  Platform,
 } from 'react-native';
 import { customAlert } from '../../utils/alert';
 import { companySettingsService } from '@shared/services/companySettingsService';
@@ -22,6 +24,9 @@ import { formatPrice } from '../../utils/formatters';
 import { Order, CustomerAddress } from '../../types';
 import { OrderCard } from '../OrderCard';
 import { OrderDetailModal } from '../OrderDetailModal';
+import { AppFooter } from '../AppFooter';
+import { suggestDehezaStreets, StreetSuggestion } from '@shared/utils/dehezaStreets';
+import { geocodeAddress } from '@shared/utils/geo';
 
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
@@ -74,6 +79,14 @@ export function ClienteAccountScreen() {
   const [deliveryMethodFilter, setDeliveryMethodFilter] = useState<'all' | 'reparto' | 'retiro' | 'whatsapp'>('all');
   const [statusFilter, setStatusFilter] = useState<'all' | 'preparacion' | 'en_camino' | 'entregado' | 'cancelado'>('all');
 
+  // Coordenadas y mapa para agregar dirección
+  const mapContainerRef = useRef<HTMLDivElement>(null);
+  const mapInstanceRef = useRef<any>(null);
+  const markerRef = useRef<any>(null);
+
+  const [newLat, setNewLat] = useState(-32.7561);
+  const [newLng, setNewLng] = useState(-63.7845);
+
   const loadAddresses = async () => {
     if (!clientData) return;
     setLoadingAddresses(true);
@@ -87,28 +100,229 @@ export function ClienteAccountScreen() {
     }
   };
 
+  // Garantizar que la dirección de registro principal NUNCA se borre
+  const combinedAddresses = useMemo(() => {
+    if (!clientData) return addresses;
+    
+    // Verificar si la dirección de registro ya está guardada en customer_addresses
+    const hasOriginal = addresses.some(a => 
+      a.direccion && clientData.direccion && 
+      a.direccion.toLowerCase().trim() === clientData.direccion.toLowerCase().trim()
+    );
+
+    if (!hasOriginal && clientData.direccion) {
+      const originalVirtualAddress: CustomerAddress = {
+        id: `main-${clientData.id}`,
+        customerId: clientData.id,
+        direccion: clientData.direccion,
+        zona: clientData.zona || 'Centro',
+        indicaciones: 'Domicilio principal de registro',
+        latitude: clientData.latitude || -32.7561,
+        longitude: clientData.longitude || -63.7845,
+        locationVerified: clientData.locationVerified || false,
+        defaultAddress: true,
+      };
+      return [originalVirtualAddress, ...addresses];
+    }
+
+    return addresses;
+  }, [addresses, clientData]);
+
+  // Inicializar mapa de OpenStreetMap (Leaflet) en Web al abrir formulario de agregar dirección
+  useEffect(() => {
+    if (Platform.OS !== 'web' || !showAddForm) {
+      if (mapInstanceRef.current) {
+        try { mapInstanceRef.current.remove(); } catch (_) {}
+        mapInstanceRef.current = null;
+      }
+      return;
+    }
+
+    // Inyectar CSS de Leaflet para Web
+    if (typeof document !== 'undefined' && !document.getElementById('leaflet-css')) {
+      const link = document.createElement('link');
+      link.id = 'leaflet-css';
+      link.rel = 'stylesheet';
+      link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+      document.head.appendChild(link);
+    }
+
+    // Inyectar Script de Leaflet para Web
+    if (typeof document !== 'undefined' && !document.getElementById('leaflet-js')) {
+      const script = document.createElement('script');
+      script.id = 'leaflet-js';
+      script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+      script.async = true;
+      document.head.appendChild(script);
+    }
+
+    let attempts = 0;
+    const maxAttempts = 25;
+    let timerId: any = null;
+
+    const initMap = () => {
+      attempts++;
+      const targetContainer = document.getElementById('client-account-map-container') || mapContainerRef.current;
+      const L = typeof window !== 'undefined' ? (window as any).L : null;
+
+      if (!targetContainer || !L) {
+        if (attempts < maxAttempts) {
+          timerId = setTimeout(initMap, 150);
+        }
+        return;
+      }
+
+      // Si ya existía un mapa previo, destruirlo limpiamente primero
+      if (mapInstanceRef.current) {
+        try { mapInstanceRef.current.remove(); } catch (_) {}
+        mapInstanceRef.current = null;
+      }
+
+      try {
+        const map = L.map(targetContainer).setView([newLat, newLng], 15);
+
+        L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          maxZoom: 19,
+          attribution: '© OpenStreetMap | Química General Deheza',
+        }).addTo(map);
+
+        const marker = L.marker([newLat, newLng], { draggable: true }).addTo(map);
+        markerRef.current = marker;
+
+        const triggerResize = () => {
+          try {
+            map.invalidateSize();
+          } catch (_) {}
+        };
+
+        setTimeout(triggerResize, 100);
+        setTimeout(triggerResize, 300);
+        setTimeout(triggerResize, 600);
+
+        const processMapLocation = async (lat: number, lng: number) => {
+          setNewLat(lat);
+          setNewLng(lng);
+          try {
+            const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18`, {
+              headers: { 'User-Agent': 'QuimicaGeneralDeheza-ClientApp/1.0' },
+            });
+            if (res.ok) {
+              const data = await res.json();
+              if (data && data.display_name) {
+                setNewDireccion(data.display_name);
+              }
+            }
+          } catch (_) {}
+        };
+
+        marker.on('dragend', () => {
+          const pos = marker.getLatLng();
+          processMapLocation(pos.lat, pos.lng);
+        });
+
+        map.on('click', (e: any) => {
+          marker.setLatLng(e.latlng);
+          processMapLocation(e.latlng.lat, e.latlng.lng);
+        });
+
+        mapInstanceRef.current = map;
+      } catch (err) {
+        console.error('Error instantiating Leaflet map:', err);
+      }
+    };
+
+    timerId = setTimeout(initMap, 100);
+
+    return () => {
+      if (timerId) clearTimeout(timerId);
+    };
+  }, [showAddForm]);
+
+
+
+
+  const handleSearchAddressInMap = async (addressToSearch?: string) => {
+    const query = addressToSearch || newDireccion;
+    if (!query.trim()) return;
+
+    try {
+      const geoResult = await geocodeAddress(query, 'General Deheza', 'Córdoba');
+      if (geoResult) {
+        setNewLat(geoResult.latitude);
+        setNewLng(geoResult.longitude);
+        if (geoResult.formattedAddress) {
+          setNewDireccion(geoResult.formattedAddress);
+        }
+        if (mapInstanceRef.current && markerRef.current) {
+          if (mapInstanceRef.current.setView) {
+            mapInstanceRef.current.setView([geoResult.latitude, geoResult.longitude], 16);
+          } else if (mapInstanceRef.current.flyTo) {
+            mapInstanceRef.current.flyTo({ center: [geoResult.longitude, geoResult.latitude], zoom: 16 });
+          }
+          if (markerRef.current.setLatLng) {
+            markerRef.current.setLatLng([geoResult.latitude, geoResult.longitude]);
+          } else if (markerRef.current.setLngLat) {
+            markerRef.current.setLngLat([geoResult.longitude, geoResult.latitude]);
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Geocoding error:', e);
+    }
+  };
+
+  const dehezaStreetSuggestions = useMemo(() => {
+    if (!newDireccion || newDireccion.trim().length < 2) return [];
+    return suggestDehezaStreets(newDireccion, 3);
+  }, [newDireccion]);
+
+  const handleSelectStreetSuggestion = (sug: StreetSuggestion) => {
+    setNewDireccion(sug.fullAddress);
+    if (sug.street.zoneHint) {
+      if (sug.street.zoneHint === 'Centro') setNewZona('Centro');
+      else if (sug.street.zoneHint === 'Norte') setNewZona('Norte');
+      else if (sug.street.zoneHint === 'Sur' || sug.street.zoneHint === 'Industrial') setNewZona('Sur');
+    }
+    handleSearchAddressInMap(sug.fullAddress);
+  };
+
   const handleSaveAddress = async () => {
     if (!clientData || !newDireccion.trim()) return;
     setSavingAddress(true);
     try {
-      let lat = -32.7566;
-      let lon = -63.7861;
-      let verified = false;
+      let lat = newLat;
+      let lon = newLng;
+      let verified = true;
 
-      try {
-        const backendUrl = process.env.EXPO_PUBLIC_BACKEND_URL || 'https://api.quimicagd.com.ar';
-        const response = await fetch(`${backendUrl}/api/geocoding/autocomplete?text=${encodeURIComponent(newDireccion + ', General Deheza, Córdoba')}`);
-        if (response.ok) {
-          const result = await response.json();
-          if (result.features && result.features.length > 0) {
-            const first = result.features[0];
-            lon = first.geometry.coordinates[0];
-            lat = first.geometry.coordinates[1];
-            verified = true;
+      // Si no ha tocado el mapa pero tipeó la dirección, geocodificar por defecto
+      if (lat === -32.7561 && lon === -63.7845) {
+        try {
+          const geoResult = await geocodeAddress(newDireccion, 'General Deheza', 'Córdoba');
+          if (geoResult) {
+            lat = geoResult.latitude;
+            lon = geoResult.longitude;
           }
+        } catch (e) {
+          console.warn('Geocoding fallback:', e);
         }
-      } catch (e) {
-        console.warn('Geocoding fallback:', e);
+      }
+
+      // Si la base de datos no tiene aún la dirección original de registro en customer_addresses, preservarla primero
+      if (addresses.length === 0 && clientData.direccion) {
+        try {
+          await clientService.addAddress({
+            customerId: clientData.id,
+            direccion: clientData.direccion,
+            zona: clientData.zona || 'Centro',
+            indicaciones: 'Domicilio principal de registro',
+            latitude: clientData.latitude || -32.7561,
+            longitude: clientData.longitude || -63.7845,
+            locationVerified: clientData.locationVerified || false,
+            defaultAddress: true,
+          });
+        } catch (origErr) {
+          console.warn('Error registrando dirección original inicial:', origErr);
+        }
       }
 
       await clientService.addAddress({
@@ -119,7 +333,7 @@ export function ClienteAccountScreen() {
         latitude: lat,
         longitude: lon,
         locationVerified: verified,
-        defaultAddress: addresses.length === 0,
+        defaultAddress: false,
       });
 
       await loadAddresses();
@@ -166,7 +380,7 @@ export function ClienteAccountScreen() {
   const statusCounts = useMemo(() => {
     const total = clientOrders.length;
     const preparacion = clientOrders.filter(o => o.estado === 'pendiente' || o.estado === 'recibido' || o.estado === 'en_preparacion' || o.estado === 'listo_para_reparto').length;
-    const en_camino = clientOrders.filter(o => o.estado === 'en_camino').length;
+    const en_camino = clientOrders.filter(o => o.estado === 'en_camino' || o.estado === 'en_reparto').length;
     const entregado = clientOrders.filter(o => o.estado === 'entregado').length;
     const cancelado = clientOrders.filter(o => (o.estado as string) === 'cancelado' || (o.estado as string) === 'reprogramado').length;
     return { total, preparacion, en_camino, entregado, cancelado };
@@ -188,7 +402,7 @@ export function ClienteAccountScreen() {
       if (statusFilter === 'preparacion') {
         matchesStatus = o.estado === 'pendiente' || o.estado === 'recibido' || o.estado === 'en_preparacion' || o.estado === 'listo_para_reparto';
       } else if (statusFilter === 'en_camino') {
-        matchesStatus = o.estado === 'en_camino';
+        matchesStatus = o.estado === 'en_camino' || o.estado === 'en_reparto';
       } else if (statusFilter === 'entregado') {
         matchesStatus = o.estado === 'entregado';
       } else if (statusFilter === 'cancelado') {
@@ -276,14 +490,14 @@ export function ClienteAccountScreen() {
         <InfoRow label="CUIT / DNI" value={clientData.cuit || '-'} />
         <InfoRow label="Teléfono" value={clientData.telefono} />
         <InfoRow label="Email" value={clientData.email || '-'} />
-        <InfoRow label="Tipo de Cliente" value={clientData.tipoCliente === 'mayorista' ? 'Mayorista' : 'Minorista'} />
+        <InfoRow label="Tipo de Cliente" value={clientData.tipoCliente === 'mayorista' ? 'Mayorista' : clientData.tipoCliente === 'sucursal' ? 'Sucursal' : 'Consumidor Final'} />
       </View>
 
       {/* Direcciones de Entrega */}
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Direcciones de entrega</Text>
         
-        {addresses.map((addr) => (
+        {combinedAddresses.map((addr) => (
           <View key={addr.id} style={[styles.addressBox, addr.defaultAddress && { borderColor: Colors.primary, borderWidth: 1.5 }]}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
               <Text style={styles.addressTitle}>
@@ -301,15 +515,17 @@ export function ClienteAccountScreen() {
                     <Text style={{ fontSize: 13, color: Colors.primary, fontWeight: 'bold' }}>Principal</Text>
                   </TouchableOpacity>
                 )}
-                <TouchableOpacity
-                  onPress={async () => {
-                    await clientService.deleteAddress(addr.id!);
-                    await loadAddresses();
-                    customAlert('Eliminada', 'Dirección eliminada correctamente.');
-                  }}
-                >
-                  <Text style={{ fontSize: 13, color: Colors.danger, fontWeight: 'bold' }}>Eliminar</Text>
-                </TouchableOpacity>
+                {addr.id && !addr.id.startsWith('main-') && (
+                  <TouchableOpacity
+                    onPress={async () => {
+                      await clientService.deleteAddress(addr.id!);
+                      await loadAddresses();
+                      customAlert('Eliminada', 'Dirección eliminada correctamente.');
+                    }}
+                  >
+                    <Text style={{ fontSize: 13, color: Colors.danger, fontWeight: 'bold' }}>Eliminar</Text>
+                  </TouchableOpacity>
+                )}
               </View>
             </View>
             <Text style={styles.addressText}>{addr.direccion}</Text>
@@ -321,14 +537,6 @@ export function ClienteAccountScreen() {
             ) : null}
           </View>
         ))}
-
-        {addresses.length === 0 && (
-          <View style={styles.addressBox}>
-            <Text style={styles.addressTitle}>🏠 Dirección Principal</Text>
-            <Text style={styles.addressText}>{clientData.direccion}</Text>
-            <Text style={styles.addressSub}>Zona {clientData.zona || 'Centro'}</Text>
-          </View>
-        )}
 
         {!showAddForm ? (
           <TouchableOpacity 
@@ -346,14 +554,91 @@ export function ClienteAccountScreen() {
             </Text>
 
             <Text style={{ fontSize: 12, color: Colors.textSecondary, marginBottom: 4 }}>Dirección (Calle, Altura, Localidad)</Text>
-            <View style={{ backgroundColor: 'white', borderRadius: Radius.sm, borderWidth: 1, borderColor: Colors.border, paddingHorizontal: 10, paddingVertical: 8, marginBottom: Spacing.md }}>
+            <View style={{ backgroundColor: 'white', borderRadius: Radius.sm, borderWidth: 1, borderColor: Colors.border, paddingHorizontal: 10, paddingVertical: 8, marginBottom: dehezaStreetSuggestions.length > 0 ? 6 : Spacing.sm, flexDirection: 'row', alignItems: 'center' }}>
               <TextInput
                 placeholder="Ej: Bv. San Martín 456, General Deheza"
                 value={newDireccion}
                 onChangeText={setNewDireccion}
-                style={{ fontSize: 14, color: Colors.textPrimary, padding: 0 }}
+                style={{ flex: 1, fontSize: 14, color: Colors.textPrimary, padding: 0 }}
               />
+              {!!newDireccion && (
+                <TouchableOpacity
+                  onPress={() => setNewDireccion('')}
+                  style={{ paddingHorizontal: 7, paddingVertical: 2, backgroundColor: '#f1f5f9', borderRadius: 12, marginLeft: 6 }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={{ fontSize: 12, color: '#64748b', fontWeight: 'bold' }}>✕</Text>
+                </TouchableOpacity>
+              )}
             </View>
+
+            <TouchableOpacity
+              style={{
+                paddingVertical: 8,
+                paddingHorizontal: 12,
+                backgroundColor: '#2563eb',
+                borderRadius: Radius.sm,
+                alignItems: 'center',
+                marginBottom: Spacing.md,
+                flexDirection: 'row',
+                justifyContent: 'center',
+                gap: 6
+              }}
+              onPress={() => handleSearchAddressInMap()}
+            >
+              <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 13 }}>
+                🔍 Buscar "{newDireccion || 'Dirección'}" en el Mapa
+              </Text>
+            </TouchableOpacity>
+
+            {/* Sugerencias de calles de General Deheza */}
+            {dehezaStreetSuggestions.length > 0 && (
+              <View style={{ marginBottom: Spacing.md, backgroundColor: '#eff6ff', borderRadius: Radius.sm, padding: 8, borderWidth: 1, borderColor: '#bfdbfe' }}>
+                <Text style={{ fontSize: 11, fontWeight: 'bold', color: '#1e40af', marginBottom: 4 }}>
+                  💡 Calles sugeridas de General Deheza:
+                </Text>
+                {dehezaStreetSuggestions.map((sug) => (
+                  <TouchableOpacity
+                    key={sug.street.name}
+                    style={{ paddingVertical: 5, paddingHorizontal: 8, borderRadius: 4, backgroundColor: 'white', marginBottom: 4, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderWidth: 1, borderColor: '#e2e8f0' }}
+                    onPress={() => handleSelectStreetSuggestion(sug)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={{ fontSize: 12, fontWeight: '600', color: Colors.textPrimary }}>
+                      📍 {sug.fullAddress}
+                    </Text>
+                    {sug.street.zoneHint && (
+                      <Text style={{ fontSize: 10, color: Colors.primary, fontWeight: 'bold' }}>
+                        Zona {sug.street.zoneHint}
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+
+            {/* Mapa interactivo de MapLibre en Web */}
+            {Platform.OS === 'web' && (
+              <View style={{ marginBottom: Spacing.md }}>
+                <Text style={{ fontSize: 12, color: Colors.textSecondary, marginBottom: 4 }}>
+                  📍 Ubicación en el Mapa (Clic o arrastrá el pin para ajustar punto exacto):
+                </Text>
+                <div
+                  id="client-account-map-container"
+                  ref={mapContainerRef}
+                  style={{
+                    width: '100%',
+                    height: '240px',
+                    minHeight: '240px',
+                    borderRadius: '8px',
+                    overflow: 'hidden',
+                    border: '1px solid #cbd5e1',
+                    position: 'relative'
+                  }}
+                />
+              </View>
+            )}
+
 
             <Text style={{ fontSize: 12, color: Colors.textSecondary, marginBottom: 4 }}>Zona de Entrega</Text>
             <View style={{ flexDirection: 'row', gap: 8, marginBottom: Spacing.md }}>
@@ -407,6 +692,7 @@ export function ClienteAccountScreen() {
             </View>
           </View>
         )}
+
       </View>
 
       {/* Estado del Reparto (Tracking) */}
@@ -446,7 +732,9 @@ export function ClienteAccountScreen() {
           <Text style={styles.cardTitle}>Repetir último pedido</Text>
           <View style={styles.orderSummaryBox}>
             <Text style={styles.orderSummaryTitle}>Pedido #{lastOrder.numero}</Text>
-            <Text style={styles.orderSummaryDate}>Fecha: {new Date(lastOrder.fecha).toLocaleDateString()}</Text>
+            <Text style={styles.orderSummaryDate}>
+              Fecha: {new Date(lastOrder.fecha).toLocaleDateString()} a las {new Date(lastOrder.fecha).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} hs
+            </Text>
             {!!lastOrder.deliveryDate && (
               <Text style={[styles.orderSummaryDate, { color: Colors.primary, fontWeight: '600', marginTop: 2 }]}>
                 🚚 Entrega: {lastOrder.deliveryDate} de {lastOrder.deliveryStartTime} a {lastOrder.deliveryEndTime} hs
@@ -713,8 +1001,11 @@ export function ClienteAccountScreen() {
       </TouchableOpacity>
 
       <View style={styles.versionContainer}>
-        <Text style={styles.versionText}>Química Deheza · Cliente Final</Text>
+        <Text style={styles.versionText}>Química General Deheza · Cliente Final</Text>
       </View>
+
+      {/* Footer Legal & Ayuda */}
+      <AppFooter />
 
       <OrderDetailModal
         order={selectedOrderForModal}
@@ -723,9 +1014,10 @@ export function ClienteAccountScreen() {
       />
     </ScrollView>
   );
-}
 
-const styles = StyleSheet.create({
+
+
+}const styles = StyleSheet.create({
   scrollView: {
     flex: 1,
   },
@@ -1063,4 +1355,4 @@ const styles = StyleSheet.create({
     fontSize: FontSize.sm,
     color: Colors.textDisabled,
   },
-});
+})

@@ -116,7 +116,7 @@ export function LoginRepartidorScreen({ onBack }: LoginRepartidorScreenProps) {
         <Animated.View style={titleAnim.animatedStyle}>
           <Text style={styles.loginTitle}>Ingreso repartidor</Text>
           <Text style={styles.loginSub}>
-            Acceso exclusivo para el personal de logística y choferes de Química Deheza.
+            Acceso exclusivo para el personal de logística y choferes de Química General Deheza.
           </Text>
         </Animated.View>
 

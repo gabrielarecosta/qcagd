@@ -32,6 +32,7 @@ import { customAlert as _customAlert } from '../../utils/alert';
 import { Platform, useWindowDimensions } from 'react-native';
 import { DesktopStartScreen } from '../../components/screens/DesktopStartScreen';
 import { MobileStartScreen } from '../../components/screens/MobileStartScreen';
+import { RepartidorHomeScreen } from '../../components/screens/RepartidorHomeScreen';
 
 export default function RepartoScreen() {
   const { orders, updateOrderStatus, fetchOrders, takeOrder } = useOrderStore();
@@ -402,13 +403,16 @@ export default function RepartoScreen() {
     );
   }
 
+  // Si el usuario es repartidor → mostrar directamente la hoja de ruta asignada por el admin
+  if (role === 'repartidor') {
+    return <RepartidorHomeScreen />;
+  }
+
   return (
     <SafeAreaView style={styles.safeArea}>
-      {/* Cabecera de Repartos */}
+      {/* Cabecera */}
       <View style={styles.roleSelectorHeader}>
-        <Text style={styles.headerTitle}>
-          {role === 'repartidor' ? 'Planilla de Reparto' : 'Estado de mi Reparto'}
-        </Text>
+        <Text style={styles.headerTitle}>Estado de mi Reparto</Text>
       </View>
 
       <ScrollView
@@ -419,9 +423,6 @@ export default function RepartoScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       >
-        {/* ========================================== */}
-        {/* VISTA CLIENTE */}
-        {/* ========================================== */}
         {role === 'cliente' && (
           <View>
             {/* ---- Pedidos de ENVÍO activos (solo reparto físico) ---- */}

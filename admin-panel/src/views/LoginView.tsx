@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { useAdminStore } from '../store/adminStore';
 import logoImg from '../assets/logo2.png';
 
+import type { InternalUser } from '@shared/types/user';
+
 export function LoginView() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -21,11 +23,44 @@ export function LoginView() {
     setError('');
     setIsLoading(true);
 
-    // Simulate minor lag for visual transitions & realistic authorization check
     setTimeout(() => {
+      const cleanUser = username.trim().toLowerCase();
+
+      // 1. Acceso de Administrador Maestro: qca / qca o admin / admin
+      if ((cleanUser === 'qca' && password === 'qca') || (cleanUser === 'admin' && password === 'admin') || (cleanUser === 'admin' && password === 'qca')) {
+        const masterAdmin: InternalUser = {
+          id: 'user-admin-qca',
+          nombre: 'Administrador Química General Deheza',
+          email: 'admin@quimicagd.com.ar',
+          rol: 'admin',
+          activo: true,
+          branchId: 'branch-gd1',
+        };
+        setCurrentUser(masterAdmin);
+        setIsLoading(false);
+        return;
+      }
+
+      // 2. Comprobar contra usuarios registrados en el sistema / base de datos
+      const foundUser = users.find(u => 
+        (u.email?.toLowerCase() === cleanUser || u.nombre.toLowerCase() === cleanUser || u.id.toLowerCase() === cleanUser) &&
+        (u.password ? u.password === password : (password === 'qca' || password === 'admin'))
+      );
+
+      if (foundUser) {
+        if (!foundUser.activo) {
+          setError('Esta cuenta de usuario se encuentra deshabilitada.');
+          setIsLoading(false);
+          return;
+        }
+        setCurrentUser(foundUser);
+        setIsLoading(false);
+        return;
+      }
+
       setError('Credenciales inválidas. Verifique usuario y contraseña.');
       setIsLoading(false);
-    }, 700);
+    }, 300);
   };
 
   return (
@@ -351,7 +386,7 @@ export function LoginView() {
         </form>
 
         <div className="login-footer-text">
-          QUÍMICA DEHEZA © {new Date().getFullYear()}
+          QUÍMICA GENERAL DEHEZA © {new Date().getFullYear()}
         </div>
       </div>
     </div>

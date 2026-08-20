@@ -126,8 +126,8 @@ export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
   recibido: 'Recibido',
   en_preparacion: 'En Preparación',
   listo_para_reparto: 'Listo para Reparto',
-  en_camino: 'En Camino',
-  en_reparto: 'En Reparto',
+  en_camino: '🚚 Tu compra está en camino',
+  en_reparto: '🚚 Tu compra está en camino',
   entregado: 'Entregado',
   cancelado: 'Cancelado',
 };
@@ -186,6 +186,7 @@ export interface Order {
   deliveryZone?: string;
   customerName?: string;
   customerPhone?: string;
+  outOfStockPreference?: 'llamar' | 'reemplazar' | 'cancelar';
 }
 
 
@@ -204,7 +205,7 @@ export interface Customer {
   provincia: string;
   zona: string;
   branchId?: string;
-  tipoCliente?: 'minorista' | 'mayorista';
+  tipoCliente?: 'minorista' | 'mayorista' | 'sucursal' | 'consumidor_final';
 }
 
 export interface CustomerAddress {

@@ -3,6 +3,7 @@ import { supabase } from './supabaseClient';
 export interface CompanySettings {
   id: string;
   whatsapp: string;
+  whatsapp_transferencias?: string;
   direccion: string;
   telefono: string;
   instagram: string;
@@ -13,6 +14,8 @@ export interface CompanySettings {
   alias_cbu?: string;
   cuit?: string;
   titular?: string;
+  tipo_cuenta?: string;
+  instrucciones_transferencia?: string;
 }
 
 export const companySettingsService = {

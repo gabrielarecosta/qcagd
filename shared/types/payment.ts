@@ -2,7 +2,8 @@ export type PaymentMethod =
   | 'mercado_pago'
   | 'efectivo'
   | 'transferencia'
-  | 'cuenta_corriente';
+  | 'cuenta_corriente'
+  | 'pago_a_acordar';
 
 export type PaymentStatus =
   | 'pendiente'
@@ -24,4 +25,15 @@ export interface PaymentLog {
   estado: PaymentStatus;
   referenciaMock?: string; // ID de transacción MP o banco
   cambioAEntregar?: number;
+}
+
+export interface PaymentMethodConfig {
+  id: string; // 'efectivo' | 'mercadopago' | 'transferencia' | 'pago_a_acordar' | 'cuenta_corriente'
+  nombre: string;
+  descripcion?: string;
+  activo: boolean;
+  disponibleMinorista: boolean; // Clientes particulares / consumidor final
+  disponibleMayorista: boolean; // Clientes mayoristas
+  disponibleSucursal: boolean;  // Sucursales
+  orden: number;
 }

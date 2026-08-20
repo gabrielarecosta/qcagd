@@ -151,10 +151,27 @@ export function ClientConfigView() {
     try {
       const ext = file.name.split('.').pop();
       const path = `categories/${categoria}_${Date.now()}.${ext}`;
-      const { error: upErr } = await supabase.storage
+      let { error: upErr } = await supabase.storage
         .from('app-assets')
         .upload(path, file, { upsert: true, contentType: file.type });
-      if (upErr) throw upErr;
+
+      if (upErr && (upErr.message?.toLowerCase().includes('bucket not found') || (upErr as any).statusCode === '404')) {
+        try {
+          await supabase.storage.createBucket('app-assets', { public: true });
+          const retryRes = await supabase.storage
+            .from('app-assets')
+            .upload(path, file, { upsert: true, contentType: file.type });
+          upErr = retryRes.error;
+        } catch (_) {}
+      }
+
+      if (upErr) {
+        if (upErr.message?.toLowerCase().includes('bucket not found')) {
+          throw new Error('El bucket "app-assets" no existe en Supabase Storage. Ejecute la migración SQL 10 en su panel de Supabase.');
+        }
+        throw upErr;
+      }
+
       const { data: urlData } = supabase.storage
         .from('app-assets')
         .getPublicUrl(path);
@@ -168,7 +185,7 @@ export function ClientConfigView() {
 
   // App General Configs
   const [generalConfig, setGeneralConfig] = useState({
-    nombreApp: 'Química Deheza',
+    nombreApp: 'Química General Deheza',
     telefonoSoporte: '5493511234567', // WhatsApp
     emailSoporte: 'soporte@quimicadeheza.com.ar',
     mensajeBienvenida: '¡Bienvenido a nuestra distribuidora! Realizá tu pedido fácil y rápido.',
@@ -251,10 +268,27 @@ export function ClientConfigView() {
     try {
       const ext = file.name.split('.').pop();
       const path = `banners/${editingBanner.id}_${Date.now()}.${ext}`;
-      const { error: upErr } = await supabase.storage
+      let { error: upErr } = await supabase.storage
         .from('app-assets')
         .upload(path, file, { upsert: true, contentType: file.type });
-      if (upErr) throw upErr;
+
+      if (upErr && (upErr.message?.toLowerCase().includes('bucket not found') || (upErr as any).statusCode === '404')) {
+        try {
+          await supabase.storage.createBucket('app-assets', { public: true });
+          const retryRes = await supabase.storage
+            .from('app-assets')
+            .upload(path, file, { upsert: true, contentType: file.type });
+          upErr = retryRes.error;
+        } catch (_) {}
+      }
+
+      if (upErr) {
+        if (upErr.message?.toLowerCase().includes('bucket not found')) {
+          throw new Error('El bucket "app-assets" no existe en Supabase Storage. Ejecute la migración SQL 10 en su panel de Supabase.');
+        }
+        throw upErr;
+      }
+
       const { data: urlData } = supabase.storage
         .from('app-assets')
         .getPublicUrl(path);

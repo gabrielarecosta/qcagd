@@ -670,17 +670,35 @@ export function ProductsView({
                           if (!file || !editingProduct) return;
                           setIsUploading(true);
                           try {
-                            const { createClient } = await import('@supabase/supabase-js');
-                            const tempSupabase = createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_ANON_KEY);
                             const ext = file.name.split('.').pop();
                             const path = `products/${editingProduct.id}_${Date.now()}.${ext}`;
-                            const { error: upErr } = await tempSupabase.storage
+                            
+                            let { error: upErr } = await supabase.storage
                               .from('app-assets')
                               .upload(path, file, { upsert: true, contentType: file.type });
-                            if (upErr) throw upErr;
-                            const { data: urlData } = tempSupabase.storage
+
+                            if (upErr && (upErr.message?.toLowerCase().includes('bucket not found') || (upErr as any).statusCode === '404')) {
+                              // Intentar crear el bucket si no existe
+                              try {
+                                await supabase.storage.createBucket('app-assets', { public: true });
+                                const retryRes = await supabase.storage
+                                  .from('app-assets')
+                                  .upload(path, file, { upsert: true, contentType: file.type });
+                                upErr = retryRes.error;
+                              } catch (_) {}
+                            }
+
+                            if (upErr) {
+                              if (upErr.message?.toLowerCase().includes('bucket not found')) {
+                                throw new Error('El bucket "app-assets" no existe en Supabase Storage. Ejecute la migración SQL 10 en su panel de Supabase.');
+                              }
+                              throw upErr;
+                            }
+
+                            const { data: urlData } = supabase.storage
                               .from('app-assets')
                               .getPublicUrl(path);
+
                             setFormProduct(prev => ({ ...prev, imagen: urlData.publicUrl }));
                           } catch (err: any) {
                             alert('Error al subir imagen: ' + (err.message || String(err)));

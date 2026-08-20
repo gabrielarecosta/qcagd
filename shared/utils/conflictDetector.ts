@@ -91,6 +91,14 @@ export function analyzeImportRows(
     const rawPrice = row[5];
     const rawStock = row[6];
 
+    // Ignorar filas totalmente vacías (ej. al final de la planilla)
+    if ((rawCode === undefined || rawCode === null || String(rawCode).trim() === '') &&
+        (rawDesc === undefined || rawDesc === null || String(rawDesc).trim() === '') &&
+        (rawPrice === undefined || rawPrice === null || String(rawPrice).trim() === '') &&
+        (rawStock === undefined || rawStock === null || String(rawStock).trim() === '')) {
+      return;
+    }
+
     const code = normalizeCode(rawCode);
     const desc = rawDesc ? String(rawDesc).trim() : '';
     const brand = rawBrand ? String(rawBrand).trim() : '';
@@ -164,60 +172,62 @@ export function analyzeImportRows(
     const normDesc = normalizeText(desc);
     const normBrand = normalizeText(brand);
 
-    // Buscar si existe un producto con el mismo código en la base de datos
+    // 1. Buscar coincidencia por nombre/descripción normalizado (y marca si coincide)
+    const matchesByDesc = existingProducts.filter((p) => {
+      const pNormDesc = normalizeText(p.nombre);
+      return pNormDesc === normDesc;
+    });
+
+    // 2. Buscar coincidencia por código de barras / código comercial
     const productByCode = existingProducts.find(
       (p) => normalizeCode(p.codigo).toLowerCase() === normCode
     );
 
-    // Buscar si existen productos con la misma descripción (y marca si está presente)
-    const matchesByDesc = existingProducts.filter((p) => {
-      const pNormDesc = normalizeText(p.nombre);
-      if (normBrand) {
-        const pNormBrand = normalizeText(p.marca);
-        return pNormDesc === normDesc && pNormBrand === normBrand;
-      }
-      return pNormDesc === normDesc;
-    });
-
-    const isDuplicateInExcel = (excelDescCounts[normDesc] || 0) > 1;
-
     // ────────────────────────────────────────────────────────
-    // CASO 1: El código de barras ya existe en la base de datos
+    // PRIORIDAD 1: Coincidencia directa por NOMBRE (mismo producto)
     // ────────────────────────────────────────────────────────
-    if (productByCode) {
-      // Conflicto: Split match (el código coincide con un producto, pero la descripción coincide con otro)
-      const matchesOtherDesc = matchesByDesc.find((p) => p.id !== productByCode.id);
-      
-      if (matchesOtherDesc) {
-        stagedRows.push({
-          filaNumero,
-          codigo: code,
-          descripcion: desc,
-          marca: brand,
-          precio,
-          stock,
-          estado: 'requires_review',
-          action: 'update_by_code',
-          conflictReason: 'split_match',
-          validationErrors: [
-            `El código coincide con "${productByCode.nombre}", pero la descripción coincide con "${matchesOtherDesc.nombre}".`
-          ],
-          matchedProductId: productByCode.id,
-          matchedProductName: productByCode.nombre,
-          matchedProductCode: productByCode.codigo,
-          matchedProductPrice: productByCode.precio,
-          matchedProductStock: productByCode.stock ?? 0,
-          matchedProductBrand: productByCode.marca,
-        });
-        return;
+    if (matchesByDesc.length > 0) {
+      // Elegir el mejor producto coincidente (priorizar si coincide la marca)
+      let matchedProd = matchesByDesc[0];
+      if (normBrand && matchesByDesc.length > 1) {
+        const brandMatch = matchesByDesc.find(p => normalizeText(p.marca) === normBrand);
+        if (brandMatch) matchedProd = brandMatch;
       }
 
-      // Proceso normal: Actualizar producto existente por su código
+      const existingProdCode = normalizeCode(matchedProd.codigo).toLowerCase();
+      const isNewCode = existingProdCode !== normCode;
+
+      // Si el código cambió o es nuevo, actualiza el código en el catálogo; de lo contrario actualiza por código
+      const action = isNewCode ? 'replace_code' : 'update_by_code';
+
       stagedRows.push({
         filaNumero,
         codigo: code,
         descripcion: desc,
-        marca: brand,
+        marca: brand || matchedProd.marca || '',
+        precio,
+        stock,
+        estado: 'ready',
+        action,
+        matchedProductId: matchedProd.id,
+        matchedProductName: matchedProd.nombre,
+        matchedProductCode: matchedProd.codigo,
+        matchedProductPrice: matchedProd.precio,
+        matchedProductStock: matchedProd.stock ?? 0,
+        matchedProductBrand: matchedProd.marca,
+      });
+      return;
+    }
+
+    // ────────────────────────────────────────────────────────
+    // PRIORIDAD 2: Coincidencia por CÓDIGO (mismo código existente)
+    // ────────────────────────────────────────────────────────
+    if (productByCode) {
+      stagedRows.push({
+        filaNumero,
+        codigo: code,
+        descripcion: desc,
+        marca: brand || productByCode.marca || '',
         precio,
         stock,
         estado: 'ready',
@@ -233,93 +243,7 @@ export function analyzeImportRows(
     }
 
     // ────────────────────────────────────────────────────────
-    // CASO 2: El código no existe, pero la descripción coincide
-    // ────────────────────────────────────────────────────────
-    if (matchesByDesc.length > 0) {
-      // Conflicto: Más de un producto existente con la misma descripción
-      if (matchesByDesc.length > 1) {
-        stagedRows.push({
-          filaNumero,
-          codigo: code,
-          descripcion: desc,
-          marca: brand,
-          precio,
-          stock,
-          estado: 'requires_review',
-          action: 'replace_code',
-          conflictReason: 'multiple_descriptions_exist',
-          validationErrors: ['Existen múltiples productos en la base de datos con esta misma descripción.'],
-        });
-        return;
-      }
-
-      // Conflicto: La misma descripción aparece varias veces en el Excel con códigos distintos
-      if (isDuplicateInExcel) {
-        stagedRows.push({
-          filaNumero,
-          codigo: code,
-          descripcion: desc,
-          marca: brand,
-          precio,
-          stock,
-          estado: 'requires_review',
-          action: 'replace_code',
-          conflictReason: 'duplicate_description_in_excel',
-          validationErrors: ['Esta descripción se repite en el archivo Excel con diferentes códigos.'],
-        });
-        return;
-      }
-
-      const matchedProd = matchesByDesc[0];
-
-      // Conflicto: La descripción coincide pero las marcas son diferentes
-      const matchedProdNormBrand = normalizeText(matchedProd.marca);
-      if (normBrand && matchedProdNormBrand && normBrand !== matchedProdNormBrand) {
-        stagedRows.push({
-          filaNumero,
-          codigo: code,
-          descripcion: desc,
-          marca: brand,
-          precio,
-          stock,
-          estado: 'requires_review',
-          action: 'replace_code',
-          conflictReason: 'description_matches_different_brand',
-          validationErrors: [
-            `La descripción coincide, pero la marca del Excel ("${brand}") difiere de la base de datos ("${matchedProd.marca}").`
-          ],
-          matchedProductId: matchedProd.id,
-          matchedProductName: matchedProd.nombre,
-          matchedProductCode: matchedProd.codigo,
-          matchedProductPrice: matchedProd.precio,
-          matchedProductStock: matchedProd.stock ?? 0,
-          matchedProductBrand: matchedProd.marca,
-        });
-        return;
-      }
-
-      // Proceso normal: Cambio de código de fábrica
-      stagedRows.push({
-        filaNumero,
-        codigo: code,
-        descripcion: desc,
-        marca: brand,
-        precio,
-        stock,
-        estado: 'ready',
-        action: 'replace_code',
-        matchedProductId: matchedProd.id,
-        matchedProductName: matchedProd.nombre,
-        matchedProductCode: matchedProd.codigo,
-        matchedProductPrice: matchedProd.precio,
-        matchedProductStock: matchedProd.stock ?? 0,
-        matchedProductBrand: matchedProd.marca,
-      });
-      return;
-    }
-
-    // ────────────────────────────────────────────────────────
-    // CASO 3: No existe el código ni la descripción
+    // PRIORIDAD 3: Producto totalmente nuevo (creación)
     // ────────────────────────────────────────────────────────
     stagedRows.push({
       filaNumero,

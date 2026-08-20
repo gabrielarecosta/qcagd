@@ -65,6 +65,7 @@ export default function CatalogoScreen() {
   const totalItems = useCartStore((state) => state.totalItems());
   const { width } = useWindowDimensions();
   const isDesktop = Platform.OS === 'web' && width >= 768;
+  const numGridColumns = isDesktop ? (width >= 1200 ? 4 : 3) : (width < 360 ? 1 : 2);
 
   const {
     products,
@@ -428,18 +429,16 @@ export default function CatalogoScreen() {
         </View>
       ) : (
         <FlatList
-          key={isDesktop ? 'desktop-grid' : 'mobile-grid'}
+          key={`grid-cols-${numGridColumns}`}
           data={sortedProducts}
           keyExtractor={keyExtractor}
           renderItem={renderItem}
-          numColumns={isDesktop ? 4 : 2}
-          contentContainerStyle={styles.productList}
-          columnWrapperStyle={styles.productRow}
+          numColumns={numGridColumns}
+          contentContainerStyle={[styles.productList, { paddingBottom: 90 }]}
+          columnWrapperStyle={numGridColumns > 1 ? styles.productRow : undefined}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
-
-          // ── Optimizaciones para 6000 productos ──
           initialNumToRender={10}
           maxToRenderPerBatch={10}
           updateCellsBatchingPeriod={50}

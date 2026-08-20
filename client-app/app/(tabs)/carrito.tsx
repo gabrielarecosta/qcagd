@@ -31,8 +31,12 @@ import { offerService } from '@shared/services/offerService';
 import { deliverySlotService } from '@shared/services/deliverySlotService';
 import { companySettingsService } from '@shared/services/companySettingsService';
 import { clientService } from '@shared/services/clientService';
+import { orderService } from '@shared/services/orderService';
+import { paymentService } from '@shared/services/paymentService';
+import { PaymentMethodConfig } from '@shared/types/payment';
 import { getArgentinaDate, getArgentinaTime, getArgentinaDayLabel } from '@shared/utils/dateUtils';
 import { supabase } from '@shared/services/supabaseClient';
+import { buildWhatsAppOrderMessage } from '@shared/utils/whatsappOrderMessage';
 
 
 
@@ -40,7 +44,7 @@ import { supabase } from '@shared/services/supabaseClient';
 // Tipo: método de entrega
 // ──────────────────────────────────────────────────────────────
 type DeliveryMethod = 'reparto' | 'retiro' | 'whatsapp';
-type PaymentOption = 'efectivo' | 'mercadopago' | 'transferencia';
+type PaymentOption = 'efectivo' | 'mercadopago' | 'transferencia' | 'pago_a_acordar' | 'cuenta_corriente';
 
 // Los datos bancarios se cargan dinámicamente desde company_settings en la BD
 
@@ -110,15 +114,55 @@ export default function CarritoScreen() {
     loadSettings();
   }, []);
 
+  const [paymentConfigs, setPaymentConfigs] = useState<PaymentMethodConfig[]>([]);
+
+  useEffect(() => {
+    const loadPaymentConfigs = async () => {
+      try {
+        const configs = await paymentService.getConfigs();
+        setPaymentConfigs(configs);
+      } catch (err) {
+        console.warn('Error al cargar medios de pago:', err);
+      }
+    };
+    loadPaymentConfigs();
+  }, []);
+
   const lastDeliveredOrder = useMemo(() => {
     return orders.filter(o => o.estado === 'entregado')[0];
   }, [orders]);
 
   const [deliveryMethod, setDeliveryMethod] = useState<DeliveryMethod>('reparto');
   const [paymentMethod, setPaymentMethod] = useState<PaymentOption>('efectivo');
+  const [outOfStockPreference, setOutOfStockPreference] = useState<'llamar' | 'reemplazar'>('llamar');
   const [efectivoAbonaCon, setEfectivoAbonaCon] = useState('');
   const [observaciones, setObservaciones] = useState('');
   const [companySettings, setCompanySettings] = useState<any>(null);
+
+  // Helper para saber si un método de pago está habilitado para el tipo de cliente actual
+  const isMethodAllowed = useCallback((methodId: string) => {
+    if (!paymentConfigs || paymentConfigs.length === 0) return true;
+    const cfg = paymentConfigs.find(c => c.id === methodId);
+    if (!cfg || !cfg.activo) return false;
+
+    const currentType = clientData?.tipoCliente || 'minorista';
+    if (currentType === 'sucursal') return cfg.disponibleSucursal;
+    if (currentType === 'mayorista') return cfg.disponibleMayorista;
+    return cfg.disponibleMinorista; // minorista / consumidor_final
+  }, [paymentConfigs, clientData?.tipoCliente]);
+
+  // Si el método actual fue deshabilitado, cambiar automáticamente al primer método disponible
+  useEffect(() => {
+    if (paymentConfigs.length > 0) {
+      if (!isMethodAllowed(paymentMethod)) {
+        const priorityOrder: PaymentOption[] = ['efectivo', 'mercadopago', 'transferencia', 'pago_a_acordar', 'cuenta_corriente'];
+        const firstAvailable = priorityOrder.find(m => isMethodAllowed(m));
+        if (firstAvailable) {
+          setPaymentMethod(firstAvailable);
+        }
+      }
+    }
+  }, [paymentConfigs, clientData?.tipoCliente, isMethodAllowed, paymentMethod]);
 
   // Estados de franjas horarias (Etapa 7)
   const [deliveryDate, setDeliveryDate] = useState<string>(''); // YYYY-MM-DD
@@ -300,7 +344,11 @@ export default function CarritoScreen() {
       ? 'Efectivo / Contra entrega'
       : paymentMethod === 'mercadopago'
         ? 'Mercado Pago'
-        : 'Transferencia Bancaria';
+        : paymentMethod === 'transferencia'
+          ? 'Transferencia Bancaria'
+          : paymentMethod === 'pago_a_acordar'
+            ? 'Pago a acordar'
+            : 'Cuenta Corriente';
 
     let message =
       `Pedido: ${count} artículo${count !== 1 ? 's' : ''}\n` +
@@ -314,8 +362,10 @@ export default function CarritoScreen() {
     }
 
     if (observaciones) {
-      message += `Observaciones: ${observaciones}`;
+      message += `Observaciones: ${observaciones}\n`;
     }
+
+    message += `Ante falta de stock: ${outOfStockPreference === 'llamar' ? 'Llamarme para consultar' : 'Elegir artículo similar'}`;
 
     customAlert('Confirmar pedido', message, [
       { text: 'Cancelar', style: 'cancel' },
@@ -324,18 +374,35 @@ export default function CarritoScreen() {
         style: 'default',
         onPress: async () => {
           if (deliveryMethod === 'whatsapp') {
-            // Si eligió WhatsApp: abre WhatsApp con el resumen del pedido
-            const productList = items
-              .map((i) => `• ${i.producto.nombre} × ${i.cantidad}`)
-              .join('\n');
-            const waText = encodeURIComponent(
-              `*Nuevo pedido*\n${productList}\n\n*Total estimado:* ${fmtPrice(total)}\n*Pago:* ${paymentLabel}` +
-              (selectedSlot ? `\n*Horario de entrega:* ${deliveryDate} de ${selectedSlot.hora_inicio} a ${selectedSlot.hora_fin}` : '') +
-              (observaciones ? `\n*Observaciones:* ${observaciones}` : '')
-            );
+            // Si eligió WhatsApp: genera el mensaje automático estructurado con número de pedido y detalle
+            const waMessage = buildWhatsAppOrderMessage({
+              orderNum: orderNum,
+              customerName: clientData?.nombre || 'Cliente',
+              customerPhone: clientData?.telefono || '',
+              items: items.map((i) => {
+                const calc = offerService.calculateFinalPrice(i.producto, i.cantidad, customerType, promotions);
+                return {
+                  name: i.producto.nombre,
+                  presentation: i.producto.presentacion,
+                  qty: i.cantidad,
+                  unitPrice: calc.priceFinal,
+                  subtotal: calc.subtotal,
+                };
+              }),
+              total: total,
+              deliveryMethod: deliveryMethod,
+              deliveryDate: deliveryDate || undefined,
+              deliveryTimeSlot: selectedSlot ? `${selectedSlot.hora_inicio} a ${selectedSlot.hora_fin} hs` : undefined,
+              address: selectedAddress ? selectedAddress.direccion : clientData?.direccion,
+              outOfStockPreference: outOfStockPreference,
+              observaciones: observaciones,
+              paymentMethod: paymentMethod,
+              isTransferReceipt: false,
+            });
 
             const targetNumber = companySettings?.whatsapp || '5493511234567';
-            Linking.openURL(`https://wa.me/${targetNumber}?text=${waText}`);
+            const cleanPhone = targetNumber.replace(/[^0-9]/g, '');
+            Linking.openURL(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(waMessage)}`);
           }
 
           // Crear objeto Order real e insertarlo en el store con precios de oferta recalculados
@@ -362,6 +429,7 @@ export default function CarritoScreen() {
             total: total,
             estado: deliveryMethod === 'whatsapp' ? 'pendiente' : 'en_preparacion',
             observaciones: observaciones || undefined,
+            outOfStockPreference: outOfStockPreference,
             repartidorId: undefined,
 
             // Campos de entrega estructurados
@@ -374,15 +442,16 @@ export default function CarritoScreen() {
             // Geolocalización y dirección múltiple seleccionada
             originalAddress: deliveryMethod === 'reparto' ? (selectedAddress ? selectedAddress.direccion : clientData?.direccion) : undefined,
             formattedAddress: deliveryMethod === 'reparto' ? (selectedAddress ? selectedAddress.direccion : clientData?.direccion) : undefined,
-            latitude: deliveryMethod === 'reparto' ? (selectedAddress?.latitude || undefined) : undefined,
-            longitude: deliveryMethod === 'reparto' ? (selectedAddress?.longitude || undefined) : undefined,
+            latitude: deliveryMethod === 'reparto' ? (selectedAddress?.latitude || clientData?.latitude || undefined) : undefined,
+            longitude: deliveryMethod === 'reparto' ? (selectedAddress?.longitude || clientData?.longitude || undefined) : undefined,
+
             addressReference: deliveryMethod === 'reparto' ? (selectedAddress?.indicaciones || undefined) : undefined,
             locationVerified: deliveryMethod === 'reparto' ? (selectedAddress?.locationVerified || false) : false,
             deliveryZone: deliveryMethod === 'reparto' ? (selectedAddress?.zona || clientData?.zona || 'Centro') : undefined,
 
             // Campos de pago
             paymentMethod: paymentMethod,
-            paymentStatus: paymentMethod === 'mercadopago' ? 'pendiente' : 'pendiente',
+            paymentStatus: paymentMethod === 'cuenta_corriente' ? 'cuenta_corriente' : 'pendiente',
             abonaCon: paymentMethod === 'efectivo' && efectivoAbonaCon ? Number(efectivoAbonaCon) : undefined,
             cambioEstimado: paymentMethod === 'efectivo' && efectivoAbonaCon && Number(efectivoAbonaCon) > total ? Number(efectivoAbonaCon) - total : undefined,
           };
@@ -436,8 +505,9 @@ export default function CarritoScreen() {
             await addOrder(newOrder, clientData?.email || '');
             createdOrder = newOrder;
 
-            // 4. Parámetros para la pantalla de confirmación
+            // 4. Parámetros para la pantalla de confirmación con items estructurados
             const confirmParams = {
+              orderId: newOrder.id,
               orderNum: newOrder.numero,
               orderTotal: String(total),
               deliveryMethod: deliveryMethod,
@@ -446,6 +516,17 @@ export default function CarritoScreen() {
               slotNombre: selectedSlot?.nombre || '',
               slotHoraInicio: selectedSlot?.hora_inicio || '',
               slotHoraFin: selectedSlot?.hora_fin || '',
+              outOfStockPreference: outOfStockPreference,
+              observaciones: observaciones || '',
+              itemsJson: JSON.stringify(
+                newOrder.items.map((it) => ({
+                  name: it.producto.nombre,
+                  presentation: it.producto.presentacion,
+                  qty: it.cantidad,
+                  unitPrice: it.precioUnitario,
+                  subtotal: it.subtotal,
+                }))
+              ),
             };
 
             // 5. Limpiar carrito y resetear solo tras éxito total comprobado
@@ -893,32 +974,34 @@ export default function CarritoScreen() {
             <View style={styles.paymentOptions}>
 
               {/* Opción 1: Efectivo / Contra Entrega */}
-              <TouchableOpacity
-                style={[
-                  styles.paymentOption,
-                  paymentMethod === 'efectivo' && styles.paymentOptionSelected,
-                ]}
-                onPress={() => setPaymentMethod('efectivo')}
-                activeOpacity={0.8}
-              >
-                <MaterialCommunityIcons
-                  name="cash-multiple"
-                  size={24}
-                  color={paymentMethod === 'efectivo' ? Colors.primary : Colors.textSecondary}
-                  style={{ marginRight: 10 }}
-                />
-                <View style={styles.paymentOptionText}>
-                  <Text style={[styles.paymentOptionLabel, paymentMethod === 'efectivo' && styles.paymentOptionLabelSelected]}>
-                    Contra entrega / Efectivo
-                  </Text>
-                  <Text style={styles.paymentOptionSub}>Abonás en efectivo cuando recibís tu pedido</Text>
-                </View>
-                <View style={[styles.radioCircle, paymentMethod === 'efectivo' && styles.radioCircleSelected]}>
-                  {paymentMethod === 'efectivo' && <View style={styles.radioDot} />}
-                </View>
-              </TouchableOpacity>
+              {isMethodAllowed('efectivo') && (
+                <TouchableOpacity
+                  style={[
+                    styles.paymentOption,
+                    paymentMethod === 'efectivo' && styles.paymentOptionSelected,
+                  ]}
+                  onPress={() => setPaymentMethod('efectivo')}
+                  activeOpacity={0.8}
+                >
+                  <MaterialCommunityIcons
+                    name="cash-multiple"
+                    size={24}
+                    color={paymentMethod === 'efectivo' ? Colors.primary : Colors.textSecondary}
+                    style={{ marginRight: 10 }}
+                  />
+                  <View style={styles.paymentOptionText}>
+                    <Text style={[styles.paymentOptionLabel, paymentMethod === 'efectivo' && styles.paymentOptionLabelSelected]}>
+                      Contra entrega / Efectivo
+                    </Text>
+                    <Text style={styles.paymentOptionSub}>Abonás en efectivo cuando recibís tu pedido</Text>
+                  </View>
+                  <View style={[styles.radioCircle, paymentMethod === 'efectivo' && styles.radioCircleSelected]}>
+                    {paymentMethod === 'efectivo' && <View style={styles.radioDot} />}
+                  </View>
+                </TouchableOpacity>
+              )}
 
-              {paymentMethod === 'efectivo' && (
+              {paymentMethod === 'efectivo' && isMethodAllowed('efectivo') && (
                 <View style={styles.efectivoDetailsBox}>
                   <Text style={styles.inputLabel}>¿Con cuánto vas a abonar? (Opcional)</Text>
                   <TextInput
@@ -938,32 +1021,34 @@ export default function CarritoScreen() {
               )}
 
               {/* Opción 2: Mercado Pago */}
-              <TouchableOpacity
-                style={[
-                  styles.paymentOption,
-                  paymentMethod === 'mercadopago' && styles.paymentOptionSelected,
-                ]}
-                onPress={() => setPaymentMethod('mercadopago')}
-                activeOpacity={0.8}
-              >
-                <MaterialCommunityIcons
-                  name="credit-card-outline"
-                  size={24}
-                  color={paymentMethod === 'mercadopago' ? Colors.primary : Colors.textSecondary}
-                  style={{ marginRight: 10 }}
-                />
-                <View style={styles.paymentOptionText}>
-                  <Text style={[styles.paymentOptionLabel, paymentMethod === 'mercadopago' && styles.paymentOptionLabelSelected]}>
-                    Mercado Pago (Tarjeta o dinero en cuenta)
-                  </Text>
-                  <Text style={styles.paymentOptionSub}>Dinero en cuenta, débito o crédito</Text>
-                </View>
-                <View style={[styles.radioCircle, paymentMethod === 'mercadopago' && styles.radioCircleSelected]}>
-                  {paymentMethod === 'mercadopago' && <View style={styles.radioDot} />}
-                </View>
-              </TouchableOpacity>
+              {isMethodAllowed('mercadopago') && (
+                <TouchableOpacity
+                  style={[
+                    styles.paymentOption,
+                    paymentMethod === 'mercadopago' && styles.paymentOptionSelected,
+                  ]}
+                  onPress={() => setPaymentMethod('mercadopago')}
+                  activeOpacity={0.8}
+                >
+                  <MaterialCommunityIcons
+                    name="credit-card-outline"
+                    size={24}
+                    color={paymentMethod === 'mercadopago' ? Colors.primary : Colors.textSecondary}
+                    style={{ marginRight: 10 }}
+                  />
+                  <View style={styles.paymentOptionText}>
+                    <Text style={[styles.paymentOptionLabel, paymentMethod === 'mercadopago' && styles.paymentOptionLabelSelected]}>
+                      Mercado Pago (Tarjeta o dinero en cuenta)
+                    </Text>
+                    <Text style={styles.paymentOptionSub}>Dinero en cuenta, débito o crédito</Text>
+                  </View>
+                  <View style={[styles.radioCircle, paymentMethod === 'mercadopago' && styles.radioCircleSelected]}>
+                    {paymentMethod === 'mercadopago' && <View style={styles.radioDot} />}
+                  </View>
+                </TouchableOpacity>
+              )}
 
-              {paymentMethod === 'mercadopago' && (
+              {paymentMethod === 'mercadopago' && isMethodAllowed('mercadopago') && (
                 <View style={styles.mpDetailsBox}>
                   <MaterialCommunityIcons name="security" size={16} color={Colors.primary} style={{ marginRight: 6 }} />
                   <Text style={styles.mpDetailsText}>
@@ -973,32 +1058,34 @@ export default function CarritoScreen() {
               )}
 
               {/* Opción 3: Transferencia Bancaria */}
-              <TouchableOpacity
-                style={[
-                  styles.paymentOption,
-                  paymentMethod === 'transferencia' && styles.paymentOptionSelected,
-                ]}
-                onPress={() => setPaymentMethod('transferencia')}
-                activeOpacity={0.8}
-              >
-                <MaterialCommunityIcons
-                  name="bank"
-                  size={24}
-                  color={paymentMethod === 'transferencia' ? Colors.primary : Colors.textSecondary}
-                  style={{ marginRight: 10 }}
-                />
-                <View style={styles.paymentOptionText}>
-                  <Text style={[styles.paymentOptionLabel, paymentMethod === 'transferencia' && styles.paymentOptionLabelSelected]}>
-                    Transferencia Bancaria
-                  </Text>
-                  <Text style={styles.paymentOptionSub}>Mostrar datos bancarios al confirmar</Text>
-                </View>
-                <View style={[styles.radioCircle, paymentMethod === 'transferencia' && styles.radioCircleSelected]}>
-                  {paymentMethod === 'transferencia' && <View style={styles.radioDot} />}
-                </View>
-              </TouchableOpacity>
+              {isMethodAllowed('transferencia') && (
+                <TouchableOpacity
+                  style={[
+                    styles.paymentOption,
+                    paymentMethod === 'transferencia' && styles.paymentOptionSelected,
+                  ]}
+                  onPress={() => setPaymentMethod('transferencia')}
+                  activeOpacity={0.8}
+                >
+                  <MaterialCommunityIcons
+                    name="bank"
+                    size={24}
+                    color={paymentMethod === 'transferencia' ? Colors.primary : Colors.textSecondary}
+                    style={{ marginRight: 10 }}
+                  />
+                  <View style={styles.paymentOptionText}>
+                    <Text style={[styles.paymentOptionLabel, paymentMethod === 'transferencia' && styles.paymentOptionLabelSelected]}>
+                      Transferencia Bancaria
+                    </Text>
+                    <Text style={styles.paymentOptionSub}>Mostrar datos bancarios al confirmar</Text>
+                  </View>
+                  <View style={[styles.radioCircle, paymentMethod === 'transferencia' && styles.radioCircleSelected]}>
+                    {paymentMethod === 'transferencia' && <View style={styles.radioDot} />}
+                  </View>
+                </TouchableOpacity>
+              )}
 
-              {paymentMethod === 'transferencia' && (
+              {paymentMethod === 'transferencia' && isMethodAllowed('transferencia') && (
                 <View style={styles.bankDetailsBox}>
                   <Text style={styles.bankDetailsTitle}>Datos para transferencia:</Text>
                   <View style={styles.bankDetailRow}>
@@ -1021,9 +1108,188 @@ export default function CarritoScreen() {
                     <Text style={styles.bankDetailLabel}>CUIT:</Text>
                     <Text style={styles.bankDetailValue}>{companySettings?.cuit || '—'}</Text>
                   </View>
+                  {companySettings?.tipo_cuenta && (
+                    <View style={styles.bankDetailRow}>
+                      <Text style={styles.bankDetailLabel}>Cuenta:</Text>
+                      <Text style={styles.bankDetailValue}>{companySettings.tipo_cuenta}</Text>
+                    </View>
+                  )}
+                  {companySettings?.instrucciones_transferencia && (
+                    <Text style={{ fontSize: 12, color: '#1e40af', marginTop: 4, fontStyle: 'italic' }}>
+                      ℹ️ {companySettings.instrucciones_transferencia}
+                    </Text>
+                  )}
+
+                  <TouchableOpacity
+                    style={styles.sendReceiptBtn}
+                    onPress={() => {
+                      const waMessage = buildWhatsAppOrderMessage({
+                        orderNum: `PREV-${Date.now().toString().slice(-6)}`,
+                        customerName: clientData?.nombre || 'Cliente',
+                        customerPhone: clientData?.telefono || '',
+                        items: items.map((i) => {
+                          const calc = offerService.calculateFinalPrice(i.producto, i.cantidad, clientData?.tipoCliente || 'minorista', useCartStore.getState().promotions);
+                          return {
+                            name: i.producto.nombre,
+                            presentation: i.producto.presentacion,
+                            qty: i.cantidad,
+                            unitPrice: calc.priceFinal,
+                            subtotal: calc.subtotal,
+                          };
+                        }),
+                        total: total,
+                        deliveryMethod: deliveryMethod,
+                        deliveryDate: deliveryDate || undefined,
+                        deliveryTimeSlot: selectedSlot ? `${selectedSlot.hora_inicio} a ${selectedSlot.hora_fin} hs` : undefined,
+                        address: selectedAddress ? selectedAddress.direccion : clientData?.direccion,
+                        outOfStockPreference: outOfStockPreference,
+                        observaciones: observaciones,
+                        paymentMethod: 'transferencia',
+                        isTransferReceipt: true,
+                      });
+
+                      const waTarget = companySettings?.whatsapp_transferencias || companySettings?.whatsapp || '5493511234567';
+                      const cleanPhone = waTarget.replace(/[^0-9]/g, '');
+                      Linking.openURL(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(waMessage)}`);
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <MaterialCommunityIcons name="whatsapp" size={18} color="#ffffff" style={{ marginRight: 6 }} />
+                    <Text style={styles.sendReceiptBtnText}>Ya realicé la transferencia, enviar comprobante por WhatsApp</Text>
+                  </TouchableOpacity>
                 </View>
               )}
 
+              {/* Opción 4: Pago a acordar */}
+              {isMethodAllowed('pago_a_acordar') && (
+                <TouchableOpacity
+                  style={[
+                    styles.paymentOption,
+                    paymentMethod === 'pago_a_acordar' && styles.paymentOptionSelected,
+                  ]}
+                  onPress={() => setPaymentMethod('pago_a_acordar')}
+                  activeOpacity={0.8}
+                >
+                  <MaterialCommunityIcons
+                    name="handshake-outline"
+                    size={24}
+                    color={paymentMethod === 'pago_a_acordar' ? Colors.primary : Colors.textSecondary}
+                    style={{ marginRight: 10 }}
+                  />
+                  <View style={styles.paymentOptionText}>
+                    <Text style={[styles.paymentOptionLabel, paymentMethod === 'pago_a_acordar' && styles.paymentOptionLabelSelected]}>
+                      Pago a acordar
+                    </Text>
+                    <Text style={styles.paymentOptionSub}>Coordinar condiciones de pago con la administración</Text>
+                  </View>
+                  <View style={[styles.radioCircle, paymentMethod === 'pago_a_acordar' && styles.radioCircleSelected]}>
+                    {paymentMethod === 'pago_a_acordar' && <View style={styles.radioDot} />}
+                  </View>
+                </TouchableOpacity>
+              )}
+
+              {paymentMethod === 'pago_a_acordar' && isMethodAllowed('pago_a_acordar') && (
+                <View style={styles.acordarDetailsBox}>
+                  <MaterialCommunityIcons name="information-outline" size={18} color="#0369a1" style={{ marginRight: 8 }} />
+                  <Text style={styles.acordarDetailsText}>
+                    Un asesor de Química General Deheza se comunicará con vos para coordinar los detalles y condiciones de pago.
+                  </Text>
+                </View>
+              )}
+
+              {/* Opción 5: Cuenta Corriente */}
+              {isMethodAllowed('cuenta_corriente') && (
+                <TouchableOpacity
+                  style={[
+                    styles.paymentOption,
+                    paymentMethod === 'cuenta_corriente' && styles.paymentOptionSelected,
+                  ]}
+                  onPress={() => setPaymentMethod('cuenta_corriente')}
+                  activeOpacity={0.8}
+                >
+                  <MaterialCommunityIcons
+                    name="file-document-outline"
+                    size={24}
+                    color={paymentMethod === 'cuenta_corriente' ? Colors.primary : Colors.textSecondary}
+                    style={{ marginRight: 10 }}
+                  />
+                  <View style={styles.paymentOptionText}>
+                    <Text style={[styles.paymentOptionLabel, paymentMethod === 'cuenta_corriente' && styles.paymentOptionLabelSelected]}>
+                      Cuenta Corriente
+                    </Text>
+                    <Text style={styles.paymentOptionSub}>Imputar el pedido a tu saldo en cuenta corriente</Text>
+                  </View>
+                  <View style={[styles.radioCircle, paymentMethod === 'cuenta_corriente' && styles.radioCircleSelected]}>
+                    {paymentMethod === 'cuenta_corriente' && <View style={styles.radioDot} />}
+                  </View>
+                </TouchableOpacity>
+              )}
+
+            </View>
+          </View>
+
+          {/* ── Preferencia ante falta de stock ── */}
+          <View style={styles.section}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+              <MaterialCommunityIcons name="help-circle-outline" size={20} color={Colors.primary} style={{ marginRight: 6 }} />
+              <Text style={styles.sectionTitle}>En caso de no contar con algún producto:</Text>
+            </View>
+            <Text style={{ fontSize: 13, color: Colors.textSecondary, marginBottom: 12 }}>
+              ¿Qué preferís que hagamos si algún artículo no tiene stock disponible?
+            </Text>
+
+            <View style={styles.paymentOptions}>
+              {/* Opción 1: Llamar */}
+              <TouchableOpacity
+                style={[
+                  styles.paymentOption,
+                  outOfStockPreference === 'llamar' && styles.paymentOptionSelected,
+                ]}
+                onPress={() => setOutOfStockPreference('llamar')}
+                activeOpacity={0.8}
+              >
+                <MaterialCommunityIcons
+                  name="phone-in-talk-outline"
+                  size={24}
+                  color={outOfStockPreference === 'llamar' ? Colors.primary : Colors.textSecondary}
+                  style={{ marginRight: 10 }}
+                />
+                <View style={styles.paymentOptionText}>
+                  <Text style={[styles.paymentOptionLabel, outOfStockPreference === 'llamar' && styles.paymentOptionLabelSelected]}>
+                    📞 Llamarme para consultar
+                  </Text>
+                  <Text style={styles.paymentOptionSub}>Nos comunicaremos por teléfono o WhatsApp para coordinar</Text>
+                </View>
+                <View style={[styles.radioCircle, outOfStockPreference === 'llamar' && styles.radioCircleSelected]}>
+                  {outOfStockPreference === 'llamar' && <View style={styles.radioDot} />}
+                </View>
+              </TouchableOpacity>
+
+              {/* Opción 2: Reemplazar por similar */}
+              <TouchableOpacity
+                style={[
+                  styles.paymentOption,
+                  outOfStockPreference === 'reemplazar' && styles.paymentOptionSelected,
+                ]}
+                onPress={() => setOutOfStockPreference('reemplazar')}
+                activeOpacity={0.8}
+              >
+                <MaterialCommunityIcons
+                  name="swap-horizontal-bold"
+                  size={24}
+                  color={outOfStockPreference === 'reemplazar' ? Colors.primary : Colors.textSecondary}
+                  style={{ marginRight: 10 }}
+                />
+                <View style={styles.paymentOptionText}>
+                  <Text style={[styles.paymentOptionLabel, outOfStockPreference === 'reemplazar' && styles.paymentOptionLabelSelected]}>
+                    🔄 Elegir otro artículo similar por mí
+                  </Text>
+                  <Text style={styles.paymentOptionSub}>Reemplazaremos por una alternativa similar de igual o mejor calidad</Text>
+                </View>
+                <View style={[styles.radioCircle, outOfStockPreference === 'reemplazar' && styles.radioCircleSelected]}>
+                  {outOfStockPreference === 'reemplazar' && <View style={styles.radioDot} />}
+                </View>
+              </TouchableOpacity>
             </View>
           </View>
 
@@ -1057,6 +1323,12 @@ export default function CarritoScreen() {
                 <Text style={styles.summaryLabel}>Entrega</Text>
                 <Text style={styles.summaryValue}>
                   {DELIVERY_OPTIONS.find((o) => o.key === deliveryMethod)?.label}
+                </Text>
+              </View>
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>Ante falta de stock</Text>
+                <Text style={[styles.summaryValue, { fontWeight: '600', color: Colors.primary }]}>
+                  {outOfStockPreference === 'llamar' ? '📞 Llamarme' : '🔄 Artículo similar'}
                 </Text>
               </View>
               {deliveryMethod !== 'retiro' && selectedSlot && (
@@ -1860,6 +2132,25 @@ const styles = StyleSheet.create({
     color: Colors.primary,
     fontWeight: '500',
   },
+  acordarDetailsBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: Spacing.md,
+    backgroundColor: '#f0f9ff',
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: '#bae6fd',
+    marginTop: -8,
+    marginBottom: 8,
+    marginHorizontal: 4,
+  },
+  acordarDetailsText: {
+    flex: 1,
+    fontSize: 13,
+    color: '#0369a1',
+    fontWeight: '500',
+    lineHeight: 18,
+  },
   bankDetailsBox: {
     padding: Spacing.xl,
     backgroundColor: '#f8fafc',
@@ -1892,6 +2183,28 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: Colors.textPrimary,
     fontWeight: '600',
+  },
+  sendReceiptBtn: {
+    marginTop: 10,
+    backgroundColor: '#25D366',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: Radius.md,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.15,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  sendReceiptBtnText: {
+    color: '#ffffff',
+    fontSize: 12.5,
+    fontWeight: FontWeight.bold,
+    textAlign: 'center',
+    flexShrink: 1,
   },
 
   // Cuadro confirmado banco
@@ -1936,25 +2249,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: Colors.textPrimary,
     fontWeight: '600',
-  },
-  sendReceiptBtn: {
-    backgroundColor: '#16a34a',
-    borderRadius: Radius.md,
-    height: 48,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: Spacing.sm,
-    shadowColor: '#16a34a',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 6,
-    elevation: 3,
-  },
-  sendReceiptBtnText: {
-    color: Colors.white,
-    fontWeight: FontWeight.bold,
-    fontSize: 14,
   },
   orderHistoryCard: {
     backgroundColor: Colors.white,

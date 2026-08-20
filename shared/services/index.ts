@@ -13,5 +13,8 @@ export * from './supabaseClient';
 export * from './offerService';
 export * from './deliverySlotService';
 export * from './companySettingsService';
+export * from './refundService';
+export * from './zoneService';
+export * from './routeService';
 
 

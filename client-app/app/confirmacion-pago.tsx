@@ -169,6 +169,7 @@ export default function ConfirmacionPagoScreen() {
   };
 
   const getStatusBadge = () => {
+    const { urlStatus } = paramsRef.current;
     const status = orderState?.paymentStatus || (urlStatus === 'approved' ? 'pagado' : urlStatus === 'rejected' ? 'rechazado' : 'pendiente');
 
     switch (status) {
@@ -215,6 +216,7 @@ export default function ConfirmacionPagoScreen() {
   };
 
   const statusInfo = getStatusBadge();
+  const { orderId, paymentId } = paramsRef.current;
 
   return (
     <SafeAreaView style={styles.safeArea}>

@@ -18,6 +18,7 @@ import { useAuthStore } from '../../store/authStore';
 import { customAlert } from '../../utils/alert';
 import MaterialCommunityIcons from '../icons/MaterialCommunityIcons';
 import { supabase } from '@shared/services/supabaseClient';
+import { AppFooter } from '../AppFooter';
 
 const CAROUSEL_IMAGES = [
   {
@@ -388,9 +389,9 @@ export function DesktopStartScreen() {
             {/* Logo de la empresa */}
             <View style={styles.logoWrapper}>
               <Image
-                source={require('../../assets/logo.png')}
+                source={require('../../assets/logo2.png')}
                 style={styles.logoImage}
-                resizeMode="contain"
+                resizeMode="cover"
               />
               <Text style={styles.logoSubtext}>
                 Registrate, mirá nuestro catálogo y realizá tu pedido.
@@ -811,6 +812,9 @@ export function DesktopStartScreen() {
                 </View>
               </View>
             </View>
+
+            {/* Footer con FAQs, Términos & Condiciones y Botón de Arrepentimiento */}
+            <AppFooter />
           </ScrollView>
         </View>
       </View>
@@ -1011,8 +1015,9 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   logoImage: {
-    width: 140,
-    height: 60,
+    width: 80,
+    height: 80,
+    borderRadius: 16,
     marginBottom: 12,
   },
   logoSubtext: {

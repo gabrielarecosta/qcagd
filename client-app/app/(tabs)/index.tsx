@@ -28,6 +28,7 @@ import MaterialCommunityIcons from '../../components/icons/MaterialCommunityIcon
 import { useEntrance } from '../../hooks/useEntrance';
 import { DesktopStartScreen } from '../../components/screens/DesktopStartScreen';
 import { MobileStartScreen } from '../../components/screens/MobileStartScreen';
+import { AppFooter } from '../../components/AppFooter';
 
 
 const QUICK_CATEGORIES: ProductCategory[] = ['limpieza', 'quimicos', 'perfumeria', 'descartables', 'piscina', 'industrial', 'hogar', 'institucional'];
@@ -245,9 +246,9 @@ export default function HomeScreen() {
           </View>
           <View style={styles.logoContainer}>
             <Image
-              source={require('../../assets/logo.png')}
+              source={require('../../assets/logo2.png')}
               style={styles.logoImage}
-              resizeMode="contain"
+              resizeMode="cover"
             />
           </View>
         </Animated.View>
@@ -481,7 +482,8 @@ export default function HomeScreen() {
           ))}
         </Animated.View>
 
-        <View style={{ height: Spacing.xxxl }} />
+        {/* Footer con FAQs, Términos & Condiciones y Botón de Arrepentimiento */}
+        <AppFooter />
       </ScrollView>
 
       {/* ── Modal Detalle de Oferta Combo ── */}

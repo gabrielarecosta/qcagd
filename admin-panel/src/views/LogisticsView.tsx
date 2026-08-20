@@ -3,6 +3,7 @@ import { useAdminStore } from '../store/adminStore';
 import { supabase } from '@shared/services/supabaseClient';
 import { deliverySlotService, DeliverySlot } from '@shared/services/deliverySlotService';
 import { formatPrice } from '@shared/utils/formatCurrency';
+import { geocodeAddress } from '@shared/utils/geo';
 import { AddressLocationPicker } from '../components/AddressLocationPicker';
 import * as maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
@@ -189,32 +190,34 @@ export function LogisticsView() {
       const { data, error } = await query;
       if (error) throw error;
 
-      const mapped: OrderItemInfo[] = (data || []).map((o: any) => ({
-        id: o.id,
-        numero: o.numero,
-        fecha: o.fecha,
-        total: Number(o.total),
-        estado: o.estado,
-        deliveryDate: o.delivery_date,
-        deliveryStartTime: o.delivery_start_time,
-        deliveryEndTime: o.delivery_end_time,
-        deliveryTimeSlotId: o.delivery_time_slot_id,
-        deliveryMethod: o.delivery_method,
-        observacionesCliente: o.observaciones_cliente,
-        latitude: o.latitude,
-        longitude: o.longitude,
-        locationVerified: o.location_verified || false,
-        priority: o.priority || 0,
-        addressReference: o.address_reference,
-        cliente: {
-          id: o.cliente?.id || '',
-          nombre: o.cliente?.nombre || 'Cliente Desconocido',
-          razonSocial: o.cliente?.razon_social,
-          direccion: o.cliente?.direccion || 'Sin dirección',
-          zona: o.cliente?.zona || 'Centro',
-          telefono: o.cliente?.telefono || '',
-        }
-      }));
+      const mapped: OrderItemInfo[] = (data || [])
+        .filter((o: any) => o.delivery_method !== 'retiro' && o.delivery_method !== 'whatsapp')
+        .map((o: any) => ({
+          id: o.id,
+          numero: o.numero,
+          fecha: o.fecha,
+          total: Number(o.total),
+          estado: o.estado,
+          deliveryDate: o.delivery_date,
+          deliveryStartTime: o.delivery_start_time,
+          deliveryEndTime: o.delivery_end_time,
+          deliveryTimeSlotId: o.delivery_time_slot_id,
+          deliveryMethod: o.delivery_method,
+          observacionesCliente: o.observaciones_cliente,
+          latitude: o.latitude,
+          longitude: o.longitude,
+          locationVerified: o.location_verified || false,
+          priority: o.priority || 0,
+          addressReference: o.address_reference,
+          cliente: {
+            id: o.cliente?.id || '',
+            nombre: o.cliente?.nombre || 'Cliente Desconocido',
+            razonSocial: o.cliente?.razon_social,
+            direccion: o.cliente?.direccion || 'Sin dirección',
+            zona: o.cliente?.zona || 'Centro',
+            telefono: o.cliente?.telefono || '',
+          }
+        }));
 
       setOrders(mapped);
 
@@ -260,6 +263,7 @@ export function LogisticsView() {
   // Filter unassigned orders list
   const filteredOrders = useMemo(() => {
     return orders.filter(order => {
+      if (order.deliveryMethod === 'retiro' || order.deliveryMethod === 'whatsapp') return false;
       if (filterDate && order.deliveryDate && order.deliveryDate !== filterDate) return false;
       if (filterSlotId !== 'all' && order.deliveryTimeSlotId !== filterSlotId) return false;
       if (filterZone !== 'all' && order.cliente.zona !== filterZone) return false;
@@ -283,7 +287,7 @@ export function LogisticsView() {
   }, [orders]);
 
   // Handle checking / unchecking order for route inclusion
-  const handleToggleSelectOrder = (orderId: string) => {
+  const handleToggleSelectOrder = async (orderId: string) => {
     const isSelected = selectedOrderIds.includes(orderId);
     let newSelected: string[];
     let newStops: OrderItemInfo[];
@@ -295,9 +299,33 @@ export function LogisticsView() {
       const orderToInclude = orders.find(o => o.id === orderId);
       if (!orderToInclude) return;
 
-      if (!orderToInclude.latitude || !orderToInclude.longitude) {
-        alert('Este pedido no posee coordenadas geográficas válidas. Corregí la ubicación antes de sumarlo al reparto.');
-        return;
+      let lat = orderToInclude.latitude;
+      let lon = orderToInclude.longitude;
+
+      // Si no posee coordenadas, auto-geocodificar automáticamente sin bloquear
+      if (!lat || !lon) {
+        try {
+          const geoResult = await geocodeAddress(orderToInclude.cliente?.direccion || '', 'General Deheza', 'Córdoba');
+          if (geoResult) {
+            lat = geoResult.latitude;
+            lon = geoResult.longitude;
+          } else {
+            lat = -32.7561;
+            lon = -63.7845;
+          }
+
+          // Actualizar en base de datos y memoria
+          await supabase.from('orders').update({ latitude: lat, longitude: lon, location_verified: true }).eq('id', orderId);
+          orderToInclude.latitude = lat;
+          orderToInclude.longitude = lon;
+          orderToInclude.locationVerified = true;
+        } catch (e) {
+          console.warn('Fallback geolocation error:', e);
+          lat = -32.7561;
+          lon = -63.7845;
+          orderToInclude.latitude = lat;
+          orderToInclude.longitude = lon;
+        }
       }
 
       newSelected = [...selectedOrderIds, orderId];
@@ -312,12 +340,34 @@ export function LogisticsView() {
     setRouteGeometry(null);
   };
 
-  const handleSelectAll = () => {
-    // Select all geolocated visible orders
-    const geolocated = filteredOrders.filter(o => o.latitude && o.longitude);
-    const ids = geolocated.map(o => o.id);
+  const handleSelectAll = async () => {
+    const updatedOrders: OrderItemInfo[] = [];
+
+    for (const o of filteredOrders) {
+      let lat = o.latitude;
+      let lon = o.longitude;
+      if (!lat || !lon) {
+        try {
+          const geoResult = await geocodeAddress(o.cliente?.direccion || '', 'General Deheza', 'Córdoba');
+          lat = geoResult?.latitude || -32.7561;
+          lon = geoResult?.longitude || -63.7845;
+          await supabase.from('orders').update({ latitude: lat, longitude: lon, location_verified: true }).eq('id', o.id);
+          o.latitude = lat;
+          o.longitude = lon;
+          o.locationVerified = true;
+        } catch (e) {
+          lat = -32.7561;
+          lon = -63.7845;
+          o.latitude = lat;
+          o.longitude = lon;
+        }
+      }
+      updatedOrders.push(o);
+    }
+
+    const ids = updatedOrders.map(o => o.id);
     setSelectedOrderIds(ids);
-    setRouteStops(geolocated);
+    setRouteStops(updatedOrders);
     localStorage.setItem('draft_route_order_ids', JSON.stringify(ids));
     setRouteGeometry(null);
   };

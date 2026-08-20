@@ -16,6 +16,9 @@ const mapCustomer = (d: any): Customer => ({
   activo: d.activo,
   observaciones: d.observaciones || undefined,
   fechaAlta: d.fecha_alta,
+  latitude: d.latitude ? Number(d.latitude) : undefined,
+  longitude: d.longitude ? Number(d.longitude) : undefined,
+  locationVerified: d.location_verified || false,
 });
 
 export const clientService = {
@@ -54,6 +57,9 @@ export const clientService = {
       tipo_cliente: updates.tipoCliente,
       activo: updates.activo,
       observaciones: updates.observaciones,
+      latitude: updates.latitude,
+      longitude: updates.longitude,
+      location_verified: updates.locationVerified ?? (updates.latitude ? true : undefined),
       updated_at: new Date().toISOString(),
     };
 
@@ -85,6 +91,9 @@ export const clientService = {
       tipo_cliente: client.tipoCliente ?? 'minorista',
       activo: client.activo ?? true,
       observaciones: client.observaciones,
+      latitude: client.latitude,
+      longitude: client.longitude,
+      location_verified: client.latitude ? true : false,
       fecha_alta: new Date().toISOString(),
     };
 
@@ -96,6 +105,7 @@ export const clientService = {
     if (error) throw error;
     return mapCustomer(data);
   },
+
 
   delete: async (id: string, deletedBy?: string): Promise<boolean> => {
     const { error } = await supabase
@@ -159,6 +169,29 @@ export const clientService = {
 
     if (error) throw error;
     return true;
+  },
+
+  updateAddress: async (id: string, updates: Partial<CustomerAddress>): Promise<CustomerAddress> => {
+    const dbUpdates: any = {
+      direccion: updates.direccion,
+      zona: updates.zona,
+      indicaciones: updates.indicaciones,
+      latitude: updates.latitude,
+      longitude: updates.longitude,
+      location_verified: updates.locationVerified,
+      default_address: updates.defaultAddress,
+    };
+    Object.keys(dbUpdates).forEach(key => dbUpdates[key] === undefined && delete dbUpdates[key]);
+
+    const { data, error } = await supabase
+      .from('customer_addresses')
+      .update(dbUpdates)
+      .eq('id', id)
+      .select('*')
+      .single();
+
+    if (error) throw error;
+    return mapAddress(data);
   },
 
   setDefaultAddress: async (customerId: string, id: string): Promise<boolean> => {

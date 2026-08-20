@@ -17,11 +17,19 @@ export function calculateChange(total: number, paidAmount?: number) {
 
 export function getPaymentMethodLabel(method: string): string {
   switch (method) {
-    case 'mercado_pago': return 'Mercado Pago';
-    case 'efectivo': return 'Efectivo';
-    case 'transferencia': return 'Transferencia Bancaria';
-    case 'cuenta_corriente': return 'Cuenta Corriente';
-    default: return 'A convenir';
+    case 'mercado_pago':
+    case 'mercadopago':
+      return 'Mercado Pago';
+    case 'efectivo':
+      return 'Efectivo';
+    case 'transferencia':
+      return 'Transferencia Bancaria';
+    case 'cuenta_corriente':
+      return 'Cuenta Corriente';
+    case 'pago_a_acordar':
+      return 'Pago a acordar';
+    default:
+      return 'A convenir';
   }
 }
 

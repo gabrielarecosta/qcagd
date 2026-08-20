@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import logoImg from './assets/logo.png';
+import logoImg from './assets/logo2.png';
 import { useAdminStore } from './store/adminStore';
 import { supabase } from '@shared/services';
 
@@ -34,6 +34,7 @@ type TabType =
   | 'logistics'
   | 'zones'
   | 'payments'
+  | 'paymentConfig'
   | 'clientConfig'
   | 'users'
   | 'reports';
@@ -90,11 +91,19 @@ const getSidebarIcon = (id: TabType) => {
         </svg>
       );
     case 'payments':
-
       return (
         <svg {...props}>
           <rect x="2" y="4" width="20" height="16" rx="2" ry="2"/>
           <line x1="2" y1="10" x2="22" y2="10"/>
+        </svg>
+      );
+    case 'paymentConfig':
+      return (
+        <svg {...props}>
+          <rect x="2" y="5" width="20" height="14" rx="2" />
+          <line x1="2" y1="10" x2="22" y2="10" />
+          <circle cx="7" cy="15" r="1" />
+          <circle cx="11" cy="15" r="1" />
         </svg>
       );
     case 'products':
@@ -180,6 +189,7 @@ function App() {
   const [productFilter, setProductFilter] = useState<'all' | 'no-photo'>('all');
   const [showNotifications, setShowNotifications] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
   const { 
@@ -302,6 +312,7 @@ function App() {
     { id: 'branches', label: 'Sucursales', group: 'Configuración' },
     { id: 'sectors', label: 'Sectores Internos', group: 'Configuración' },
     { id: 'zones', label: 'Zonas y Horarios', group: 'Configuración' },
+    { id: 'paymentConfig', label: 'Medios de Pago & CBU', group: 'Configuración' },
     { id: 'clientConfig', label: 'Configuración App', group: 'Configuración' },
     { id: 'users', label: 'Personal / Roles', group: 'Configuración' },
     { id: 'reports', label: 'Reportes / Métricas', group: 'Configuración' },
@@ -346,8 +357,9 @@ function App() {
       case 'zones':
         return <ZonesView />;
       case 'payments':
-        return <PaymentsView />;
-
+        return <PaymentsView initialTab="caja" />;
+      case 'paymentConfig':
+        return <PaymentsView initialTab="config" />;
       case 'clientConfig':
         return <ClientConfigView />;
       case 'users':
@@ -382,25 +394,44 @@ function App() {
   }
 
   return (
-    <div className="app-container" style={{ display: 'flex', width: '100%' }}>
+    <div className="app-container" style={{ display: 'flex', width: '100%', minHeight: '100vh', position: 'relative' }}>
+      {/* Backdrop overlay para pantallas móviles */}
+      <div 
+        className={`sidebar-backdrop ${mobileMenuOpen ? 'active' : ''}`}
+        onClick={() => setMobileMenuOpen(false)}
+        aria-hidden="true"
+      />
+
       {/* Sidebar Panel */}
-      <aside className={`sidebar ${sidebarCollapsed ? 'collapsed' : ''}`}>
+      <aside className={`sidebar ${sidebarCollapsed ? 'collapsed' : ''} ${mobileMenuOpen ? 'mobile-open' : ''}`}>
         <div className="sidebar-logo">
           {!sidebarCollapsed ? (
             <>
-              <img src={logoImg} className="sidebar-logo-icon" alt="Logo" style={{ objectFit: 'contain', background: '#fff', padding: '2px' }} />
-              <div className="sidebar-logo-text" style={{ flex: 1 }}>Química Deheza</div>
+              <img src={logoImg} className="sidebar-logo-icon" alt="Logo" style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '8px', padding: 0 }} />
+              <div className="sidebar-logo-text" style={{ flex: 1 }}>Química General Deheza</div>
             </>
           ) : (
-            <img src={logoImg} className="sidebar-logo-icon" alt="Logo" style={{ objectFit: 'contain', background: '#fff', padding: '2px', margin: '0' }} />
+            <img src={logoImg} className="sidebar-logo-icon" alt="Logo" style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '8px', padding: 0, margin: '0' }} />
           )}
+          
+          {/* Botón colapsar para desktop */}
           <button 
-            className="sidebar-toggle-btn"
+            className="sidebar-toggle-btn desktop-only"
             onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
             title={sidebarCollapsed ? "Expandir menú" : "Colapsar menú"}
             style={{ marginLeft: sidebarCollapsed ? '0' : '8px' }}
           >
             {sidebarCollapsed ? '❯' : '❮'}
+          </button>
+
+          {/* Botón cerrar para mobile */}
+          <button 
+            className="sidebar-close-mobile-btn mobile-only"
+            onClick={() => setMobileMenuOpen(false)}
+            title="Cerrar menú"
+            aria-label="Cerrar menú"
+          >
+            ✕
           </button>
         </div>
 
@@ -416,7 +447,10 @@ function App() {
                   <button
                     key={item.id}
                     className={`sidebar-item ${activeTab === item.id ? 'sidebar-item-active' : ''}`}
-                    onClick={() => setActiveTab(item.id as TabType)}
+                    onClick={() => {
+                      setActiveTab(item.id as TabType);
+                      setMobileMenuOpen(false);
+                    }}
                     style={{ border: 'none', background: 'none', textAlign: 'left', width: '100%', display: 'flex', alignItems: 'center' }}
                     title={sidebarCollapsed ? item.label : undefined}
                   >
@@ -468,38 +502,39 @@ function App() {
                 {currentUser.rol === 'admin' ? 'Administrador' : currentUser.rol}
               </div>
             </div>
-            {!sidebarCollapsed && (
-              <button
-                onClick={() => setCurrentUser(null)}
-                title="Cerrar Sesión"
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: '#94a3b8',
-                  cursor: 'pointer',
-                  padding: '6px',
-                  borderRadius: '6px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  transition: 'all 0.2s',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.color = '#ef4444';
-                  e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.color = '#94a3b8';
-                  e.currentTarget.style.background = 'none';
-                }}
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-                  <polyline points="16 17 21 12 16 7" />
-                  <line x1="21" y1="12" x2="9" y2="12" />
-                </svg>
-              </button>
-            )}
+            <button
+              onClick={() => {
+                setCurrentUser(null);
+                setMobileMenuOpen(false);
+              }}
+              title="Cerrar Sesión"
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#94a3b8',
+                cursor: 'pointer',
+                padding: '6px',
+                borderRadius: '6px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                transition: 'all 0.2s',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.color = '#ef4444';
+                e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.color = '#94a3b8';
+                e.currentTarget.style.background = 'none';
+              }}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                <polyline points="16 17 21 12 16 7" />
+                <line x1="21" y1="12" x2="9" y2="12" />
+              </svg>
+            </button>
           </div>
         )}
       </aside>
@@ -507,6 +542,20 @@ function App() {
       {/* Main Panel Content Wrapper */}
       <div className="main-wrapper">
         <header className="top-header">
+          {/* Botón Menú Hamburguesa para Móvil y Tablet */}
+          <button 
+            className="mobile-menu-toggle-btn mobile-only"
+            onClick={() => setMobileMenuOpen(true)}
+            title="Abrir menú de navegación"
+            aria-label="Abrir menú de navegación"
+          >
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="3" y1="12" x2="21" y2="12"></line>
+              <line x1="3" y1="6" x2="21" y2="6"></line>
+              <line x1="3" y1="18" x2="21" y2="18"></line>
+            </svg>
+          </button>
+
           {/* Header Title Section & Branch filter */}
           <div className="header-title-section">
             <div className="sucursal-select-container">

@@ -5,14 +5,14 @@ import {
   TouchableOpacity,
   StyleSheet,
   ViewStyle,
+  Animated,
 } from 'react-native';
 import { Order, ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from '../types';
 import { Colors } from '../constants/Colors';
 import { FontSize, FontWeight } from '../constants/Typography';
 import { Radius, Spacing } from '../constants/Spacing';
-import { formatPrice, formatShortDate } from '../utils/formatters';
+import { formatPrice, formatShortDate, formatTime } from '../utils/formatters';
 import { useEntrance } from '../hooks/useEntrance';
-import { Animated } from 'react-native';
 
 interface OrderCardProps {
   order: Order;
@@ -42,7 +42,11 @@ export function OrderCard({ order, onPress, onRepeat, style, compact = false, de
       ? (isPaid ? '🏦 Transf. (Pagado)' : '🏦 Transf. (Pendiente)')
       : order.paymentMethod === 'mercadopago'
       ? (isPaid ? '💳 MP (Pagado)' : '💳 MP (Pendiente)')
-      : '💵 Efectivo';
+      : order.paymentMethod === 'pago_a_acordar'
+      ? '🤝 A acordar'
+      : order.paymentMethod === 'cuenta_corriente'
+      ? '📋 Cta. Cte.'
+      : (isPaid ? '💵 Efectivo (Cobrado)' : '💵 Efectivo');
 
   return (
     <Animated.View style={[animatedStyle]}>
@@ -55,7 +59,7 @@ export function OrderCard({ order, onPress, onRepeat, style, compact = false, de
         <View style={styles.header}>
           <View style={styles.headerLeft}>
             <Text style={styles.numero}>{order.numero}</Text>
-            <Text style={styles.fecha}>{formatShortDate(order.fecha)}</Text>
+            <Text style={styles.fecha}>{formatShortDate(order.fecha)} • {formatTime(order.fecha)} hs</Text>
           </View>
           <View style={styles.headerBadges}>
             <View style={[styles.statusBadge, { backgroundColor: `${statusColor}18` }]}>

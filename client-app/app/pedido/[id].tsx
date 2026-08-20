@@ -21,6 +21,7 @@ import { useOrderStore } from '../../store/orderStore';
 import { useAuthStore } from '../../store/authStore';
 import { useCartStore } from '../../store/cartStore';
 import { companySettingsService } from '@shared/services/companySettingsService';
+import { buildWhatsAppOrderMessage } from '@shared/utils/whatsappOrderMessage';
 import { customAlert } from '../../utils/alert';
 
 export default function OrderDetailScreen() {
@@ -28,7 +29,7 @@ export default function OrderDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { orders, fetchOrders } = useOrderStore();
   const { clientData, isLoggedIn } = useAuthStore();
-  const { repeatOrder } = useCartStore();
+  const repeatOrder = useCartStore((state) => state.repeatOrder);
 
   const [companySettings, setCompanySettings] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -36,16 +37,13 @@ export default function OrderDetailScreen() {
   useEffect(() => {
     const init = async () => {
       try {
-        setLoading(true);
-        if (clientData?.id) {
-          await fetchOrders(clientData.id);
-        } else {
-          await fetchOrders();
-        }
-        const settings = await companySettingsService.get();
+        const [settings] = await Promise.all([
+          companySettingsService.get(),
+          fetchOrders(clientData?.id),
+        ]);
         setCompanySettings(settings);
       } catch (err) {
-        console.warn('Error cargando datos del pedido:', err);
+        console.warn('Error cargando pedido:', err);
       } finally {
         setLoading(false);
       }
@@ -64,14 +62,31 @@ export default function OrderDetailScreen() {
   };
 
   const handleSendReceipt = (ord: Order) => {
-    const waText = encodeURIComponent(
-      `*Comprobante de Pago — Química Deheza*\n` +
-      `Hola! Acabo de realizar la transferencia para mi pedido *${ord.numero}*\n` +
-      `*Monto:* ${formatPrice(ord.total)}\n` +
-      `Adjunto aquí abajo la captura del comprobante bancario.`
-    );
-    const targetNumber = companySettings?.whatsapp || '5493511234567';
-    Linking.openURL(`https://wa.me/${targetNumber}?text=${waText}`);
+    const waMessage = buildWhatsAppOrderMessage({
+      orderNum: ord.numero,
+      customerName: ord.customerName,
+      customerPhone: ord.customerPhone,
+      items: (ord.items || []).map((it) => ({
+        name: it.producto?.nombre || 'Producto',
+        presentation: it.producto?.presentacion,
+        qty: it.cantidad,
+        unitPrice: it.precioUnitario,
+        subtotal: it.subtotal,
+      })),
+      total: ord.total,
+      deliveryMethod: ord.deliveryMethod,
+      deliveryDate: ord.deliveryDate,
+      deliveryTimeSlot: ord.deliveryStartTime && ord.deliveryEndTime ? `${ord.deliveryStartTime} a ${ord.deliveryEndTime} hs` : undefined,
+      address: ord.formattedAddress || ord.originalAddress,
+      outOfStockPreference: ord.outOfStockPreference,
+      observaciones: ord.observaciones,
+      paymentMethod: ord.paymentMethod,
+      isTransferReceipt: true,
+    });
+
+    const targetNumber = companySettings?.whatsapp_transferencias || companySettings?.whatsapp || '5493511234567';
+    const cleanPhone = targetNumber.replace(/[^0-9]/g, '');
+    Linking.openURL(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(waMessage)}`);
   };
 
   if (loading) {

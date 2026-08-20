@@ -6,10 +6,13 @@ import { NotificationContainer } from '../components/NotificationContainer';
 import { ConfirmationModal } from '../components/ConfirmationModal';
 import { useNotificationStore } from '../store/useNotificationStore';
 import { useAuthStore } from '../store/authStore';
+import { useClientRealtimeNotifications } from '../hooks/useClientRealtimeNotifications';
 import { customAlert } from '../utils/alert';
 import { useFonts } from 'expo-font';
 
 export default function RootLayout() {
+  useClientRealtimeNotifications();
+
   const [fontsLoaded, fontError] = useFonts({
     MaterialCommunityIcons: require('../assets/fonts/MaterialCommunityIcons.ttf'),
   });

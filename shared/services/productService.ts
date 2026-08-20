@@ -435,7 +435,7 @@ export const productService = {
     dbProducts?.forEach(p => {
       prodByIdMap.set(p.id, p);
       if (p.codigo) {
-        prodByCodeMap.set(p.codigo.trim().toUpperCase(), p);
+        prodByCodeMap.set(String(p.codigo).trim().toUpperCase(), p);
       }
     });
 
@@ -465,13 +465,13 @@ export const productService = {
       }
 
       try {
-        const rawCode = sRow.codigo.trim().toUpperCase();
-        const rawDesc = sRow.descripcion.trim();
-        const rawPrice = Number(sRow.precio);
-        const rawStock = Number(sRow.stock);
+        const rawCode = String(sRow.codigo || '').trim().toUpperCase();
+        const rawDesc = String(sRow.descripcion || '').trim();
+        const rawPrice = Number(sRow.precio) || 0;
+        const rawStock = Number(sRow.stock) || 0;
 
         let targetProductId = sRow.matchedProductId;
-        const oldCode = sRow.matchedProductCode;
+        const oldCode = sRow.matchedProductCode ? String(sRow.matchedProductCode).trim() : undefined;
 
         const prodData: any = {
           codigo: rawCode,
@@ -493,7 +493,7 @@ export const productService = {
           updated_at: new Date().toISOString()
         };
         if (sRow.marca) {
-          prodData.marca = sRow.marca.trim();
+          prodData.marca = String(sRow.marca).trim();
         } else {
           prodData.marca = null;
         }
@@ -501,16 +501,17 @@ export const productService = {
         const dbProdByCode = prodByCodeMap.get(rawCode);
 
         if (dbProdByCode) {
-          // Si el código ya existe en la base de datos (por ejemplo, creado en un intento anterior fallido),
-          // redirigimos la acción para actualizar el producto existente en lugar de duplicarlo
           targetProductId = dbProdByCode.id;
           const prevPrice = Number(dbProdByCode.precio || 0);
           
-          const updates: any = { id: targetProductId };
-          if (sRow.descripcion) updates.nombre = sRow.descripcion;
-          if (sRow.marca) updates.marca = sRow.marca;
-          updates.precio = rawPrice;
-          updates.updated_at = new Date().toISOString();
+          const updates: any = { 
+            id: targetProductId,
+            codigo: rawCode || dbProdByCode.codigo,
+            nombre: sRow.descripcion ? String(sRow.descripcion).trim() : dbProdByCode.nombre,
+            precio: rawPrice,
+            updated_at: new Date().toISOString()
+          };
+          if (sRow.marca) updates.marca = String(sRow.marca).trim();
 
           productsUpsert.push({
             ...dbProdByCode,
@@ -520,6 +521,7 @@ export const productService = {
 
           if (prevPrice !== rawPrice) {
             pricesInsert.push({
+              _code: rawCode,
               product_id: targetProductId,
               precio_anterior: prevPrice,
               precio_nuevo: rawPrice,
@@ -530,14 +532,15 @@ export const productService = {
           }
 
         } else if (sRow.action === 'create_new') {
-          // Generar nuevo ID para el producto
           targetProductId = `prod-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
           prodData.id = targetProductId;
+          prodData.codigo = rawCode;
           
           productsUpsert.push(prodData);
           createdCount++;
 
           pricesInsert.push({
+            _code: rawCode,
             product_id: targetProductId,
             precio_anterior: 0,
             precio_nuevo: rawPrice,
@@ -549,21 +552,27 @@ export const productService = {
         } else if (sRow.action === 'update_by_code' && targetProductId) {
           const dbProd = prodByIdMap.get(targetProductId);
           const prevPrice = dbProd ? Number(dbProd.precio) : 0;
+          const assignedCode = rawCode || (dbProd ? dbProd.codigo : '') || (sRow.matchedProductCode ? String(sRow.matchedProductCode).trim() : '');
           
-          const updates: any = { id: targetProductId };
-          if (sRow.descripcion) updates.nombre = sRow.descripcion;
-          if (sRow.marca) updates.marca = sRow.marca;
-          updates.precio = rawPrice;
-          updates.updated_at = new Date().toISOString();
+          const updates: any = { 
+            id: targetProductId,
+            codigo: assignedCode,
+            nombre: sRow.descripcion ? String(sRow.descripcion).trim() : (dbProd ? dbProd.nombre : rawDesc),
+            precio: rawPrice,
+            updated_at: new Date().toISOString()
+          };
+          if (sRow.marca) updates.marca = String(sRow.marca).trim();
 
+          const baseProd = dbProd || prodData;
           productsUpsert.push({
-            ...dbProd,
+            ...baseProd,
             ...updates
           });
           updatedCount++;
 
           if (prevPrice !== rawPrice) {
             pricesInsert.push({
+              _code: rawCode,
               product_id: targetProductId,
               precio_anterior: prevPrice,
               precio_nuevo: rawPrice,
@@ -573,34 +582,39 @@ export const productService = {
             });
           }
 
-        } else if (sRow.action === 'replace_code' && targetProductId && oldCode) {
+        } else if (sRow.action === 'replace_code' && targetProductId) {
           const dbProd = prodByIdMap.get(targetProductId);
           const prevPrice = dbProd ? Number(dbProd.precio) : 0;
+          const actualOldCode = oldCode || (dbProd ? dbProd.codigo : '');
 
           const updates: any = {
             id: targetProductId,
-            codigo: rawCode
+            codigo: rawCode || actualOldCode,
+            nombre: sRow.descripcion ? String(sRow.descripcion).trim() : (dbProd ? dbProd.nombre : rawDesc),
+            precio: rawPrice,
+            updated_at: new Date().toISOString()
           };
-          if (sRow.descripcion) updates.nombre = sRow.descripcion;
-          if (sRow.marca) updates.marca = sRow.marca;
-          updates.precio = rawPrice;
-          updates.updated_at = new Date().toISOString();
+          if (sRow.marca) updates.marca = String(sRow.marca).trim();
 
+          const baseProd = dbProd || prodData;
           productsUpsert.push({
-            ...dbProd,
+            ...baseProd,
             ...updates
           });
           codeReplacedCount++;
 
-          codeHistoryInsert.push({
-            product_id: targetProductId,
-            old_code: oldCode,
-            new_code: rawCode,
-            changed_by: userEmail,
-            import_id: importId,
-            reason: 'manufacturer_code_change',
-            source: 'daily_excel_import'
-          });
+          if (actualOldCode && actualOldCode !== rawCode) {
+            codeHistoryInsert.push({
+              _code: rawCode,
+              product_id: targetProductId,
+              old_code: actualOldCode,
+              new_code: rawCode,
+              changed_by: userEmail,
+              import_id: importId,
+              reason: 'manufacturer_code_change',
+              source: 'daily_excel_import'
+            });
+          }
 
           auditLogsInsert.push({
             usuario: userEmail,
@@ -616,6 +630,7 @@ export const productService = {
 
           if (prevPrice !== rawPrice) {
             pricesInsert.push({
+              _code: rawCode,
               product_id: targetProductId,
               precio_anterior: prevPrice,
               precio_nuevo: rawPrice,
@@ -632,8 +647,18 @@ export const productService = {
           const previousStock = isNew ? 0 : Number(stockMap.get(targetProductId) || 0);
           const difference = rawStock - previousStock;
 
+          inventoryUpsert.push({
+            _code: rawCode,
+            product_id: targetProductId,
+            branch_id: branchId,
+            stock: rawStock,
+            stock_minimo: 5,
+            updated_at: new Date().toISOString()
+          });
+
           if (isNew || difference !== 0) {
             movementsInsert.push({
+              _code: rawCode,
               product_id: targetProductId,
               branch_id: branchId,
               cantidad_anterior: previousStock,
@@ -659,37 +684,98 @@ export const productService = {
     const chunkSize = 200;
 
     // Filtro de seguridad para evitar duplicados del mismo código comercial en el lote de upsert
-    const uniqueProductsMap = new Map<string, any>();
+    // Desduplicación estricta en memoria tanto por ID como por CÓDIGO para evitar colisiones en PostgreSQL
+    const uniqueById = new Map<string, any>();
+    const uniqueByCode = new Map<string, any>();
+
     productsUpsert.forEach(p => {
-      const normCode = p.codigo.trim().toUpperCase();
-      if (uniqueProductsMap.has(normCode)) {
-        const existing = uniqueProductsMap.get(normCode);
-        // Si el actual es autogenerado ("prod-...") y el existente es un UUID real de BD, mantenemos el de la BD
-        if (p.id.startsWith('prod-') && !existing.id.startsWith('prod-')) {
-          return;
+      if (!p) return;
+      const idStr = String(p.id || '').trim();
+      const codeStr = String(p.codigo || '').trim().toUpperCase();
+      if (!idStr || !codeStr) return;
+
+      const sanitized = {
+        id: idStr,
+        codigo: codeStr,
+        nombre: String(p.nombre || 'Producto importado').trim(),
+        precio: Number(p.precio) || 0,
+        marca: p.marca ? String(p.marca).trim() : null,
+        activo: p.activo ?? true,
+        visible_en_app: p.visible_en_app ?? true,
+        unidad: p.unidad || 'unidad',
+        presentacion: p.presentacion || 'Presentación Importada',
+        categoria: p.categoria || 'limpieza',
+        destacado: p.destacado ?? false,
+        dolarizado: p.dolarizado ?? false,
+        precio_usd: Number(p.precio_usd) || 0,
+        updated_at: new Date().toISOString()
+      };
+
+      // Si el código ya existía con otro ID diferente, eliminar el anterior de uniqueById
+      if (uniqueByCode.has(codeStr)) {
+        const prev = uniqueByCode.get(codeStr);
+        if (prev && prev.id !== idStr) {
+          uniqueById.delete(prev.id);
         }
       }
-      uniqueProductsMap.set(normCode, p);
-    });
-    const finalProductsUpsert = Array.from(uniqueProductsMap.values());
 
-    // A. Productos (Upsert)
+      // Si el ID ya existía con otro código diferente, eliminar el anterior de uniqueByCode
+      if (uniqueById.has(idStr)) {
+        const prev = uniqueById.get(idStr);
+        if (prev && prev.codigo !== codeStr) {
+          uniqueByCode.delete(prev.codigo);
+        }
+      }
+
+      uniqueById.set(idStr, sanitized);
+      uniqueByCode.set(codeStr, sanitized);
+    });
+
+    const finalProductsUpsert = Array.from(uniqueById.values());
+
+    // A. Productos (Upsert con onConflict: 'id')
     for (let i = 0; i < finalProductsUpsert.length; i += chunkSize) {
       const chunk = finalProductsUpsert.slice(i, i + chunkSize);
-      const { error } = await supabase.from('products').upsert(chunk);
+      const { error } = await supabase.from('products').upsert(chunk, { onConflict: 'id' });
       if (error) throw error;
     }
 
+    // Mapa y conjunto de IDs válidos para evitar violaciones de clave foránea en tablas hijas
+    const finalIdByCodeMap = new Map<string, string>();
+    const validProductIds = new Set<string>();
+    
+    dbProducts?.forEach(p => validProductIds.add(p.id));
+    finalProductsUpsert.forEach(p => {
+      validProductIds.add(p.id);
+      finalIdByCodeMap.set(p.codigo, p.id);
+    });
+
+    const sanitizeChildItem = (item: any) => {
+      const resolvedId = (item._code && finalIdByCodeMap.get(item._code)) || item.product_id;
+      if (!resolvedId || !validProductIds.has(resolvedId)) {
+        return null;
+      }
+      const { _code, ...cleanItem } = item;
+      return {
+        ...cleanItem,
+        product_id: resolvedId
+      };
+    };
+
+    const cleanPricesInsert = pricesInsert.map(sanitizeChildItem).filter(Boolean);
+    const cleanCodeHistoryInsert = codeHistoryInsert.map(sanitizeChildItem).filter(Boolean);
+    const cleanMovementsInsert = movementsInsert.map(sanitizeChildItem).filter(Boolean);
+
     // B. Precios (Insert)
-    for (let i = 0; i < pricesInsert.length; i += chunkSize) {
-      const chunk = pricesInsert.slice(i, i + chunkSize);
+    for (let i = 0; i < cleanPricesInsert.length; i += chunkSize) {
+      const chunk = cleanPricesInsert.slice(i, i + chunkSize);
       const { error } = await supabase.from('product_prices').insert(chunk);
       if (error) throw error;
     }
 
     // C. Historial de Códigos (Insert)
-    for (let i = 0; i < codeHistoryInsert.length; i += chunkSize) {
-      const chunk = codeHistoryInsert.slice(i, i + chunkSize);
+    for (let i = 0; i < cleanCodeHistoryInsert.length; i += chunkSize) {
+      const chunk = cleanCodeHistoryInsert.slice(i, i + chunkSize);
       const { error } = await supabase.from('product_code_history').insert(chunk);
       if (error) throw error;
     }
@@ -701,9 +787,25 @@ export const productService = {
       if (error) throw error;
     }
 
-    // E. Movimientos de Stock (Insert)
-    for (let i = 0; i < movementsInsert.length; i += chunkSize) {
-      const chunk = movementsInsert.slice(i, i + chunkSize);
+    // E. Inventario / Stock Real (Upsert en la tabla inventory)
+    const uniqueInventoryMap = new Map<string, any>();
+    inventoryUpsert.forEach(inv => {
+      const sanitizedInv = sanitizeChildItem(inv);
+      if (!sanitizedInv) return;
+      const key = `${sanitizedInv.product_id}_${sanitizedInv.branch_id}`;
+      uniqueInventoryMap.set(key, sanitizedInv);
+    });
+    const finalInventoryUpsert = Array.from(uniqueInventoryMap.values());
+
+    for (let i = 0; i < finalInventoryUpsert.length; i += chunkSize) {
+      const chunk = finalInventoryUpsert.slice(i, i + chunkSize);
+      const { error } = await supabase.from('inventory').upsert(chunk, { onConflict: 'product_id,branch_id' });
+      if (error) throw error;
+    }
+
+    // F. Movimientos de Stock (Insert)
+    for (let i = 0; i < cleanMovementsInsert.length; i += chunkSize) {
+      const chunk = cleanMovementsInsert.slice(i, i + chunkSize);
       const { error } = await supabase.from('inventory_movements').insert(chunk);
       if (error) throw error;
     }

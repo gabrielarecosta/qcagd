@@ -26,6 +26,8 @@ import {
   deliveryService,
   paymentService,
   notificationService,
+  zoneService,
+  routeService,
   supabase
 } from '@shared/services';
 
@@ -93,10 +95,11 @@ interface AdminStore {
   updateOrder: (id: string, updates: Partial<Order>) => Promise<void>;
   createOrder: (order: Order) => Promise<void>;
 
-  // Repartos
+  // Repartos y Choferes
   createDelivery: (delivery: Omit<DeliveryRoute, 'id'>) => Promise<void>;
   updateDeliveryStatus: (id: string, status: DeliveryStatus, obs?: string) => Promise<void>;
   updateDeliveryStop: (deliveryId: string, clienteId: string, completado: boolean, horaReal?: string, motivo?: string, receptorNombre?: string, observaciones?: string) => Promise<void>;
+  updateDriver: (id: string, updates: { nombre?: string; telefono?: string; email?: string; vehiculo?: string; activo?: boolean }) => Promise<void>;
 
   // Pagos
   confirmPayment: (orderId: string, reference?: string) => Promise<void>;
@@ -105,6 +108,7 @@ interface AdminStore {
   // Configuración
   updateZone: (id: string, updates: Partial<DeliveryZone>) => Promise<void>;
   createZone: (zone: Omit<DeliveryZone, 'id'>) => Promise<void>;
+  deleteZone: (id: string) => Promise<void>;
   updateSchedule: (branchId: string, updates: Partial<BranchSchedule>) => Promise<void>;
 
   // Notificaciones
@@ -114,9 +118,19 @@ interface AdminStore {
   deleteSuperOffer: (id: string) => Promise<void>;
 }
 
+const getInitialUser = (): InternalUser | null => {
+  try {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('qca_admin_user');
+      return saved ? JSON.parse(saved) : null;
+    }
+  } catch (_) {}
+  return null;
+};
+
 export const useAdminStore = create<AdminStore>((set, get) => ({
   activeBranchId: 'all',
-  currentUser: null,
+  currentUser: getInitialUser(),
   isLoading: true,
 
   branches: [],
@@ -136,7 +150,16 @@ export const useAdminStore = create<AdminStore>((set, get) => ({
   globalMinOrderAmount: 0,
 
   setActiveBranchId: (id) => set({ activeBranchId: id }),
-  setCurrentUser: (user) => set({ currentUser: user }),
+  setCurrentUser: (user) => {
+    try {
+      if (user) {
+        localStorage.setItem('qca_admin_user', JSON.stringify(user));
+      } else {
+        localStorage.removeItem('qca_admin_user');
+      }
+    } catch (_) {}
+    set({ currentUser: user });
+  },
 
   fetchData: async (silent = false) => {
     if (!silent) set({ isLoading: true });
@@ -178,19 +201,7 @@ export const useAdminStore = create<AdminStore>((set, get) => ({
       }));
 
       // Load delivery zones
-      const { data: zonesData, error: zonesErr } = await supabase.from('delivery_zones').select('*');
-      if (zonesErr) throw zonesErr;
-
-      const zones: DeliveryZone[] = (zonesData || []).map(z => ({
-        id: z.id,
-        branchId: z.branch_id,
-        nombre: z.nombre,
-        costoEnvio: Number(z.costo_envio || 0),
-        pedidoMinimo: Number(z.pedido_minimo || 0),
-        diasReparto: z.dias_reparto || [],
-        horarioEntrega: z.horario_entrega || '',
-        activo: z.activo ?? true,
-      }));
+      const zones = await zoneService.getAll();
 
       // Load schedules from system settings
       const { data: schedData } = await supabase
@@ -211,22 +222,27 @@ export const useAdminStore = create<AdminStore>((set, get) => ({
         ? Number((minAmountData.value as any).amount || 0)
         : 0;
 
-      // Cargar repartidores desde la tabla drivers (con datos del perfil)
+      // Cargar repartidores basándonos ESTRICTAMENTE en Personal/Roles (profiles con rol 'repartidor')
+      const repartidorUsers = users.filter(u => u.rol === 'repartidor');
+
       const { data: driversData } = await supabase
         .from('drivers')
-        .select('id, vehiculo_info, activo, profiles(nombre, email, telefono, branch_id)');
+        .select('id, vehiculo_info, activo');
 
-      const drivers = (driversData || []).map((d: any) => {
-        const p = d.profiles || {};
+      const driversMap = new Map((driversData || []).map((d: any) => [d.id, d]));
+
+      const drivers = repartidorUsers.map((u: any) => {
+        const d = driversMap.get(u.id);
+        const vehiculoInfo = d?.vehiculo_info || (u.auto ? `${u.auto}${u.patente ? ` (${u.patente})` : ''}` : 'Vehículo no asignado');
         return {
-          id: d.id,
-          nombre: p.nombre || 'Chofer sin nombre',
-          email: p.email || '',
+          id: u.id,
+          nombre: u.nombre,
+          email: u.email || '',
           rol: 'repartidor',
-          branchId: p.branch_id || undefined,
-          activo: d.activo,
-          telefono: p.telefono || '',
-          vehiculo: d.vehiculo_info || '',
+          branchId: u.branchId || 'branch-gd1',
+          activo: u.activo !== false,
+          telefono: u.telefono || '',
+          vehiculo: vehiculoInfo,
         };
       });
 
@@ -623,6 +639,43 @@ export const useAdminStore = create<AdminStore>((set, get) => ({
     await get().fetchData();
   },
 
+  updateDriver: async (id, updates) => {
+    try {
+      // 1. Actualizar tabla profiles
+      if (updates.nombre || updates.telefono || updates.email) {
+        await supabase
+          .from('profiles')
+          .update({
+            nombre: updates.nombre,
+            telefono: updates.telefono,
+            email: updates.email,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', id);
+      }
+
+      // 2. Actualizar o insertar en tabla drivers (sin updated_at)
+      if (updates.vehiculo !== undefined || updates.activo !== undefined) {
+        await supabase
+          .from('drivers')
+          .upsert({
+            id: id,
+            vehiculo_info: updates.vehiculo,
+            activo: updates.activo ?? true,
+          });
+      }
+
+      // 3. Actualizar tabla auth.users email si cambió (va por separate call)
+      if (updates.nombre || updates.telefono || updates.email) {
+        // No tocamos auth.users desde el cliente para no romper las sesiones
+        // El email se actualiza sólo en profiles (usado como credencial de login en la app)
+      }
+    } catch (e) {
+      console.warn('Error updating driver:', e);
+    }
+    await get().fetchData();
+  },
+
   confirmPayment: async (orderId, reference) => {
     const userEmail = get().currentUser?.email || '';
     // Buscar el log de pago correspondiente
@@ -658,48 +711,17 @@ export const useAdminStore = create<AdminStore>((set, get) => ({
   },
 
   updateZone: async (id, updates) => {
-    const dbUpdates = {
-      nombre: updates.nombre,
-      descripcion: (updates as any).descripcion,
-      branch_id: updates.branchId,
-      activo: updates.activo,
-      costo_envio: updates.costoEnvio,
-      pedido_minimo: updates.pedidoMinimo,
-      dias_reparto: updates.diasReparto,
-      horario_entrega: updates.horarioEntrega,
-    };
-
-    Object.keys(dbUpdates).forEach(key => (dbUpdates as any)[key] === undefined && delete (dbUpdates as any)[key]);
-
-    const { error } = await supabase
-      .from('delivery_zones')
-      .update(dbUpdates)
-      .eq('id', id);
-
-    if (error) throw error;
+    await zoneService.update(id, updates);
     await get().fetchData();
   },
 
   createZone: async (zone) => {
-    const zoneId = (zone as any).id || `zone-${Date.now()}`;
-    const dbInsert = {
-      id: zoneId,
-      branch_id: zone.branchId,
-      nombre: zone.nombre,
-      descripcion: (zone as any).descripcion,
-      activo: zone.activo ?? true,
-      costo_envio: zone.costoEnvio,
-      pedido_minimo: zone.pedidoMinimo,
-      dias_reparto: zone.diasReparto,
-      horario_entrega: zone.horarioEntrega,
-    };
+    await zoneService.create(zone);
+    await get().fetchData();
+  },
 
-
-    const { error } = await supabase
-      .from('delivery_zones')
-      .insert(dbInsert);
-
-    if (error) throw error;
+  deleteZone: async (id) => {
+    await zoneService.delete(id);
     await get().fetchData();
   },
 
