@@ -53,5 +53,8 @@ export interface Order {
   customerName?: string;
   customerPhone?: string;
   outOfStockPreference?: 'llamar' | 'reemplazar' | 'cancelar';
+  mpPreferenceId?: string;
+  mpInitPoint?: string;
+  mpPreferenceExpiresAt?: string;
 }
 

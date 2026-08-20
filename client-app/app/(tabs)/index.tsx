@@ -136,11 +136,34 @@ export default function HomeScreen() {
   const addOfferToCart = (offer: any) => {
     const items: any[] = offer.super_offer_items || [];
     if (items.length === 0) return;
+
+    const totalOriginalComboPrice = items.reduce((sum: number, it: any) => {
+      const p = it.products;
+      const unitOrigPrice = p ? (p.precio || 0) : 0;
+      const qty = Math.max(1, Math.ceil(it.cantidad || 1));
+      return sum + (unitOrigPrice * qty);
+    }, 0);
+
+    const offerPrice = offer.precio_oferta || 0;
+
     items.forEach((it: any) => {
       if (it.products) {
+        const qty = Math.max(1, Math.ceil(it.cantidad || 1));
+        const unitOrigPrice = it.products.precio || 0;
+        const itemOriginalTotal = unitOrigPrice * qty;
+
+        let effectiveUnitPrice = 0;
+        if (totalOriginalComboPrice > 0) {
+          const itemEffectiveTotal = offerPrice * (itemOriginalTotal / totalOriginalComboPrice);
+          effectiveUnitPrice = itemEffectiveTotal / qty;
+        } else {
+          const totalUnits = items.reduce((sum: number, i: any) => sum + Math.max(1, Math.ceil(i.cantidad || 1)), 0);
+          effectiveUnitPrice = offerPrice / (totalUnits || 1);
+        }
+
         addProduct(
-          { ...it.products, precio: offer.precio_oferta / items.length },
-          Math.ceil(it.cantidad)
+          { ...it.products, precio: effectiveUnitPrice },
+          qty
         );
       }
     });

@@ -31,11 +31,25 @@ export function ProductsView({
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [photoFilter, setPhotoFilter] = useState<'all' | 'no-photo'>(initialFilter);
+  const [activeStatusFilter, setActiveStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
+  const [stockFilter, setStockFilter] = useState<'all' | 'with-stock' | 'critico' | 'no-stock'>('all');
+  const [sortBy, setSortBy] = useState<'name' | 'category' | 'price' | 'stock' | 'code'>('name');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [currentPage, setCurrentPage] = useState(1);
 
   React.useEffect(() => {
     setPhotoFilter(initialFilter);
   }, [initialFilter]);
+
+  const handleSort = (column: 'name' | 'category' | 'price' | 'stock' | 'code') => {
+    if (sortBy === column) {
+      setSortOrder(prev => (prev === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortBy(column);
+      setSortOrder('asc');
+    }
+    setCurrentPage(1);
+  };
 
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [isCreating, setIsCreating] = useState(false);
@@ -81,46 +95,6 @@ export function ProductsView({
     { value: 'institucional', label: 'Institucional' },
   ];
 
-  // Filtrado, búsqueda y ordenación de productos (con foto primero)
-  const filteredProducts = useMemo(() => {
-    const list = products.filter(p => {
-      const query = search.toLowerCase();
-      const matchesSearch = 
-        p.nombre.toLowerCase().includes(query) ||
-        p.codigo.toLowerCase().includes(query) ||
-        (p.presentacion || '').toLowerCase().includes(query);
-
-      const matchesCategory = 
-        selectedCategory === 'all' || p.categoria === selectedCategory;
-
-      const matchesPhoto = 
-        photoFilter === 'all' || !p.imagen || p.imagen.trim() === '';
-
-      return matchesSearch && matchesCategory && matchesPhoto;
-    });
-
-    // Ordenar siempre primero los que tienen foto
-    const hasImage = (p: Product) => p.imagen && p.imagen.trim() !== '';
-    return list.sort((a, b) => {
-      const aImg = hasImage(a) ? 1 : 0;
-      const bImg = hasImage(b) ? 1 : 0;
-      return bImg - aImg;
-    });
-  }, [products, search, selectedCategory, photoFilter]);
-
-  // Paginación
-  const totalPages = Math.ceil(filteredProducts.length / itemsPerPage);
-  const paginatedProducts = useMemo(() => {
-    const start = (currentPage - 1) * itemsPerPage;
-    return filteredProducts.slice(start, start + itemsPerPage);
-  }, [filteredProducts, currentPage]);
-
-  const handlePageChange = (page: number) => {
-    if (page >= 1 && page <= totalPages) {
-      setCurrentPage(page);
-    }
-  };
-
   // Obtener stock para una sucursal específica o resumen
   const getProductStockInfo = (productId: string, branchId: string) => {
     if (branchId === 'all') {
@@ -139,6 +113,57 @@ export function ProductsView({
       };
     }
   };
+
+  // Filtrado, búsqueda y ordenación de productos
+  const filteredProducts = useMemo(() => {
+    const list = products.filter(p => {
+      const query = search.toLowerCase();
+      const matchesSearch = 
+        p.nombre.toLowerCase().includes(query) ||
+        p.codigo.toLowerCase().includes(query) ||
+        (p.presentacion || '').toLowerCase().includes(query);
+
+      const matchesCategory = 
+        selectedCategory === 'all' || p.categoria === selectedCategory;
+
+      const matchesPhoto = 
+        photoFilter === 'all' || !p.imagen || p.imagen.trim() === '';
+
+      const matchesActiveStatus =
+        activeStatusFilter === 'all' ? true :
+        activeStatusFilter === 'active' ? (p.activo !== false) :
+        (p.activo === false);
+
+      const stockInfo = getProductStockInfo(p.id, activeBranchId);
+      const matchesStock =
+        stockFilter === 'all' ? true :
+        stockFilter === 'with-stock' ? (stockInfo.stock > 0 && !stockInfo.isLowStock) :
+        stockFilter === 'critico' ? stockInfo.isLowStock :
+        (stockInfo.stock <= 0);
+
+      return matchesSearch && matchesCategory && matchesPhoto && matchesActiveStatus && matchesStock;
+    });
+
+    // Ordenamiento
+    return list.sort((a, b) => {
+      let comp = 0;
+      if (sortBy === 'name') {
+        comp = a.nombre.localeCompare(b.nombre);
+      } else if (sortBy === 'category') {
+        comp = a.categoria.localeCompare(b.categoria);
+      } else if (sortBy === 'price') {
+        comp = (a.precio || 0) - (b.precio || 0);
+      } else if (sortBy === 'stock') {
+        const stockA = getProductStockInfo(a.id, activeBranchId).stock;
+        const stockB = getProductStockInfo(b.id, activeBranchId).stock;
+        comp = stockA - stockB;
+      } else if (sortBy === 'code') {
+        comp = a.codigo.localeCompare(b.codigo);
+      }
+
+      return sortOrder === 'asc' ? comp : -comp;
+    });
+  }, [products, search, selectedCategory, photoFilter, activeStatusFilter, stockFilter, sortBy, sortOrder, activeBranchId, stocks]);
 
   const handleOpenEdit = (p: Product) => {
     setEditingProduct(p);
@@ -356,14 +381,15 @@ export function ProductsView({
         </div>
       </div>
 
-      {/* Controles de Búsqueda y Filtro */}
+      {/* Controles de Búsqueda, Filtros y Ordenamiento */}
       <div className="card-wrapper" style={{ marginBottom: '20px', padding: '16px' }}>
-        <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
-          <div style={{ flex: 1, minWidth: '250px' }}>
+        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
+          {/* Búsqueda */}
+          <div style={{ flex: '1 1 220px', minWidth: '200px' }}>
             <input 
               type="text" 
               className="form-input" 
-              placeholder="Buscar por código, nombre o presentación..." 
+              placeholder="🔍 Buscar por código, nombre..." 
               value={search} 
               onChange={e => {
                 setSearch(e.target.value);
@@ -371,7 +397,9 @@ export function ProductsView({
               }}
             />
           </div>
-          <div style={{ width: '200px' }}>
+
+          {/* Filtro Categoría */}
+          <div style={{ width: '160px' }}>
             <select 
               className="form-select"
               value={selectedCategory}
@@ -386,7 +414,66 @@ export function ProductsView({
               ))}
             </select>
           </div>
-          <div style={{ width: '200px' }}>
+
+          {/* Filtro Activo (Sí / No) */}
+          <div style={{ width: '140px' }}>
+            <select 
+              className="form-select"
+              value={activeStatusFilter}
+              onChange={e => {
+                setActiveStatusFilter(e.target.value as 'all' | 'active' | 'inactive');
+                setCurrentPage(1);
+              }}
+            >
+              <option value="all">Estado: Todos</option>
+              <option value="active">Activos (Sí)</option>
+              <option value="inactive">Inactivos (No)</option>
+            </select>
+          </div>
+
+          {/* Filtro Stock Activo (Sí, No, Crítico) */}
+          <div style={{ width: '160px' }}>
+            <select 
+              className="form-select"
+              value={stockFilter}
+              style={{ borderColor: stockFilter === 'critico' ? '#ef4444' : stockFilter === 'no-stock' ? '#f59e0b' : 'var(--border-color)', fontWeight: stockFilter !== 'all' ? 'bold' : 'normal' }}
+              onChange={e => {
+                setStockFilter(e.target.value as 'all' | 'with-stock' | 'critico' | 'no-stock');
+                setCurrentPage(1);
+              }}
+            >
+              <option value="all">Stock: Todos</option>
+              <option value="with-stock">Con Stock (Sí)</option>
+              <option value="critico">⚠️ Stock Crítico</option>
+              <option value="no-stock">🚫 Sin Stock (No)</option>
+            </select>
+          </div>
+
+          {/* Ordenar Por */}
+          <div style={{ width: '170px' }}>
+            <select 
+              className="form-select"
+              value={`${sortBy}-${sortOrder}`}
+              onChange={e => {
+                const parts = e.target.value.split('-');
+                setSortBy(parts[0] as any);
+                setSortOrder(parts[1] as any);
+                setCurrentPage(1);
+              }}
+            >
+              <option value="name-asc">Nombre (A-Z)</option>
+              <option value="name-desc">Nombre (Z-A)</option>
+              <option value="category-asc">Categoría</option>
+              <option value="price-asc">Precio (Menor a Mayor)</option>
+              <option value="price-desc">Precio (Mayor a Menor)</option>
+              <option value="stock-asc">Stock (Menor a Mayor)</option>
+              <option value="stock-desc">Stock (Mayor a Menor)</option>
+              <option value="code-asc">Código</option>
+            </select>
+          </div>
+
+          {/* Filtro Fotos */}
+          <div style={{ width: '150px' }}>
             <select 
               className="form-select"
               value={photoFilter}
@@ -400,12 +487,13 @@ export function ProductsView({
                 }
               }}
             >
-              <option value="all">Fotos: Todos los artículos</option>
-              <option value="no-photo">⚠️ Artículos sin foto</option>
+              <option value="all">Fotos: Todos</option>
+              <option value="no-photo">⚠️ Sin foto</option>
             </select>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', color: 'var(--text-secondary)', fontSize: '14px' }}>
-            Encontrados: <strong>{filteredProducts.length}</strong> artículos
+
+          <div style={{ display: 'flex', alignItems: 'center', color: 'var(--text-secondary)', fontSize: '13px', marginLeft: 'auto' }}>
+            Encontrados: <strong style={{ marginLeft: '4px', color: 'var(--text-primary)' }}>{filteredProducts.length}</strong> artículos
           </div>
         </div>
       </div>
@@ -423,12 +511,22 @@ export function ProductsView({
                     checked={paginatedProducts.length > 0 && paginatedProducts.every(p => selectedProductIds.includes(p.id))} 
                   />
                 </th>
-                <th style={{ width: '100px' }}>Código</th>
-                <th>Nombre</th>
-                <th>Categoría</th>
+                <th style={{ width: '100px', cursor: 'pointer' }} onClick={() => handleSort('code')}>
+                  Código {sortBy === 'code' ? (sortOrder === 'asc' ? '▲' : '▼') : ''}
+                </th>
+                <th style={{ cursor: 'pointer' }} onClick={() => handleSort('name')}>
+                  Nombre {sortBy === 'name' ? (sortOrder === 'asc' ? '▲' : '▼') : ''}
+                </th>
+                <th style={{ cursor: 'pointer' }} onClick={() => handleSort('category')}>
+                  Categoría {sortBy === 'category' ? (sortOrder === 'asc' ? '▲' : '▼') : ''}
+                </th>
                 <th>Presentación</th>
-                <th>Precio</th>
-                <th>Stock Activo</th>
+                <th style={{ cursor: 'pointer' }} onClick={() => handleSort('price')}>
+                  Precio {sortBy === 'price' ? (sortOrder === 'asc' ? '▲' : '▼') : ''}
+                </th>
+                <th style={{ cursor: 'pointer' }} onClick={() => handleSort('stock')}>
+                  Stock Activo {sortBy === 'stock' ? (sortOrder === 'asc' ? '▲' : '▼') : ''}
+                </th>
                 <th>Destacado</th>
                 <th className="text-right">Acción</th>
               </tr>

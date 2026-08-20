@@ -60,6 +60,9 @@ const mapOrder = (o: any, items: any[] = []): Order => ({
   customerName: o.customer_name || undefined,
   customerPhone: o.customer_phone || undefined,
   outOfStockPreference: o.out_of_stock_preference || undefined,
+  mpPreferenceId: o.mp_preference_id || undefined,
+  mpInitPoint: o.mp_init_point || undefined,
+  mpPreferenceExpiresAt: o.mp_preference_expires_at || undefined,
 });
 
 export const orderService = {
@@ -296,16 +299,29 @@ export const orderService = {
       location_verified: order.locationVerified || locationStatus === 'geocoded',
       customer_name: order.customerName,
       customer_phone: order.customerPhone,
-      outOfStockPreference: order.outOfStockPreference || 'llamar',
+      out_of_stock_preference: order.outOfStockPreference || 'llamar',
     };
 
-    const { data: insertedOrder, error: orderErr } = await supabase
+    let { data: insertedOrder, error: orderErr } = await supabase
       .from('orders')
       .insert(dbOrder)
       .select('*')
       .single();
 
-    if (orderErr) throw orderErr;
+    if (orderErr) {
+      if ((dbOrder as any).out_of_stock_preference && (orderErr.message?.includes('out_of_stock_preference') || orderErr.message?.includes('outOfStockPreference') || orderErr.code === 'PGRST204')) {
+        delete (dbOrder as any).out_of_stock_preference;
+        const { data: retryData, error: retryErr } = await supabase
+          .from('orders')
+          .insert(dbOrder)
+          .select('*')
+          .single();
+        if (retryErr) throw retryErr;
+        insertedOrder = retryData;
+      } else {
+        throw orderErr;
+      }
+    }
 
     // 2. Insert items
     const dbItems = order.items.map(item => ({
@@ -342,5 +358,21 @@ export const orderService = {
       .eq('id', id);
 
     if (error) throw error;
+  },
+
+  updateMercadoPagoPreference: async (orderId: string, preferenceId: string, initPoint: string, expiresAt: string): Promise<void> => {
+    const payload: any = {
+      mp_preference_id: preferenceId,
+      mp_init_point: initPoint,
+      mp_preference_expires_at: expiresAt,
+      updated_at: new Date().toISOString()
+    };
+    const { error } = await supabase
+      .from('orders')
+      .update(payload)
+      .eq('id', orderId);
+    if (error) {
+      console.warn('Could not save mp_preference_id in orders table:', error.message);
+    }
   }
 };

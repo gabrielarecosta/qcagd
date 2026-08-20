@@ -21,6 +21,7 @@ import { useOrderStore } from '../../store/orderStore';
 import { useAuthStore } from '../../store/authStore';
 import { useCartStore } from '../../store/cartStore';
 import { companySettingsService } from '@shared/services/companySettingsService';
+import { orderService } from '@shared/services/orderService';
 import { buildWhatsAppOrderMessage } from '@shared/utils/whatsappOrderMessage';
 import { customAlert } from '../../utils/alert';
 
@@ -33,6 +34,70 @@ export default function OrderDetailScreen() {
 
   const [companySettings, setCompanySettings] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [isGeneratingMpLink, setIsGeneratingMpLink] = useState(false);
+
+  const isMpLinkExpired = (ord: Order) => {
+    if (!ord.mpPreferenceExpiresAt) return true;
+    return new Date(ord.mpPreferenceExpiresAt).getTime() <= Date.now();
+  };
+
+  const handlePayMercadoPago = async (ord: Order) => {
+    setIsGeneratingMpLink(true);
+    try {
+      const expired = isMpLinkExpired(ord);
+      if (!expired && ord.mpInitPoint) {
+        if (Platform.OS === 'web') {
+          window.location.href = ord.mpInitPoint;
+        } else {
+          Linking.openURL(ord.mpInitPoint);
+        }
+        return;
+      }
+
+      // Enlace expirado o no generado aún: crear nueva preferencia de 24 hs
+      const backendUrl = process.env.EXPO_PUBLIC_BACKEND_URL || 'http://localhost:3001';
+      const mpRes = await fetch(`${backendUrl}/api/mercadopago/create-preference`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderId: ord.id,
+          items: ord.items.map((i) => ({
+            title: i.producto.nombre,
+            unit_price: i.precioUnitario,
+            quantity: i.cantidad,
+          })),
+          payer: {
+            name: clientData?.nombre || ord.customerName || 'Cliente',
+            email: clientData?.email || '',
+          },
+        }),
+      });
+
+      if (!mpRes.ok) {
+        throw new Error('No se pudo conectar con Mercado Pago.');
+      }
+
+      const mpData = await mpRes.json();
+      const link = mpData.init_point || mpData.sandbox_init_point;
+      if (!link) {
+        throw new Error('Mercado Pago no retornó un enlace válido.');
+      }
+
+      if (mpData.preferenceId && mpData.expiresAt) {
+        await orderService.updateMercadoPagoPreference(ord.id, mpData.preferenceId, link, mpData.expiresAt);
+      }
+
+      if (Platform.OS === 'web') {
+        window.location.href = link;
+      } else {
+        Linking.openURL(link);
+      }
+    } catch (err: any) {
+      customAlert('Error', err.message || 'No se pudo procesar el pago con Mercado Pago.');
+    } finally {
+      setIsGeneratingMpLink(false);
+    }
+  };
 
   useEffect(() => {
     const init = async () => {
@@ -188,6 +253,36 @@ export default function OrderDetailScreen() {
               <Text style={styles.deliveryBadgeText}>{deliveryMethodLabel}</Text>
             </View>
           </View>
+
+          {/* Cuadro de aviso si el pago está pendiente por Mercado Pago */}
+          {targetOrder.paymentMethod === 'mercadopago' && !isPaid && targetOrder.estado !== 'cancelado' && (
+            <View style={[styles.pendingBankCard, { backgroundColor: '#F0F9FF', borderColor: '#BAE6FD' }]}>
+              <View style={styles.pendingBankHeader}>
+                <Text style={[styles.pendingBankTitle, { color: '#0369A1' }]}>💳 Pago con Mercado Pago pendiente</Text>
+                <Text style={[styles.pendingBankSub, { color: '#0284C7' }]}>
+                  {isMpLinkExpired(targetOrder)
+                    ? 'Tu enlace de pago anterior ha expirado (vigencia de 24 hs). Podés generar un nuevo enlace con un solo clic.'
+                    : 'Podés abonar este pedido ahora a través de Mercado Pago. El enlace de pago se mantiene activo por 24 hs.'}
+                </Text>
+              </View>
+
+              <TouchableOpacity
+                style={[styles.sendReceiptBtn, { backgroundColor: '#009EE3' }]}
+                onPress={() => handlePayMercadoPago(targetOrder)}
+                disabled={isGeneratingMpLink}
+                activeOpacity={0.85}
+              >
+                <MaterialCommunityIcons name="credit-card-outline" size={20} color={Colors.white} style={{ marginRight: 8 }} />
+                <Text style={styles.sendReceiptBtnText}>
+                  {isGeneratingMpLink
+                    ? '⌛ Conectando con Mercado Pago...'
+                    : isMpLinkExpired(targetOrder)
+                    ? '🔄 Generar Nuevo Enlace de Pago (Mercado Pago)'
+                    : '💳 Pagar con Mercado Pago'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
 
           {/* Cuadro de aviso si el pago está pendiente por Transferencia */}
           {targetOrder.paymentMethod === 'transferencia' && !isPaid && (

@@ -856,6 +856,30 @@ BEGIN
         RAISE EXCEPTION 'Producto con ID % no existe.', NEW.product_id;
     END IF;
 
+    -- C. Verificar si el producto pertenece a una súper oferta/combo activo
+    SELECT COALESCE(
+      (
+        SELECT TRUE 
+        FROM super_offers o
+        JOIN super_offer_items oi ON oi.offer_id = o.id
+        WHERE o.activo = TRUE 
+          AND oi.product_id = NEW.product_id
+          AND (
+            (o.precio_original > 0 AND ABS(ROUND((o.precio_oferta::numeric * v_precio_minorista::numeric) / o.precio_original::numeric, 2) - NEW.precio_unitario) <= 1.00)
+            OR
+            (ABS(ROUND(o.precio_oferta::numeric / NULLIF((SELECT SUM(cantidad) FROM super_offer_items WHERE offer_id = o.id), 0), 2) - NEW.precio_unitario) <= 1.00)
+            OR
+            (NEW.precio_unitario <= v_precio_minorista AND NEW.precio_unitario > 0)
+          )
+        LIMIT 1
+      ), FALSE
+    ) INTO v_is_combo;
+
+    IF v_is_combo THEN
+        NEW.subtotal := NEW.precio_unitario * NEW.cantidad;
+        RETURN NEW;
+    END IF;
+
     IF v_tipo_cliente = 'mayorista' THEN
         v_precio_base := v_precio_mayorista;
     ELSE

@@ -487,6 +487,10 @@ app.post('/api/mercadopago/create-preference', async (req: Request, res: Respons
 
     const isLocalhost = clientAppUrl.includes('localhost') || clientAppUrl.includes('127.0.0.1');
 
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+    const expiresAtIso = expiresAt.toISOString();
+
     const preferenceBody: any = {
       items: items.map((item) => ({
         id: item.title.slice(0, 256),
@@ -496,6 +500,9 @@ app.post('/api/mercadopago/create-preference', async (req: Request, res: Respons
         currency_id: 'ARS',
       })),
       external_reference: orderId,
+      expires: true,
+      expiration_date_from: now.toISOString(),
+      expiration_date_to: expiresAtIso,
       back_urls: {
         success: `${clientAppUrl}/confirmacion-pago`,
         failure: `${clientAppUrl}/confirmacion-pago`,
@@ -514,10 +521,28 @@ app.post('/api/mercadopago/create-preference', async (req: Request, res: Respons
 
     const mpResponse = await preference.create({ body: preferenceBody });
 
+    // Actualizar pedido en BBDD con los datos de la preferencia
+    if (orderId) {
+      try {
+        await supabase
+          .from('orders')
+          .update({
+            mp_preference_id: mpResponse.id,
+            mp_init_point: mpResponse.init_point || mpResponse.sandbox_init_point,
+            mp_preference_expires_at: expiresAtIso,
+            updated_at: now.toISOString()
+          })
+          .eq('id', orderId);
+      } catch (dbErr) {
+        console.warn('Advertencia actualizando orden en BBDD:', dbErr);
+      }
+    }
+
     res.json({
       preferenceId: mpResponse.id,
       init_point: mpResponse.init_point,
       sandbox_init_point: mpResponse.sandbox_init_point,
+      expiresAt: expiresAtIso,
       mpResponse, preferenceBody
     });
   } catch (err: any) {

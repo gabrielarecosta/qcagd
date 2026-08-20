@@ -849,24 +849,40 @@ export const productService = {
 
   createSuperOffer: async (offer: any, items: any[]): Promise<any> => {
     const offerId = `offer-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+    const insertPayload: any = {
+      id: offerId,
+      nombre: offer.nombre,
+      descripcion: offer.descripcion || null,
+      precio_oferta: offer.precioOferta ?? offer.precio_oferta,
+      precio_original: offer.precioOriginal ?? offer.precio_original,
+      activo: offer.activo ?? true
+    };
+    if (offer.fechaFin || offer.fecha_fin) {
+      insertPayload.fecha_fin = offer.fechaFin ? new Date(offer.fechaFin).toISOString() : new Date(offer.fecha_fin).toISOString();
+    }
+
     const { error: offerErr } = await supabase
       .from('super_offers')
-      .insert({
-        id: offerId,
-        nombre: offer.nombre,
-        descripcion: offer.descripcion || null,
-        precio_oferta: offer.precioOferta,
-        precio_original: offer.precioOriginal,
-        activo: offer.activo ?? true
-      });
-    if (offerErr) throw offerErr;
+      .insert(insertPayload);
+
+    if (offerErr) {
+      if (insertPayload.fecha_fin) {
+        delete insertPayload.fecha_fin;
+        const { error: fallbackErr } = await supabase
+          .from('super_offers')
+          .insert(insertPayload);
+        if (fallbackErr) throw fallbackErr;
+      } else {
+        throw offerErr;
+      }
+    }
 
     const offerItemsToInsert = items.map(item => ({
       id: `item-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
       offer_id: offerId,
-      product_id: item.productId,
+      product_id: item.productId || item.product_id,
       cantidad: item.cantidad,
-      unidad: item.unidad
+      unidad: item.unidad || 'U'
     }));
 
     const { error: itemsErr } = await supabase
@@ -898,8 +914,9 @@ export const productService = {
       .order('created_at', { ascending: false });
     if (error) throw error;
 
-    const list = data || [];
+    let list = data || [];
     if (isPublic) {
+      list = list.filter((offer: any) => offer.activo && !offer.deleted_at);
       return list.map((offer: any) => ({
         ...offer,
         precio_oferta: 0,
@@ -914,10 +931,25 @@ export const productService = {
   },
 
   deleteSuperOffer: async (id: string): Promise<void> => {
+    const nowStr = new Date().toISOString();
     const { error } = await supabase
       .from('super_offers')
-      .delete()
+      .update({
+        activo: false,
+        deleted_at: nowStr,
+        updated_at: nowStr
+      })
       .eq('id', id);
-    if (error) throw error;
+
+    if (error) {
+      const { error: fallbackErr } = await supabase
+        .from('super_offers')
+        .update({
+          activo: false,
+          updated_at: nowStr
+        })
+        .eq('id', id);
+      if (fallbackErr) throw fallbackErr;
+    }
   }
 };

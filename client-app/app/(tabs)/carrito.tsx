@@ -475,7 +475,11 @@ export default function CarritoScreen() {
               throw new Error('El carrito está vacío.');
             }
 
-            // 2. Si eligió Mercado Pago, validar/generar la preferencia primero
+            // 2. Crear el pedido en la base de datos PRIMERO
+            await addOrder(newOrder, clientData?.email || '');
+            createdOrder = newOrder;
+
+            // 3. Si eligió Mercado Pago, generar la preferencia vinculada al pedido creado
             let mpTargetUrl: string | null = null;
             if (paymentMethod === 'mercadopago') {
               try {
@@ -503,18 +507,16 @@ export default function CarritoScreen() {
                 if (mpRes.ok) {
                   const mpData = await mpRes.json();
                   mpTargetUrl = mpData.init_point || mpData.sandbox_init_point || null;
+                  if (mpData.preferenceId && mpTargetUrl && mpData.expiresAt) {
+                    await orderService.updateMercadoPagoPreference(newOrder.id, mpData.preferenceId, mpTargetUrl, mpData.expiresAt);
+                  }
                 } else {
-                  throw new Error('No se pudo generar la preferencia de pago en Mercado Pago.');
+                  console.warn('Advertencia: No se pudo generar la preferencia de MP inmediatamente. El pedido fue creado como pendiente.');
                 }
               } catch (mpErr: any) {
-                console.error('Error iniciando checkout de Mercado Pago:', mpErr);
-                throw new Error('No se pudo conectar con Mercado Pago. Por favor, intentá nuevamente o elegí otro medio de pago.');
+                console.error('Error generando preferencia de Mercado Pago:', mpErr);
               }
             }
-
-            // 3. Crear el pedido en la base de datos
-            await addOrder(newOrder, clientData?.email || '');
-            createdOrder = newOrder;
 
             // 4. Parámetros para la pantalla de confirmación con items estructurados
             const confirmParams = {
@@ -540,7 +542,7 @@ export default function CarritoScreen() {
               ),
             };
 
-            // 5. Limpiar carrito y resetear solo tras éxito total comprobado
+            // 5. Limpiar carrito y resetear tras guardar el pedido
             clearCart();
             resetCheckoutState();
 

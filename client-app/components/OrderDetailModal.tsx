@@ -17,6 +17,7 @@ import { Radius, Spacing } from '../constants/Spacing';
 import { Order, ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from '../types';
 import { formatPrice, formatDate, formatTime } from '../utils/formatters';
 import { companySettingsService } from '@shared/services/companySettingsService';
+import { orderService } from '@shared/services/orderService';
 import { buildWhatsAppOrderMessage } from '@shared/utils/whatsappOrderMessage';
 import { useRouter } from 'expo-router';
 
@@ -29,6 +30,69 @@ interface OrderDetailModalProps {
 export function OrderDetailModal({ order, onClose, onRepeat }: OrderDetailModalProps) {
   const router = useRouter();
   const [companySettings, setCompanySettings] = useState<any>(null);
+  const [isGeneratingMpLink, setIsGeneratingMpLink] = useState(false);
+
+  const isMpLinkExpired = (ord: Order) => {
+    if (!ord.mpPreferenceExpiresAt) return true;
+    return new Date(ord.mpPreferenceExpiresAt).getTime() <= Date.now();
+  };
+
+  const handlePayMercadoPago = async (ord: Order) => {
+    setIsGeneratingMpLink(true);
+    try {
+      const expired = isMpLinkExpired(ord);
+      if (!expired && ord.mpInitPoint) {
+        if (Platform.OS === 'web') {
+          window.location.href = ord.mpInitPoint;
+        } else {
+          Linking.openURL(ord.mpInitPoint);
+        }
+        return;
+      }
+
+      const backendUrl = process.env.EXPO_PUBLIC_BACKEND_URL || 'http://localhost:3001';
+      const mpRes = await fetch(`${backendUrl}/api/mercadopago/create-preference`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderId: ord.id,
+          items: ord.items.map((i) => ({
+            title: i.producto.nombre,
+            unit_price: i.precioUnitario,
+            quantity: i.cantidad,
+          })),
+          payer: {
+            name: ord.customerName || 'Cliente',
+            email: '',
+          },
+        }),
+      });
+
+      if (!mpRes.ok) {
+        throw new Error('No se pudo conectar con Mercado Pago.');
+      }
+
+      const mpData = await mpRes.json();
+      const link = mpData.init_point || mpData.sandbox_init_point;
+      if (!link) {
+        throw new Error('Mercado Pago no retornó un enlace válido.');
+      }
+
+      if (mpData.preferenceId && mpData.expiresAt) {
+        await orderService.updateMercadoPagoPreference(ord.id, mpData.preferenceId, link, mpData.expiresAt);
+      }
+
+      if (Platform.OS === 'web') {
+        window.location.href = link;
+      } else {
+        Linking.openURL(link);
+      }
+    } catch (err: any) {
+      alert(err.message || 'No se pudo procesar el pago con Mercado Pago.');
+    } finally {
+      setIsGeneratingMpLink(false);
+    }
+  };
 
   useEffect(() => {
     const loadSettings = async () => {
@@ -279,6 +343,31 @@ export function OrderDetailModal({ order, onClose, onRepeat }: OrderDetailModalP
 
           {/* Acciones */}
           <View style={styles.footerActions}>
+            {order.paymentMethod === 'mercadopago' && (order.paymentStatus || 'pendiente') === 'pendiente' && order.estado !== 'cancelado' && (
+              <TouchableOpacity
+                style={{
+                  backgroundColor: '#009EE3',
+                  paddingVertical: 12,
+                  paddingHorizontal: 16,
+                  borderRadius: Radius.md,
+                  alignItems: 'center',
+                  marginBottom: Spacing.sm,
+                  width: '100%',
+                }}
+                onPress={() => handlePayMercadoPago(order)}
+                disabled={isGeneratingMpLink}
+                activeOpacity={0.8}
+              >
+                <Text style={{ color: '#FFFFFF', fontWeight: 'bold', fontSize: 14 }}>
+                  {isGeneratingMpLink
+                    ? '⌛ Conectando con Mercado Pago...'
+                    : isMpLinkExpired(order)
+                    ? '🔄 Generar Nuevo Link de Pago (Mercado Pago)'
+                    : '💳 Pagar con Mercado Pago'}
+                </Text>
+              </TouchableOpacity>
+            )}
+
             {onRepeat && (
               <TouchableOpacity
                 style={styles.repeatBtn}
