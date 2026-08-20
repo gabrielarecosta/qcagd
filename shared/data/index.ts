@@ -1,5 +1,4 @@
 export * from './mockBranches';
-export * from './mockSectors';
 export * from './mockUsers';
 
 export * from './mockProducts';

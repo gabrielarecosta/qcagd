@@ -25,8 +25,8 @@ export function DashboardView({ onNavigate, onFilterProductsNoPhoto }: Dashboard
   const [openActionDropdownOrderId, setOpenActionDropdownOrderId] = useState<string | null>(null);
   const [hoveredBar, setHoveredBar] = useState<{ x: number; y: number; label: string; amount: number } | null>(null);
 
-  // Fecha de referencia "Hoy" es 25/06/2026 para calzar con mockDeliveries y mockOrders
-  const baseToday = useMemo(() => new Date('2026-06-25T23:59:59'), []);
+  // Fecha de referencia actual (tiempo real de Supabase)
+  const baseToday = useMemo(() => new Date(), []);
 
   // 1. Filtrado de órdenes por fecha y sucursal
   const filteredOrders = useMemo(() => {

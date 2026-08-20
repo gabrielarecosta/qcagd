@@ -1,7 +1,6 @@
 import { create } from 'zustand';
 import {
   Branch,
-  Sector,
   InternalUser,
   Customer,
   Product,
@@ -17,7 +16,6 @@ import {
 } from '@shared/types';
 import {
   branchService,
-  sectorService,
   userService,
   clientService,
   productService,
@@ -37,7 +35,6 @@ interface AdminStore {
   
   // Tablas
   branches: Branch[];
-  sectors: Sector[];
   users: InternalUser[];
   clients: Customer[];
   products: Product[];
@@ -60,10 +57,6 @@ interface AdminStore {
   // Sucursales
   updateBranch: (id: string, updates: Partial<Branch>) => Promise<void>;
   createBranch: (branch: Omit<Branch, 'id'>) => Promise<void>;
-  
-  // Sectores
-  updateSector: (id: string, updates: Partial<Sector>) => Promise<void>;
-  createSector: (sector: Omit<Sector, 'id'>) => Promise<void>;
   
   // Usuarios
   updateUser: (id: string, updates: Partial<InternalUser>) => Promise<void>;
@@ -131,7 +124,6 @@ export const useAdminStore = create<AdminStore>((set, get) => ({
   isLoading: true,
 
   branches: [],
-  sectors: [],
   users: [],
   clients: [],
   products: [],
@@ -163,7 +155,6 @@ export const useAdminStore = create<AdminStore>((set, get) => ({
     try {
       const [
         branches,
-        sectors,
         users,
         clients,
         products,
@@ -174,7 +165,6 @@ export const useAdminStore = create<AdminStore>((set, get) => ({
         superOffers
       ] = await Promise.all([
         branchService.getAll(),
-        sectorService.getAll(),
         userService.getAll(),
         clientService.getAll(),
         productService.getAll(), // Hydrates catalog with stock in default sucursal
@@ -242,7 +232,6 @@ export const useAdminStore = create<AdminStore>((set, get) => ({
 
       set({
         branches,
-        sectors,
         users,
         clients,
         products,
@@ -270,16 +259,6 @@ export const useAdminStore = create<AdminStore>((set, get) => ({
 
   createBranch: async (branch) => {
     await branchService.create(branch);
-    await get().fetchData();
-  },
-
-  updateSector: async (id, updates) => {
-    await sectorService.update(id, updates);
-    await get().fetchData();
-  },
-
-  createSector: async (sector) => {
-    await sectorService.create(sector);
     await get().fetchData();
   },
 

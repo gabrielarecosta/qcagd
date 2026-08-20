@@ -1,7 +1,8 @@
+// Deprecated type - sectors removed
 export interface Sector {
   id: string;
+  nombre: string;
   branchId: string;
-  nombre: string;       // Administración, Ventas, Depósito, Reparto, Caja, Atención al cliente, Preparación de pedidos
-  descripcion?: string;
-  activo: boolean;
+  codigo?: string;
+  activo?: boolean;
 }

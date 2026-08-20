@@ -6,7 +6,6 @@ export * from './delivery';
 export * from './payment';
 export * from './user';
 export * from './branch';
-export * from './sector';
 export * from './schedule';
 export * from './notification';
 export * from './report';

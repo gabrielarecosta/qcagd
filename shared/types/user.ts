@@ -13,7 +13,6 @@ export interface InternalUser {
   email: string;
   rol: UserRole;
   branchId?: string; // null = admin general
-  sectorId?: string;
   activo: boolean;
   telefono?: string;
   password?: string;

@@ -5,7 +5,6 @@ import { supabase } from '@shared/services';
 
 import { DashboardView } from './views/DashboardView';
 import { BranchesView } from './views/BranchesView';
-import { SectorsView } from './views/SectorsView';
 import { ProductsView } from './views/ProductsView';
 import { SuperOffersView } from './views/SuperOffersView';
 import { ExcelImportView } from './views/ExcelImportView';
@@ -23,7 +22,6 @@ import { LoginView } from './views/LoginView';
 type TabType = 
   | 'dashboard'
   | 'branches'
-  | 'sectors'
   | 'products'
   | 'superoffers'
   | 'excel'
@@ -308,7 +306,6 @@ function App() {
     { id: 'clients', label: 'Directorio Clientes', group: 'Catálogo & Clientes' },
     
     { id: 'branches', label: 'Sucursales', group: 'Configuración' },
-    { id: 'sectors', label: 'Sectores Internos', group: 'Configuración' },
     { id: 'paymentConfig', label: 'Medios de Pago & CBU', group: 'Configuración' },
     { id: 'clientConfig', label: 'Configuración App', group: 'Configuración' },
     { id: 'users', label: 'Personal / Roles', group: 'Configuración' },
@@ -335,8 +332,6 @@ function App() {
         );
       case 'branches':
         return <BranchesView />;
-      case 'sectors':
-        return <SectorsView />;
       case 'products':
         return <ProductsView initialFilter={productFilter} onResetFilter={() => setProductFilter('all')} />;
       case 'superoffers':

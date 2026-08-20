@@ -4,7 +4,7 @@ import type { InternalUser, UserRole } from '@shared/types/user';
 
 
 export function UsersView() {
-  const { users, branches, sectors, activeBranchId, createUser, updateUser, deleteUser } = useAdminStore();
+  const { users, branches, activeBranchId, createUser, updateUser, deleteUser } = useAdminStore();
 
   const handleDeleteClick = (id: string, nombre: string) => {
     setDeleteConfirmUser({ id, nombre, step: 1 });
@@ -33,7 +33,6 @@ export function UsersView() {
     email: '',
     rol: 'ventas' as UserRole,
     branchId: 'branch-gd1',
-    sectorId: 'sector-gd1-adm',
     telefono: '',
     activo: true,
     password: '',
@@ -75,12 +74,6 @@ export function UsersView() {
     return b ? b.nombre : 'Sin sucursal';
   };
 
-  const getSectorName = (sId?: string) => {
-    if (!sId) return 'General';
-    const s = sectors.find(item => item.id === sId);
-    return s ? s.nombre : 'Sin sector';
-  };
-
   // Filtered staff list
   const filteredUsers = useMemo(() => {
     return users.filter(u => {
@@ -97,12 +90,6 @@ export function UsersView() {
     });
   }, [users, search, activeBranchId, selectedRole]);
 
-  // Sectors filtered by the selected branch in form
-  const formSectors = useMemo(() => {
-    if (!formUser.branchId) return [];
-    return sectors.filter(s => s.branchId === formUser.branchId);
-  }, [sectors, formUser.branchId]);
-
   const handleOpenEdit = (u: InternalUser) => {
     setEditingUser(u);
     setFormUser({
@@ -110,7 +97,6 @@ export function UsersView() {
       email: u.email,
       rol: u.rol,
       branchId: u.branchId || '',
-      sectorId: u.sectorId || '',
       telefono: u.telefono || '',
       activo: u.activo,
       password: '',
@@ -124,13 +110,11 @@ export function UsersView() {
   const handleOpenCreate = () => {
     setIsCreating(true);
     const defaultBranch = activeBranchId !== 'all' ? activeBranchId : (branches[0]?.id || 'branch-gd1');
-    const branchSectors = sectors.filter(s => s.branchId === defaultBranch);
     setFormUser({
       nombre: '',
       email: '',
       rol: 'repartidor',
       branchId: defaultBranch,
-      sectorId: branchSectors[0]?.id || '',
       telefono: '',
       activo: true,
       password: '',
@@ -222,7 +206,6 @@ export function UsersView() {
                 <th>Correo Electrónico</th>
                 <th>Rol Asignado</th>
                 <th>Sucursal de Base</th>
-                <th>Sector Asignado</th>
                 <th>Contacto</th>
                 <th>Estado</th>
                 <th className="text-right">Acciones</th>
@@ -247,7 +230,6 @@ export function UsersView() {
                     </span>
                   </td>
                   <td>{getBranchName(u.branchId)}</td>
-                  <td>{getSectorName(u.sectorId)}</td>
                   <td>{u.telefono || '-'}</td>
                   <td>
                     <span className={`badge ${u.activo ? 'badge-success' : 'badge-error'}`}>
@@ -270,7 +252,7 @@ export function UsersView() {
               ))}
               {filteredUsers.length === 0 && (
                 <tr>
-                  <td colSpan={8} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-disabled)' }}>
+                  <td colSpan={7} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-disabled)' }}>
                     No se encontraron colaboradores con los filtros aplicados.
                   </td>
                 </tr>
@@ -329,15 +311,7 @@ export function UsersView() {
                     <select 
                       className="form-select"
                       value={formUser.branchId}
-                      onChange={e => {
-                        const bId = e.target.value;
-                        const branchSectors = sectors.filter(s => s.branchId === bId);
-                        setFormUser({ 
-                          ...formUser, 
-                          branchId: bId, 
-                          sectorId: branchSectors[0]?.id || '' 
-                        });
-                      }}
+                      onChange={e => setFormUser({ ...formUser, branchId: e.target.value })}
                     >
                       <option value="">Global (Todas las sucursales)</option>
                       {branches.map(b => <option key={b.id} value={b.id}>{b.nombre}</option>)}
@@ -345,28 +319,14 @@ export function UsersView() {
                   </div>
                 </div>
 
-                <div className="form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
-                  <div className="form-group">
-                    <label className="form-label">Sector Físico</label>
-                    <select 
-                      className="form-select"
-                      value={formUser.sectorId}
-                      onChange={e => setFormUser({ ...formUser, sectorId: e.target.value })}
-                      disabled={!formUser.branchId}
-                    >
-                      <option value="">Sin Asignar / Administración</option>
-                      {formSectors.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
-                    </select>
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Teléfono Interno / Celular</label>
-                    <input 
-                      type="text" 
-                      className="form-input" 
-                      value={formUser.telefono}
-                      onChange={e => setFormUser({ ...formUser, telefono: e.target.value })}
-                    />
-                  </div>
+                <div className="form-group" style={{ marginBottom: '16px' }}>
+                  <label className="form-label">Teléfono Interno / Celular</label>
+                  <input 
+                    type="text" 
+                    className="form-input" 
+                    value={formUser.telefono}
+                    onChange={e => setFormUser({ ...formUser, telefono: e.target.value })}
+                  />
                 </div>
 
                 {formUser.rol === 'repartidor' && (
@@ -502,15 +462,7 @@ export function UsersView() {
                     <select 
                       className="form-select"
                       value={formUser.branchId}
-                      onChange={e => {
-                        const bId = e.target.value;
-                        const branchSectors = sectors.filter(s => s.branchId === bId);
-                        setFormUser({ 
-                          ...formUser, 
-                          branchId: bId, 
-                          sectorId: branchSectors[0]?.id || '' 
-                        });
-                      }}
+                      onChange={e => setFormUser({ ...formUser, branchId: e.target.value })}
                     >
                       <option value="">Global (Todas las sucursales)</option>
                       {branches.map(b => <option key={b.id} value={b.id}>{b.nombre}</option>)}
@@ -518,29 +470,15 @@ export function UsersView() {
                   </div>
                 </div>
 
-                <div className="form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
-                  <div className="form-group">
-                    <label className="form-label">Sector Físico</label>
-                    <select 
-                      className="form-select"
-                      value={formUser.sectorId}
-                      onChange={e => setFormUser({ ...formUser, sectorId: e.target.value })}
-                      disabled={!formUser.branchId}
-                    >
-                      <option value="">Sin Asignar / Administración</option>
-                      {formSectors.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
-                    </select>
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Teléfono Interno / Celular</label>
-                    <input 
-                      type="text" 
-                      className="form-input" 
-                      placeholder="Ej: 3584998877"
-                      value={formUser.telefono}
-                      onChange={e => setFormUser({ ...formUser, telefono: e.target.value })}
-                    />
-                  </div>
+                <div className="form-group" style={{ marginBottom: '16px' }}>
+                  <label className="form-label">Teléfono Interno / Celular</label>
+                  <input 
+                    type="text" 
+                    className="form-input" 
+                    placeholder="Ej: 3584998877"
+                    value={formUser.telefono}
+                    onChange={e => setFormUser({ ...formUser, telefono: e.target.value })}
+                  />
                 </div>
 
                 {formUser.rol === 'repartidor' && (

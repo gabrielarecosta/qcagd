@@ -1,5 +1,4 @@
 export * from './branchService';
-export * from './sectorService';
 export * from './userService';
 export * from './productService';
 export * from './clientService';
