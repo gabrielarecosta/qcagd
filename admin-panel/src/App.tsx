@@ -139,19 +139,7 @@ const getSidebarIcon = (id: TabType) => {
           <path d="M8 6h.01M16 6h.01M8 10h.01M16 10h.01"/>
         </svg>
       );
-    case 'sectors':
-      return (
-        <svg {...props}>
-          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
-        </svg>
-      );
-    case 'zones':
-      return (
-        <svg {...props}>
-          <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
-          <circle cx="12" cy="10" r="3"/>
-        </svg>
-      );
+
     case 'clientConfig':
       return (
         <svg {...props}>

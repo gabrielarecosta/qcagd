@@ -334,7 +334,7 @@ export function DeliveriesView() {
 
       const map = mapModalInstanceRef.current;
       setTimeout(() => {
-        try { map.invalidateSize(); } catch (e) {}
+        try { if (map && (map as any).invalidateSize) (map as any).invalidateSize(); } catch (e) {}
       }, 150);
 
       // Limpiar marcadores y polilíneas previos
@@ -437,10 +437,14 @@ export function DeliveriesView() {
 
         modalMarkersRef.current.push(polyline);
 
-        const bounds = L.latLngBounds(polylineCoords);
-        map.fitBounds(bounds, { padding: [40, 40], maxZoom: 15 });
-      } else {
-        map.setView([startPointCoords.latitude, startPointCoords.longitude], 13.8);
+        if (map) {
+          if (polylineCoords.length > 0) {
+            const bounds = L.latLngBounds(polylineCoords);
+            (map as any).fitBounds(bounds, { padding: [40, 40] as any, maxZoom: 15 });
+          } else {
+            (map as any).setView([startPointCoords.latitude, startPointCoords.longitude], 13.8);
+          }
+        }
       }
     };
 
@@ -715,7 +719,6 @@ export function DeliveriesView() {
     });
 
     const targetDate = new Date().toISOString().split('T')[0];
-    const displayZoneName = 'General Deheza';
     const displayTurnoName = formTurno === 'all' ? 'Todos los Horarios (08:00 a 20:00)' : formTurno;
     const startPointLabel = `${startPointCoords.name} (${startPointCoords.address})`;
 
@@ -726,7 +729,6 @@ export function DeliveriesView() {
         repartidorId: formDriverId,
         fecha: targetDate,
         estado: 'armado',
-        zona: displayZoneName,
         horarioEstimado: displayTurnoName,
         pedidosIds: sequencedOrderIds,
         stops,
@@ -791,7 +793,7 @@ export function DeliveriesView() {
   const handleExportDeliveries = () => {
     const dataToExport = filteredDeliveries.flatMap(d => {
       return (d.stops || []).map((stop: any, sIdx: number) => ({
-        RutaZona: d.zona,
+        RutaZona: (d as any).zona || 'Hoja de Ruta',
         Sucursal: getBranchName(d.branchId || ''),
         Chofer: getDriverName(d.repartidorId || ''),
         Fecha: d.fecha,
@@ -884,7 +886,7 @@ export function DeliveriesView() {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px', borderBottom: '1px solid var(--border-color)', paddingBottom: '12px', marginBottom: '12px' }}>
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 'bold' }}>Ruta {d.zona}</h3>
+                    <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 'bold' }}>Ruta {(d as any).zona || d.horarioEstimado || ''}</h3>
                     <span className="badge badge-neutral">{getBranchName(d.branchId || '')}</span>
                     <span className={`badge ${
                       d.estado === 'entregado' ? 'badge-success' : 
@@ -1228,7 +1230,7 @@ export function DeliveriesView() {
                     <div style={{ flex: 1, overflowY: 'auto', maxHeight: '300px' }}>
                       {filteredEligibleOrders.length === 0 ? (
                         <div style={{ padding: '35px 20px', textAlign: 'center', color: '#94a3b8', fontSize: '13px' }}>
-                          No hay pedidos pendientes para los filtros seleccionados (Zona: {formZona === 'all' ? 'Todas' : formZona}, Turno: {formTurno === 'all' ? 'Todos' : formTurno}).
+                          No hay pedidos pendientes para los filtros seleccionados (Turno: {formTurno === 'all' ? 'Todos' : formTurno}).
                         </div>
                       ) : (
                         <table className="admin-table" style={{ fontSize: '12px', margin: 0 }}>

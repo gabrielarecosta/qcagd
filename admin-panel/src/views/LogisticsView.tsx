@@ -30,7 +30,6 @@ interface OrderItemInfo {
     nombre: string;
     razonSocial?: string;
     direccion: string;
-    zona: string;
     telefono: string;
   };
 }
@@ -176,7 +175,7 @@ export function LogisticsView() {
           id, numero, fecha, total, estado,
           delivery_date, delivery_start_time, delivery_end_time, delivery_time_slot_id, delivery_method, observaciones_cliente,
           latitude, longitude, location_verified, priority, address_reference,
-          cliente:customers (id, nombre, razon_social, direccion, zona, telefono)
+          cliente:customers (id, nombre, razon_social, direccion, telefono)
         `)
         .is('delivery_route_id', null)
         .is('deleted_at', null)
@@ -214,7 +213,6 @@ export function LogisticsView() {
             nombre: o.cliente?.nombre || 'Cliente Desconocido',
             razonSocial: o.cliente?.razon_social,
             direccion: o.cliente?.direccion || 'Sin dirección',
-            zona: o.cliente?.zona || 'Centro',
             telefono: o.cliente?.telefono || '',
           }
         }));
@@ -266,7 +264,6 @@ export function LogisticsView() {
       if (order.deliveryMethod === 'retiro' || order.deliveryMethod === 'whatsapp') return false;
       if (filterDate && order.deliveryDate && order.deliveryDate !== filterDate) return false;
       if (filterSlotId !== 'all' && order.deliveryTimeSlotId !== filterSlotId) return false;
-      if (filterZone !== 'all' && order.cliente.zona !== filterZone) return false;
       if (filterPriority !== 'all' && String(order.priority) !== filterPriority) return false;
       
       if (searchAddress.trim()) {
@@ -278,13 +275,7 @@ export function LogisticsView() {
       }
       return true;
     });
-  }, [orders, filterDate, filterSlotId, filterZone, searchAddress, filterPriority]);
-
-  const availableZones = useMemo(() => {
-    const zones = new Set<string>();
-    orders.forEach(o => o.cliente.zona && zones.add(o.cliente.zona));
-    return Array.from(zones);
-  }, [orders]);
+  }, [orders, filterDate, filterSlotId, searchAddress, filterPriority]);
 
   // Handle checking / unchecking order for route inclusion
   const handleToggleSelectOrder = async (orderId: string) => {
@@ -878,15 +869,6 @@ export function LogisticsView() {
             </select>
           </div>
           <div className="form-group">
-            <label className="form-label">Zona</label>
-            <select className="form-select" value={filterZone} onChange={e => setFilterZone(e.target.value)}>
-              <option value="all">Todas las zonas</option>
-              {availableZones.map(z => (
-                <option key={z} value={z}>{z}</option>
-              ))}
-            </select>
-          </div>
-          <div className="form-group">
             <label className="form-label">Prioridad</label>
             <select className="form-select" value={filterPriority} onChange={e => setFilterPriority(e.target.value)}>
               <option value="all">Todas</option>
@@ -963,7 +945,6 @@ export function LogisticsView() {
 
                     <div style={{ display: 'flex', gap: '16px', fontSize: '12px', color: 'var(--text-disabled)', marginTop: '6px' }}>
                       <span>Monto: <strong>${o.total.toLocaleString('es-AR')}</strong></span>
-                      <span>Zona: {o.cliente.zona}</span>
                       {o.deliveryStartTime && (
                         <span>Franja: {o.deliveryStartTime} - {o.deliveryEndTime} hs</span>
                       )}

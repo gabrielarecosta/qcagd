@@ -132,7 +132,6 @@ export function UsersView() {
     const updates: any = {
       ...formUser,
       branchId: formUser.branchId || undefined,
-      sectorId: formUser.sectorId || undefined,
     };
     
     // Si no ingresaron nueva contraseña, la removemos para no pisarla con vacío en la BD
@@ -149,7 +148,6 @@ export function UsersView() {
     createUser({
       ...formUser,
       branchId: formUser.branchId || undefined,
-      sectorId: formUser.sectorId || undefined,
     });
     setIsCreating(false);
   };

@@ -131,7 +131,7 @@ export function ClientsView() {
   };
 
   const handleStartEditAuxAddr = (addr: CustomerAddress) => {
-    setEditingAddressId(addr.id);
+    setEditingAddressId(addr.id || null);
     setEditAddrText(addr.direccion);
     setEditAddrIndicaciones(addr.indicaciones || '');
   };
@@ -584,18 +584,12 @@ export function ClientsView() {
                         <div key={addr.id} style={{ background: '#f1f5f9', padding: '10px 12px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
                           {editingAddressId === addr.id ? (
                             <div>
-                              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '8px', marginBottom: '6px' }}>
+                              <div style={{ marginBottom: '6px' }}>
                                 <input
                                   type="text"
                                   className="form-input"
                                   value={editAddrText}
                                   onChange={e => setEditAddrText(e.target.value)}
-                                />
-                                <input
-                                  type="text"
-                                  className="form-input"
-                                  value={editAddrZona}
-                                  onChange={e => setEditAddrZona(e.target.value)}
                                 />
                               </div>
                               <input
@@ -611,7 +605,7 @@ export function ClientsView() {
                                   type="button"
                                   className="btn btn-primary"
                                   style={{ padding: '4px 8px', fontSize: '11px' }}
-                                  onClick={() => handleSaveAuxAddress(addr.id)}
+                                  onClick={() => addr.id && handleSaveAuxAddress(addr.id)}
                                 >
                                   💾 Guardar
                                 </button>
@@ -631,9 +625,11 @@ export function ClientsView() {
                                 <div style={{ fontWeight: 'bold', fontSize: '13px', color: '#0f172a' }}>
                                   📍 {addr.direccion}
                                 </div>
-                                <div style={{ fontSize: '11px', color: '#64748b' }}>
-                                  Zona: <strong>{addr.zona}</strong> {addr.indicaciones ? `| Ref: ${addr.indicaciones}` : ''}
-                                </div>
+                                {addr.indicaciones ? (
+                                  <div style={{ fontSize: '11px', color: '#64748b' }}>
+                                    Ref: {addr.indicaciones}
+                                  </div>
+                                ) : null}
                               </div>
                               <div style={{ display: 'flex', gap: '4px' }}>
                                 <button
@@ -648,7 +644,7 @@ export function ClientsView() {
                                   type="button"
                                   className="btn btn-danger"
                                   style={{ padding: '3px 8px', fontSize: '11px', background: '#ef4444', color: '#fff', border: 'none', borderRadius: '4px' }}
-                                  onClick={() => handleDeleteAuxAddress(addr.id)}
+                                  onClick={() => addr.id && handleDeleteAuxAddress(addr.id)}
                                 >
                                   🗑️ Eliminar
                                 </button>
@@ -787,17 +783,6 @@ export function ClientsView() {
                       <option value="sucursal">Sucursal / Empresa</option>
                     </select>
                   </div>
-                </div>
-
-                <div className="form-group" style={{ marginBottom: '16px' }}>
-                  <label className="form-label">Zona de Entrega</label>
-                  <input 
-                    type="text" 
-                    className="form-input" 
-                    value={formClient.zona}
-                    onChange={e => setFormClient({ ...formClient, zona: e.target.value })}
-                    required
-                  />
                 </div>
 
                 <div className="form-group">

@@ -96,9 +96,6 @@ interface AdminStore {
   createPaymentLog: (log: Omit<PaymentLog, 'id'>) => Promise<void>;
 
   // Configuración
-  updateZone: (id: string, updates: Partial<DeliveryZone>) => Promise<void>;
-  createZone: (zone: Omit<DeliveryZone, 'id'>) => Promise<void>;
-  deleteZone: (id: string) => Promise<void>;
   updateSchedule: (branchId: string, updates: Partial<BranchSchedule>) => Promise<void>;
 
   // Notificaciones
@@ -585,13 +582,13 @@ export const useAdminStore = create<AdminStore>((set, get) => ({
 
   updateOrder: async (id, updates) => {
     const userEmail = get().currentUser?.email || '';
-    await orderService.update(id, updates, userEmail);
+    await orderService.update(id, updates as any, userEmail);
     await get().fetchData();
   },
 
   createOrder: async (order) => {
     const userEmail = get().currentUser?.email || '';
-    await orderService.create(order, userEmail);
+    await orderService.create(order as any, userEmail);
     await get().fetchData();
   },
 
@@ -679,21 +676,6 @@ export const useAdminStore = create<AdminStore>((set, get) => ({
 
   createPaymentLog: async (log) => {
     await paymentService.create(log);
-    await get().fetchData();
-  },
-
-  updateZone: async (id, updates) => {
-    await zoneService.update(id, updates);
-    await get().fetchData();
-  },
-
-  createZone: async (zone) => {
-    await zoneService.create(zone);
-    await get().fetchData();
-  },
-
-  deleteZone: async (id) => {
-    await zoneService.delete(id);
     await get().fetchData();
   },
 
