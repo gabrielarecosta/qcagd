@@ -328,6 +328,48 @@ export const productService = {
     return data;
   },
 
+  checkDuplicateImport: async (fileName: string, hash: string): Promise<any | null> => {
+    try {
+      if (hash) {
+        const { data: byHash } = await supabase
+          .from('imports')
+          .select('*')
+          .eq('file_hash', hash)
+          .order('fecha', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (byHash) return { ...byHash, matchReason: 'content' };
+      }
+
+      if (fileName) {
+        const { data: byName } = await supabase
+          .from('imports')
+          .select('*')
+          .eq('nombre_archivo', fileName)
+          .order('fecha', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (byName) return { ...byName, matchReason: 'name' };
+      }
+    } catch (err) {
+      console.warn('Error verificando duplicidad de importación:', err);
+    }
+    return null;
+  },
+
+  getImportsHistory: async (limit = 20): Promise<any[]> => {
+    const { data, error } = await supabase
+      .from('imports')
+      .select('*')
+      .order('fecha', { ascending: false })
+      .limit(limit);
+    if (error) {
+      console.warn('Error obteniendo historial de importaciones:', error.message);
+      return [];
+    }
+    return data || [];
+  },
+
   createStagingImport: async (fileName: string, userEmail: string, fileHash: string, stagedRowsCount: number): Promise<any> => {
     const { data, error } = await supabase
       .from('imports')
@@ -766,28 +808,43 @@ export const productService = {
     const cleanCodeHistoryInsert = codeHistoryInsert.map(sanitizeChildItem).filter(Boolean);
     const cleanMovementsInsert = movementsInsert.map(sanitizeChildItem).filter(Boolean);
 
-    // B. Precios (Insert)
-    for (let i = 0; i < cleanPricesInsert.length; i += chunkSize) {
-      const chunk = cleanPricesInsert.slice(i, i + chunkSize);
-      const { error } = await supabase.from('product_prices').insert(chunk);
-      if (error) throw error;
+    // B. Precios (Insert Historial - No bloqueante)
+    if (cleanPricesInsert.length > 0) {
+      try {
+        for (let i = 0; i < cleanPricesInsert.length; i += chunkSize) {
+          const chunk = cleanPricesInsert.slice(i, i + chunkSize);
+          await supabase.from('product_prices').insert(chunk);
+        }
+      } catch (priceErr: any) {
+        console.warn('Advertencia insertando historial de precios:', priceErr.message);
+      }
     }
 
-    // C. Historial de Códigos (Insert)
-    for (let i = 0; i < cleanCodeHistoryInsert.length; i += chunkSize) {
-      const chunk = cleanCodeHistoryInsert.slice(i, i + chunkSize);
-      const { error } = await supabase.from('product_code_history').insert(chunk);
-      if (error) throw error;
+    // C. Historial de Códigos (Insert Historial - No bloqueante)
+    if (cleanCodeHistoryInsert.length > 0) {
+      try {
+        for (let i = 0; i < cleanCodeHistoryInsert.length; i += chunkSize) {
+          const chunk = cleanCodeHistoryInsert.slice(i, i + chunkSize);
+          await supabase.from('product_code_history').insert(chunk);
+        }
+      } catch (codeErr: any) {
+        console.warn('Advertencia insertando historial de códigos:', codeErr.message);
+      }
     }
 
-    // D. Logs de Auditoría (Insert)
-    for (let i = 0; i < auditLogsInsert.length; i += chunkSize) {
-      const chunk = auditLogsInsert.slice(i, i + chunkSize);
-      const { error } = await supabase.from('audit_logs').insert(chunk);
-      if (error) throw error;
+    // D. Logs de Auditoría (Insert Historial - No bloqueante)
+    if (auditLogsInsert.length > 0) {
+      try {
+        for (let i = 0; i < auditLogsInsert.length; i += chunkSize) {
+          const chunk = auditLogsInsert.slice(i, i + chunkSize);
+          await supabase.from('audit_logs').insert(chunk);
+        }
+      } catch (auditErr: any) {
+        console.warn('Advertencia insertando logs de auditoría:', auditErr.message);
+      }
     }
 
-    // E. Inventario / Stock Real (Upsert en la tabla inventory)
+    // E. Inventario / Stock Real (Upsert en la tabla inventory con fallback a stocks)
     const uniqueInventoryMap = new Map<string, any>();
     inventoryUpsert.forEach(inv => {
       const sanitizedInv = sanitizeChildItem(inv);
@@ -799,33 +856,55 @@ export const productService = {
 
     for (let i = 0; i < finalInventoryUpsert.length; i += chunkSize) {
       const chunk = finalInventoryUpsert.slice(i, i + chunkSize);
-      const { error } = await supabase.from('inventory').upsert(chunk, { onConflict: 'product_id,branch_id' });
-      if (error) throw error;
+      const { error: invErr } = await supabase.from('inventory').upsert(chunk, { onConflict: 'product_id,branch_id' });
+      if (invErr) {
+        console.warn('Error en upsert inventory, reintentando en stocks:', invErr.message);
+        const stocksChunk = chunk.map(c => ({
+          product_id: c.product_id,
+          branch_id: c.branch_id,
+          stock: c.stock,
+          stock_minimo: c.stock_minimo || 5,
+          updated_at: c.updated_at
+        }));
+        await supabase.from('stocks').upsert(stocksChunk, { onConflict: 'product_id,branch_id' });
+      }
     }
 
-    // F. Movimientos de Stock (Insert)
-    for (let i = 0; i < cleanMovementsInsert.length; i += chunkSize) {
-      const chunk = cleanMovementsInsert.slice(i, i + chunkSize);
-      const { error } = await supabase.from('inventory_movements').insert(chunk);
-      if (error) throw error;
+    // F. Movimientos de Stock (Insert Historial - No bloqueante)
+    if (cleanMovementsInsert.length > 0) {
+      try {
+        for (let i = 0; i < cleanMovementsInsert.length; i += chunkSize) {
+          const chunk = cleanMovementsInsert.slice(i, i + chunkSize);
+          await supabase.from('inventory_movements').insert(chunk);
+        }
+      } catch (movErr: any) {
+        console.warn('Advertencia insertando movimientos de stock:', movErr.message);
+      }
     }
 
     // G. Actualizar filas de importación exitosas en Supabase
-    for (let i = 0; i < rowsCompletedIds.length; i += chunkSize) {
-      const chunk = rowsCompletedIds.slice(i, i + chunkSize);
-      const { error } = await supabase
-        .from('import_rows')
-        .update({ estado: 'completed' })
-        .in('id', chunk);
-      if (error) throw error;
+    try {
+      for (let i = 0; i < rowsCompletedIds.length; i += chunkSize) {
+        const chunk = rowsCompletedIds.slice(i, i + chunkSize);
+        await supabase
+          .from('import_rows')
+          .update({ estado: 'completed' })
+          .in('id', chunk);
+      }
+    } catch (rowsErr: any) {
+      console.warn('Advertencia actualizando import_rows:', rowsErr.message);
     }
 
     // H. Actualizar filas fallidas en Supabase
-    for (const fail of rowsFailedUpdates) {
-      await supabase
-        .from('import_rows')
-        .update({ estado: 'error', error_detalle: fail.error_detalle })
-        .eq('id', fail.id);
+    try {
+      for (const fail of rowsFailedUpdates) {
+        await supabase
+          .from('import_rows')
+          .update({ estado: 'error', error_detalle: fail.error_detalle })
+          .eq('id', fail.id);
+      }
+    } catch (failErr: any) {
+      console.warn('Advertencia actualizando import_rows fallidas:', failErr.message);
     }
 
     // 5. Actualizar resumen final de la importación

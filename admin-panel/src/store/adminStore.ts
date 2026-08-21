@@ -71,6 +71,8 @@ interface AdminStore {
   bulkUpdateExistingCatalog: (updatedProducts: Product[], branchId: string, rowStocks: any, fileName: string) => Promise<void>;
   bulkAddNewCatalog: (newProducts: Product[], branchId: string, rowStocks: any, fileName: string) => Promise<void>;
   checkFileHashExists: (hash: string) => Promise<any | null>;
+  checkDuplicateImport: (fileName: string, hash: string) => Promise<any | null>;
+  fetchImportsHistory: (limit?: number) => Promise<any[]>;
   createStagingImport: (fileName: string, fileHash: string, stagedRowsCount: number) => Promise<any>;
   insertStagingRows: (importId: string, rows: any[]) => Promise<void>;
   updateStagingRow: (rowId: string, updates: { estado: string; datos: any }) => Promise<void>;
@@ -537,6 +539,14 @@ export const useAdminStore = create<AdminStore>((set, get) => ({
 
   checkFileHashExists: async (hash) => {
     return await productService.checkFileHashExists(hash);
+  },
+
+  checkDuplicateImport: async (fileName, hash) => {
+    return await productService.checkDuplicateImport(fileName, hash);
+  },
+
+  fetchImportsHistory: async (limit = 20) => {
+    return await productService.getImportsHistory(limit);
   },
 
   createStagingImport: async (fileName, fileHash, stagedRowsCount) => {
