@@ -75,10 +75,18 @@ export const clientService = {
     return mapCustomer(data);
   },
 
-  create: async (client: Omit<Customer, 'id' | 'fechaAlta'> & { id?: string }): Promise<Customer> => {
-    const clientId = client.id || `cli-${Date.now()}`;
+  create: async (client: Omit<Customer, 'id' | 'fechaAlta'> & { id?: string | number }): Promise<Customer> => {
+    let branchIdNum: number = 1;
+    if (client.branchId) {
+      if (typeof client.branchId === 'number') {
+        branchIdNum = client.branchId;
+      } else {
+        const parsed = parseInt(String(client.branchId), 10);
+        if (!isNaN(parsed)) branchIdNum = parsed;
+      }
+    }
+
     const dbInsert: any = {
-      id: clientId,
       nombre: client.nombre,
       razon_social: client.razonSocial ? client.razonSocial : null,
       cuit: client.cuit ? client.cuit : null,
@@ -86,7 +94,7 @@ export const clientService = {
       whatsapp: client.whatsapp ? client.whatsapp : null,
       email: client.email ? client.email : null,
       direccion: client.direccion || '',
-      branch_id: client.branchId || 'branch-gd1',
+      branch_id: branchIdNum,
       tipo_cliente: client.tipoCliente ?? 'minorista',
       activo: client.activo ?? true,
       observaciones: client.observaciones ? client.observaciones : null,
@@ -95,6 +103,10 @@ export const clientService = {
       location_verified: client.latitude ? true : false,
       fecha_alta: new Date().toISOString(),
     };
+
+    if (client.id && !isNaN(Number(client.id))) {
+      dbInsert.id = Number(client.id);
+    }
 
     const { data, error } = await supabase
       .from('customers')

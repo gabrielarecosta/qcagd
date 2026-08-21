@@ -516,7 +516,7 @@ export function RepartidorHomeScreen() {
                     <Text style={styles.stopBadgeText}>#{stop.stopOrder}</Text>
                   </View>
                   <View style={styles.orderNumberCol}>
-                    <Text style={styles.orderNumberText}>{stop.orderNumber || `Pedido #${stop.orderId.slice(-5)}`}</Text>
+                    <Text style={styles.orderNumberText}>{stop.orderNumber || `Pedido #${String(stop.orderId).slice(-5)}`}</Text>
                     <Text style={styles.customerName}>{stop.customerName || 'Cliente'}</Text>
                   </View>
                   <View

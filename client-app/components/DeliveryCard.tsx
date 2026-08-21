@@ -29,7 +29,7 @@ export function DeliveryCard({ delivery }: DeliveryCardProps) {
   
   // Buscar el pedido en el store para obtener el número de pedido real
   const order = useOrderStore((state) => state.orders.find((o) => o.id === delivery.orderId));
-  const orderNum = order ? order.numero : 'PED-0000';
+  const orderNum = order ? order.numero : '0000';
 
   const handleCallDeliverer = () => {
     Linking.openURL(`tel:${delivery.repartidor.telefono}`);

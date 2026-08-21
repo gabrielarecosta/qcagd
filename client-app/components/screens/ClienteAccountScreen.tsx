@@ -508,10 +508,10 @@ export function ClienteAccountScreen() {
                     <Text style={{ fontSize: 13, color: Colors.primary, fontWeight: 'bold' }}>Principal</Text>
                   </TouchableOpacity>
                 )}
-                {addr.id && !addr.id.startsWith('main-') && (
+                {addr.id && !String(addr.id).startsWith('main-') && (
                   <TouchableOpacity
                     onPress={async () => {
-                      await clientService.deleteAddress(addr.id!);
+                      await clientService.deleteAddress(String(addr.id));
                       await loadAddresses();
                       customAlert('Eliminada', 'Dirección eliminada correctamente.');
                     }}

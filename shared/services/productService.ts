@@ -60,7 +60,10 @@ export const productService = {
         .is('deleted_at', null)
         .range(fromRange, toRange);
 
-      if (prodErr) throw prodErr;
+      if (prodErr) {
+        console.error('Error cargando productos:', prodErr.message);
+        break;
+      }
 
       if (!chunk || chunk.length === 0) {
         hasMoreProds = false;
@@ -74,7 +77,7 @@ export const productService = {
       }
     }
 
-    const targetBranch = branchId && branchId !== 'all' ? branchId : 'branch-gd1';
+    const targetBranch = branchId && branchId !== 'all' ? branchId : 1;
 
     // 2. Obtener todo el inventario paginado para la sucursal (evitando límite de 1000)
     let stocks: any[] = [];
@@ -106,7 +109,7 @@ export const productService = {
     }
 
     return (prods || []).map((p: any) => {
-      const stockInfo = (stocks || []).find((s: any) => s.product_id === p.id);
+      const stockInfo = (stocks || []).find((s: any) => String(s.product_id) === String(p.id));
       return {
         ...mapProduct(p, rate, isPublic),
         stock: stockInfo ? Number(stockInfo.stock) : 0,
@@ -127,7 +130,7 @@ export const productService = {
     if (prodErr) throw prodErr;
     if (!p) return undefined;
 
-    const targetBranch = branchId && branchId !== 'all' ? branchId : 'branch-gd1';
+    const targetBranch = branchId && branchId !== 'all' ? branchId : 1;
     const { data: stockInfo, error: stockErr } = await supabase
       .from('inventory')
       .select('*')
@@ -150,13 +153,11 @@ export const productService = {
     userMail?: string
   ): Promise<Product> => {
     const rate = await productService.getLatestExchangeRate();
-    const productId = `prod-${Date.now()}`;
     
     // Normalizar código
     const normalizedCode = product.codigo.trim().toUpperCase();
 
-    const dbInsert = {
-      id: productId,
+    const dbInsert: any = {
       codigo: normalizedCode,
       nombre: product.nombre,
       categoria: product.categoria,
@@ -183,15 +184,17 @@ export const productService = {
 
     if (error) throw error;
 
+    const createdProductId = data.id;
+
     // Crear movimientos de stock iniciales
-    const branchesToInit = ['branch-gd1', 'branch-gd2', 'branch-rc', 'branch-gig'];
+    const branchesToInit = [1, 2, 3, 4];
     for (const bId of branchesToInit) {
       const qty = initialStockPerBranch[bId] ?? 0;
       // Inserción en inventory_movements actualizará la tabla inventory por trigger
       const { error: stockErr } = await supabase
         .from('inventory_movements')
         .insert({
-          product_id: productId,
+          product_id: createdProductId,
           branch_id: bId,
           cantidad_modificada: qty,
           tipo_movimiento: 'carga_inicial',
@@ -199,14 +202,14 @@ export const productService = {
           usuario_responsable: userMail || ''
         });
       if (stockErr) {
-        console.error(`Failed to seed stock for branch ${bId} on product ${productId}:`, stockErr);
+        console.error(`Failed to seed stock for branch ${bId} on product ${createdProductId}:`, stockErr);
       }
     }
 
     return mapProduct(data, rate);
   },
 
-  update: async (id: string, updates: Partial<Product> & { dolarizado?: boolean; precio_usd?: number }): Promise<Product> => {
+  update: async (id: string | number, updates: Partial<Product> & { dolarizado?: boolean; precio_usd?: number }): Promise<Product> => {
     const rate = await productService.getLatestExchangeRate();
     const dbUpdates: any = {
       codigo: updates.codigo ? updates.codigo.trim().toUpperCase() : undefined,
@@ -371,29 +374,67 @@ export const productService = {
   },
 
   createStagingImport: async (fileName: string, userEmail: string, fileHash: string, stagedRowsCount: number): Promise<any> => {
-    const { data, error } = await supabase
+    const payload: any = {
+      nombre_archivo: fileName,
+      usuario: userEmail,
+      cantidad_filas: stagedRowsCount,
+      file_hash: fileHash,
+      estado: 'uploaded'
+    };
+
+    let { data, error } = await supabase
       .from('imports')
-      .insert({
-        nombre_archivo: fileName,
-        usuario: userEmail,
-        cantidad_filas: stagedRowsCount,
-        file_hash: fileHash,
-        estado: 'uploaded'
-      })
+      .insert(payload)
       .select('*')
       .single();
-    if (error) throw error;
+
+    if (error && (error.message?.includes('file_hash') || error.code === 'PGRST204')) {
+      delete payload.file_hash;
+      const { data: retryData, error: retryErr } = await supabase
+        .from('imports')
+        .insert(payload)
+        .select('*')
+        .single();
+      if (retryErr) {
+        if (retryErr.message?.includes('imports_estado_check')) {
+          payload.estado = 'procesando';
+          const { data: retry2, error: err2 } = await supabase.from('imports').insert(payload).select('*').single();
+          if (err2) throw err2;
+          data = retry2;
+        } else {
+          throw retryErr;
+        }
+      } else {
+        data = retryData;
+      }
+    } else if (error && error.message?.includes('imports_estado_check')) {
+      payload.estado = 'procesando';
+      const { data: retryData, error: retryErr } = await supabase
+        .from('imports')
+        .insert(payload)
+        .select('*')
+        .single();
+      if (retryErr) throw retryErr;
+      data = retryData;
+    } else if (error) {
+      throw error;
+    }
     return data;
   },
 
   insertStagingRows: async (importId: string, rows: any[]): Promise<void> => {
-    const records = rows.map(r => ({
-      import_id: importId,
-      fila_numero: r.filaNumero,
-      datos: r,
-      estado: r.estado,
-      error_detalle: r.validationErrors ? r.validationErrors.join(', ') : null
-    }));
+    const records = rows.map(r => {
+      let status = r.estado;
+      if (status === 'valido') status = 'exitoso';
+      if (status === 'invalid') status = 'error';
+      return {
+        import_id: importId,
+        fila_numero: r.filaNumero,
+        datos: r,
+        estado: status || 'exitoso',
+        error_detalle: r.validationErrors ? r.validationErrors.join(', ') : null
+      };
+    });
 
     // Inserción en lotes de 100 para evitar desbordar payloads
     const chunkSize = 100;
@@ -416,7 +457,23 @@ export const productService = {
     if (error) throw error;
   },
 
-  confirmImport: async (importId: string, branchId: string, userEmail: string): Promise<any> => {
+  confirmImport: async (importId: string, rawBranchId: string | number, userEmail: string): Promise<any> => {
+    // Normalizar branchId a entero BIGINT
+    let branchId: number;
+    if (typeof rawBranchId === 'number') {
+      branchId = rawBranchId;
+    } else {
+      const parsed = parseInt(String(rawBranchId), 10);
+      if (!isNaN(parsed)) {
+        branchId = parsed;
+      } else {
+        if (rawBranchId === 'branch-gd2') branchId = 2;
+        else if (rawBranchId === 'branch-rc') branchId = 3;
+        else if (rawBranchId === 'branch-gig') branchId = 4;
+        else branchId = 1;
+      }
+    }
+
     // 1. Cambiar estado a 'processing'
     const { error: updErr } = await supabase
       .from('imports')
@@ -574,16 +631,14 @@ export const productService = {
           }
 
         } else if (sRow.action === 'create_new') {
-          targetProductId = `prod-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-          prodData.id = targetProductId;
           prodData.codigo = rawCode;
+          delete prodData.id;
           
           productsUpsert.push(prodData);
           createdCount++;
 
           pricesInsert.push({
             _code: rawCode,
-            product_id: targetProductId,
             precio_anterior: 0,
             precio_nuevo: rawPrice,
             cambio_tipo: 'masivo',
@@ -597,12 +652,14 @@ export const productService = {
           const assignedCode = rawCode || (dbProd ? dbProd.codigo : '') || (sRow.matchedProductCode ? String(sRow.matchedProductCode).trim() : '');
           
           const updates: any = { 
-            id: targetProductId,
             codigo: assignedCode,
             nombre: sRow.descripcion ? String(sRow.descripcion).trim() : (dbProd ? dbProd.nombre : rawDesc),
             precio: rawPrice,
             updated_at: new Date().toISOString()
           };
+          if (!isNaN(Number(targetProductId)) && !String(targetProductId).startsWith('prod-')) {
+            updates.id = Number(targetProductId);
+          }
           if (sRow.marca) updates.marca = String(sRow.marca).trim();
 
           const baseProd = dbProd || prodData;
@@ -615,7 +672,6 @@ export const productService = {
           if (prevPrice !== rawPrice) {
             pricesInsert.push({
               _code: rawCode,
-              product_id: targetProductId,
               precio_anterior: prevPrice,
               precio_nuevo: rawPrice,
               cambio_tipo: 'masivo',
@@ -630,12 +686,14 @@ export const productService = {
           const actualOldCode = oldCode || (dbProd ? dbProd.codigo : '');
 
           const updates: any = {
-            id: targetProductId,
             codigo: rawCode || actualOldCode,
             nombre: sRow.descripcion ? String(sRow.descripcion).trim() : (dbProd ? dbProd.nombre : rawDesc),
             precio: rawPrice,
             updated_at: new Date().toISOString()
           };
+          if (!isNaN(Number(targetProductId)) && !String(targetProductId).startsWith('prod-')) {
+            updates.id = Number(targetProductId);
+          }
           if (sRow.marca) updates.marca = String(sRow.marca).trim();
 
           const baseProd = dbProd || prodData;
@@ -648,7 +706,6 @@ export const productService = {
           if (actualOldCode && actualOldCode !== rawCode) {
             codeHistoryInsert.push({
               _code: rawCode,
-              product_id: targetProductId,
               old_code: actualOldCode,
               new_code: rawCode,
               changed_by: userEmail,
@@ -662,7 +719,7 @@ export const productService = {
             usuario: userEmail,
             accion: 'UPDATE',
             entidad: 'products',
-            registro_id: targetProductId,
+            registro_id: String(targetProductId),
             valores_anteriores: { codigo: oldCode, precio: prevPrice },
             valores_nuevos: { codigo: rawCode, precio: rawPrice },
             origen: 'frontend',
@@ -673,7 +730,6 @@ export const productService = {
           if (prevPrice !== rawPrice) {
             pricesInsert.push({
               _code: rawCode,
-              product_id: targetProductId,
               precio_anterior: prevPrice,
               precio_nuevo: rawPrice,
               cambio_tipo: 'masivo',
@@ -684,34 +740,32 @@ export const productService = {
         }
 
         // Sincronización de Stock
-        if (targetProductId) {
-          const isNew = sRow.action === 'create_new';
-          const previousStock = isNew ? 0 : Number(stockMap.get(targetProductId) || 0);
-          const difference = rawStock - previousStock;
+        const isNew = sRow.action === 'create_new';
+        const previousStock = isNew || !targetProductId ? 0 : Number(stockMap.get(String(targetProductId)) || 0);
+        const difference = rawStock - previousStock;
 
-          inventoryUpsert.push({
+        inventoryUpsert.push({
+          _code: rawCode,
+          product_id: targetProductId,
+          branch_id: branchId,
+          stock: rawStock,
+          stock_minimo: 5,
+          updated_at: new Date().toISOString()
+        });
+
+        if (isNew || difference !== 0) {
+          movementsInsert.push({
             _code: rawCode,
             product_id: targetProductId,
             branch_id: branchId,
-            stock: rawStock,
-            stock_minimo: 5,
-            updated_at: new Date().toISOString()
+            cantidad_anterior: previousStock,
+            cantidad_modificada: difference,
+            cantidad_resultante: rawStock,
+            tipo_movimiento: 'importacion',
+            motivo: 'Sincronización diaria absoluta de stock',
+            importacion_id: importId,
+            usuario_responsable: userEmail
           });
-
-          if (isNew || difference !== 0) {
-            movementsInsert.push({
-              _code: rawCode,
-              product_id: targetProductId,
-              branch_id: branchId,
-              cantidad_anterior: previousStock,
-              cantidad_modificada: difference,
-              cantidad_resultante: rawStock,
-              tipo_movimiento: 'importacion',
-              motivo: 'Sincronización diaria absoluta de stock',
-              importacion_id: importId,
-              usuario_responsable: userEmail
-            });
-          }
         }
 
         rowsCompletedIds.push(sRow.rowDbId);
@@ -722,22 +776,19 @@ export const productService = {
       }
     }
 
-    // 4. Ejecución en Lotes Bulk en Supabase (Chunked para no saturar el servidor)
+    // 4. Ejecución en Lotes Bulk en Supabase
     const chunkSize = 200;
 
-    // Filtro de seguridad para evitar duplicados del mismo código comercial en el lote de upsert
-    // Desduplicación estricta en memoria tanto por ID como por CÓDIGO para evitar colisiones en PostgreSQL
-    const uniqueById = new Map<string, any>();
     const uniqueByCode = new Map<string, any>();
 
     productsUpsert.forEach(p => {
       if (!p) return;
-      const idStr = String(p.id || '').trim();
       const codeStr = String(p.codigo || '').trim().toUpperCase();
-      if (!idStr || !codeStr) return;
+      if (!codeStr) return;
 
-      const sanitized = {
-        id: idStr,
+      const hasValidId = p.id && !isNaN(Number(p.id)) && !String(p.id).startsWith('prod-');
+
+      const sanitized: any = {
         codigo: codeStr,
         nombre: String(p.nombre || 'Producto importado').trim(),
         precio: Number(p.precio) || 0,
@@ -753,54 +804,83 @@ export const productService = {
         updated_at: new Date().toISOString()
       };
 
-      // Si el código ya existía con otro ID diferente, eliminar el anterior de uniqueById
-      if (uniqueByCode.has(codeStr)) {
-        const prev = uniqueByCode.get(codeStr);
-        if (prev && prev.id !== idStr) {
-          uniqueById.delete(prev.id);
-        }
+      if (hasValidId) {
+        sanitized.id = Number(p.id);
       }
 
-      // Si el ID ya existía con otro código diferente, eliminar el anterior de uniqueByCode
-      if (uniqueById.has(idStr)) {
-        const prev = uniqueById.get(idStr);
-        if (prev && prev.codigo !== codeStr) {
-          uniqueByCode.delete(prev.codigo);
-        }
-      }
-
-      uniqueById.set(idStr, sanitized);
       uniqueByCode.set(codeStr, sanitized);
     });
 
-    const finalProductsUpsert = Array.from(uniqueById.values());
+    const finalProducts = Array.from(uniqueByCode.values());
+    const newProductsToInsert = finalProducts.filter(p => !p.id);
+    const existingProductsToUpdate = finalProducts.filter(p => p.id);
 
-    // A. Productos (Upsert con onConflict: 'id')
-    for (let i = 0; i < finalProductsUpsert.length; i += chunkSize) {
-      const chunk = finalProductsUpsert.slice(i, i + chunkSize);
-      const { error } = await supabase.from('products').upsert(chunk, { onConflict: 'id' });
-      if (error) throw error;
+    const finalIdByCodeMap = new Map<string, number>();
+    const validProductIds = new Set<number>();
+    
+    dbProducts?.forEach(p => {
+      if (!isNaN(Number(p.id))) {
+        validProductIds.add(Number(p.id));
+        if (p.codigo) finalIdByCodeMap.set(String(p.codigo).trim().toUpperCase(), Number(p.id));
+      }
+    });
+
+    // A1. Productos NUEVOS (Insert sin ID)
+    if (newProductsToInsert.length > 0) {
+      for (let i = 0; i < newProductsToInsert.length; i += chunkSize) {
+        const chunk = newProductsToInsert.slice(i, i + chunkSize);
+        let { data: inserted, error } = await supabase.from('products').insert(chunk).select('id, codigo');
+        if (error && error.message?.includes('marca')) {
+          const fallbackChunk = chunk.map(({ marca, ...rest }: any) => rest);
+          const { data: retryInserted, error: retryErr } = await supabase.from('products').insert(fallbackChunk).select('id, codigo');
+          if (retryErr) throw retryErr;
+          inserted = retryInserted;
+        } else if (error) {
+          throw error;
+        }
+        inserted?.forEach((p: any) => {
+          const numId = Number(p.id);
+          validProductIds.add(numId);
+          finalIdByCodeMap.set(String(p.codigo).trim().toUpperCase(), numId);
+        });
+      }
+    }
+
+    // A2. Productos EXISTENTES (Upsert con ID numérico)
+    if (existingProductsToUpdate.length > 0) {
+      for (let i = 0; i < existingProductsToUpdate.length; i += chunkSize) {
+        const chunk = existingProductsToUpdate.slice(i, i + chunkSize);
+        let { error } = await supabase.from('products').upsert(chunk, { onConflict: 'id' });
+        if (error && error.message?.includes('marca')) {
+          const fallbackChunk = chunk.map(({ marca, ...rest }: any) => rest);
+          const { error: retryErr } = await supabase.from('products').upsert(fallbackChunk, { onConflict: 'id' });
+          if (retryErr) throw retryErr;
+        } else if (error) {
+          throw error;
+        }
+        chunk.forEach((p: any) => {
+          const numId = Number(p.id);
+          validProductIds.add(numId);
+          finalIdByCodeMap.set(String(p.codigo).trim().toUpperCase(), numId);
+        });
+      }
     }
 
     // Mapa y conjunto de IDs válidos para evitar violaciones de clave foránea en tablas hijas
-    const finalIdByCodeMap = new Map<string, string>();
-    const validProductIds = new Set<string>();
-    
-    dbProducts?.forEach(p => validProductIds.add(p.id));
-    finalProductsUpsert.forEach(p => {
-      validProductIds.add(p.id);
-      finalIdByCodeMap.set(p.codigo, p.id);
-    });
-
     const sanitizeChildItem = (item: any) => {
-      const resolvedId = (item._code && finalIdByCodeMap.get(item._code)) || item.product_id;
-      if (!resolvedId || !validProductIds.has(resolvedId)) {
+      const rawProdId = (item._code && finalIdByCodeMap.get(item._code)) || item.product_id;
+      if (!rawProdId || isNaN(Number(rawProdId))) {
+        return null;
+      }
+      const numProdId = Number(rawProdId);
+      if (!validProductIds.has(numProdId)) {
         return null;
       }
       const { _code, ...cleanItem } = item;
       return {
         ...cleanItem,
-        product_id: resolvedId
+        product_id: numProdId,
+        branch_id: cleanItem.branch_id ? (isNaN(Number(cleanItem.branch_id)) ? branchId : Number(cleanItem.branch_id)) : undefined
       };
     };
 
@@ -888,7 +968,7 @@ export const productService = {
         const chunk = rowsCompletedIds.slice(i, i + chunkSize);
         await supabase
           .from('import_rows')
-          .update({ estado: 'completed' })
+          .update({ estado: 'exitoso' })
           .in('id', chunk);
       }
     } catch (rowsErr: any) {
@@ -908,7 +988,7 @@ export const productService = {
     }
 
     // 5. Actualizar resumen final de la importación
-    const finalState = failedCount > 0 ? 'completed_with_errors' : 'completed';
+    const finalState = 'completado';
     const { data: finalImp, error: finalImpErr } = await supabase
       .from('imports')
       .update({
@@ -927,9 +1007,7 @@ export const productService = {
   },
 
   createSuperOffer: async (offer: any, items: any[]): Promise<any> => {
-    const offerId = `offer-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
     const insertPayload: any = {
-      id: offerId,
       nombre: offer.nombre,
       descripcion: offer.descripcion || null,
       precio_oferta: offer.precioOferta ?? offer.precio_oferta,
@@ -940,36 +1018,46 @@ export const productService = {
       insertPayload.fecha_fin = offer.fechaFin ? new Date(offer.fechaFin).toISOString() : new Date(offer.fecha_fin).toISOString();
     }
 
-    const { error: offerErr } = await supabase
+    const { data: createdOffer, error: offerErr } = await supabase
       .from('super_offers')
-      .insert(insertPayload);
+      .insert(insertPayload)
+      .select('*')
+      .single();
 
     if (offerErr) {
       if (insertPayload.fecha_fin) {
         delete insertPayload.fecha_fin;
-        const { error: fallbackErr } = await supabase
+        const { data: fallbackOffer, error: fallbackErr } = await supabase
           .from('super_offers')
-          .insert(insertPayload);
+          .insert(insertPayload)
+          .select('*')
+          .single();
         if (fallbackErr) throw fallbackErr;
-      } else {
-        throw offerErr;
+        return productService.insertSuperOfferItems(fallbackOffer, items);
       }
+      throw offerErr;
     }
 
-    const offerItemsToInsert = items.map(item => ({
-      id: `item-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
-      offer_id: offerId,
-      product_id: item.productId || item.product_id,
-      cantidad: item.cantidad,
-      unidad: item.unidad || 'U'
-    }));
+    return productService.insertSuperOfferItems(createdOffer, items);
+  },
+
+  insertSuperOfferItems: async (createdOffer: any, items: any[]): Promise<any> => {
+    const offerItemsToInsert = items.map(item => {
+      const pId = item.productId || item.product_id;
+      return {
+        offer_id: createdOffer.id,
+        product_id: typeof pId === 'number' ? pId : (isNaN(Number(pId)) ? pId : Number(pId)),
+        cantidad: item.cantidad,
+        unidad: item.unidad || 'U'
+      };
+    });
 
     const { error: itemsErr } = await supabase
       .from('super_offer_items')
       .insert(offerItemsToInsert);
     if (itemsErr) throw itemsErr;
 
-    return { id: offerId, ...offer };
+    return createdOffer;
   },
 
   getSuperOffers: async (isPublic?: boolean): Promise<any[]> => {
@@ -978,7 +1066,7 @@ export const productService = {
       .select(isPublic ? `
         id, nombre, descripcion, activo, created_at, updated_at,
         super_offer_items (
-          id, offer_id, product_id, cantidad, unidad, created_at,
+          id, offer_id, product_id, cantidad, unidad,
           products:products (
             id, codigo, nombre, categoria, subcategoria, presentacion, unidad, descripcion, imagen, activo, visible_en_app, destacado
           )
@@ -986,7 +1074,7 @@ export const productService = {
       ` : `
         *,
         super_offer_items (
-          *,
+          id, offer_id, product_id, cantidad, unidad,
           products:products (*)
         )
       `)

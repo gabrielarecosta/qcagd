@@ -1,8 +1,8 @@
 // Deprecated type - sectors removed
 export interface Sector {
-  id: string;
+  id: string | number;
   nombre: string;
-  branchId: string;
+  branchId: string | number;
   codigo?: string;
   activo?: boolean;
 }

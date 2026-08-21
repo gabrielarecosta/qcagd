@@ -1,7 +1,7 @@
 export type ClientType = 'mayorista' | 'minorista' | 'sucursal' | 'consumidor_final';
 
 export interface Customer {
-  id: string;
+  id: string | number;
   nombre: string;
   razonSocial?: string;
   cuit?: string;
@@ -9,7 +9,7 @@ export interface Customer {
   whatsapp?: string;
   email?: string;
   direccion: string;
-  branchId: string; // Sucursal habitual asignada
+  branchId: string | number; // Sucursal habitual asignada
   tipoCliente: ClientType;
   activo: boolean;
   observaciones?: string;
@@ -20,8 +20,8 @@ export interface Customer {
 }
 
 export interface CustomerAddress {
-  id?: string;
-  customerId: string;
+  id?: string | number;
+  customerId: string | number;
   direccion: string;
   indicaciones?: string;
   latitude?: number;

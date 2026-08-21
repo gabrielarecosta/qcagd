@@ -96,14 +96,16 @@ export function ProductsView({
   ];
 
   // Obtener stock para una sucursal específica o resumen
-  const getProductStockInfo = (productId: string, branchId: string) => {
-    if (branchId === 'all') {
-      const productStocks = stocks.filter(s => s.productId === productId);
+  const getProductStockInfo = (productId: string | number, branchId: string | number) => {
+    const pIdStr = String(productId);
+    const bIdStr = String(branchId);
+    if (bIdStr === 'all') {
+      const productStocks = stocks.filter(s => String(s.productId) === pIdStr);
       const totalStock = productStocks.reduce((sum, s) => sum + s.stock, 0);
       const isLowStock = productStocks.some(s => s.stock <= s.stockMinimo);
       return { stock: totalStock, isLowStock, details: productStocks };
     } else {
-      const itemStock = stocks.find(s => s.productId === productId && s.branchId === branchId);
+      const itemStock = stocks.find(s => String(s.productId) === pIdStr && String(s.branchId) === bIdStr);
       const stockVal = itemStock ? itemStock.stock : 0;
       const minVal = itemStock ? itemStock.stockMinimo : 0;
       return { 

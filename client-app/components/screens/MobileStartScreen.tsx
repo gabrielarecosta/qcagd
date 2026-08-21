@@ -19,6 +19,7 @@ import { useAuthStore } from '../../store/authStore';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import MaterialCommunityIcons from '../icons/MaterialCommunityIcons';
 import { supabase } from '@shared/services/supabaseClient';
+import { clientService } from '@shared/services/clientService';
 import { AppFooter } from '../AppFooter';
 
 const CAROUSEL_IMAGES = [
@@ -267,21 +268,17 @@ export function MobileStartScreen() {
         return;
       }
 
-      const customerId = 'cust-' + Date.now();
-      const { error } = await supabase.from('customers').insert({
-        id: customerId,
+      await clientService.create({
         nombre: regName.trim(),
-        razon_social: regName.trim(),
+        razonSocial: regName.trim(),
         telefono: cleanedPhone,
         whatsapp: cleanedPhone,
         email: trimmedEmail.toLowerCase(),
         direccion: regAddress.trim() || 'General Deheza',
-        branch_id: 'branch-gd1',
-        tipo_cliente: 'minorista',
+        branchId: 1,
+        tipoCliente: 'minorista',
         activo: true,
       });
-
-      if (error) throw error;
 
       const success = await loginAsCliente(regName.trim());
       if (!success) {

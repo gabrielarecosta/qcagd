@@ -40,7 +40,7 @@ export function DeliveriesView() {
   const [savingDriver, setSavingDriver] = useState(false);
 
   // Form State for planning new route
-  const [formBranchId, setFormBranchId] = useState('branch-gd1');
+  const [formBranchId, setFormBranchId] = useState<string | number>(1);
   const [formDriverId, setFormDriverId] = useState('');
   const [formFecha, setFormFecha] = useState('all'); // 'all' = Todas las fechas pendientes
   const [formTurno, setFormTurno] = useState('08:00 - 12:00 (Mañana)'); // Obligatorio franja horaria específica por hoja de ruta
@@ -70,7 +70,7 @@ export function DeliveriesView() {
   // Set default driver on open planning modal
   const handleOpenPlanning = () => {
     setIsPlanning(true);
-    const firstBranch = activeBranchId !== 'all' ? activeBranchId : (branches[0]?.id || 'branch-gd1');
+    const firstBranch = activeBranchId !== 'all' ? activeBranchId : (branches[0]?.id || 1);
     setFormBranchId(firstBranch);
     const branchDrivers = drivers.filter(d => d.branchId === firstBranch);
     setFormDriverId(branchDrivers[0]?.id || drivers[0]?.id || '');
@@ -725,7 +725,7 @@ export function DeliveriesView() {
     // 1. Guardar la hoja de ruta con todas sus paradas sincronizadas
     try {
       await createDelivery({
-        branchId: formBranchId || activeBranchId !== 'all' ? formBranchId : 'branch-gd1',
+        branchId: formBranchId || (activeBranchId !== 'all' ? activeBranchId : 1),
         repartidorId: formDriverId,
         fecha: targetDate,
         estado: 'armado',

@@ -32,7 +32,7 @@ const mapRoute = (r: any, deliveries: any[] = [], events: any[] = [], ordersMap:
 
   return {
     id: r.id,
-    branchId: r.branch_id || 'branch-gd1',
+    branchId: r.branch_id ? (isNaN(Number(r.branch_id)) ? 1 : Number(r.branch_id)) : 1,
     repartidorId: r.repartidor_id || r.driver_id || '',
     fecha: r.fecha || r.date || new Date().toISOString().split('T')[0],
     estado: estadoNormalized,
@@ -320,7 +320,7 @@ export const deliveryService = {
       .from('delivery_routes')
       .insert({
         id: routeId,
-        branch_id: route.branchId || 'branch-gd1',
+        branch_id: route.branchId ? (isNaN(Number(route.branchId)) ? 1 : Number(route.branchId)) : 1,
         repartidor_id: route.repartidorId,
         driver_id: route.repartidorId,
         fecha: route.fecha,
@@ -397,7 +397,7 @@ export const deliveryService = {
     if (!createdRoute) {
       return {
         id: routeId,
-        branchId: route.branchId || 'branch-gd1',
+        branchId: route.branchId || 1,
         repartidorId: route.repartidorId,
         fecha: route.fecha,
         estado: route.estado || 'armado',

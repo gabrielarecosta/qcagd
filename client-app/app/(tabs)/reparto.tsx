@@ -543,7 +543,7 @@ export default function RepartoScreen() {
                   <Text style={styles.repartidorMetaSub}>
                     {repartidorData?.auto && repartidorData?.patente
                       ? `${repartidorData.auto} · Patente: ${repartidorData.patente}`
-                      : (repartidorData?.branchId === 'branch-gd1'
+                      : (String(repartidorData?.branchId) === '1' || repartidorData?.branchId === 1
                         ? 'Camioneta Ford Transit · Patente AB 123 CD'
                         : 'Camioneta Renault Kangoo · Patente XY 789 ZW')}
                   </Text>
@@ -815,7 +815,7 @@ export default function RepartoScreen() {
                           nombre: order.customerName || 'Cliente',
                           direccion: order.formattedAddress || order.originalAddress || 'Sin dirección',
                           telefono: order.customerPhone || '',
-                          branchId: order.branchId || 'branch-gd1',
+                          branchId: order.branchId || 1,
                         };
                         return (
                           <View key={order.id} style={styles.orderDelivererCard}>
@@ -875,7 +875,7 @@ export default function RepartoScreen() {
                               <View style={styles.rowInfo}>
                                 <Text style={styles.rowInfoLabel}>Sucursal:</Text>
                                 <Text style={styles.rowInfoValue}>
-                                  {customer.branchId === 'branch-gd1' ? 'GD 1' : 'GD 2'}
+                                  {String(customer.branchId) === '1' || customer.branchId === 1 ? 'GD 1' : 'GD 2'}
                                 </Text>
                               </View>
                               {customer.telefono ? (
@@ -969,7 +969,7 @@ export default function RepartoScreen() {
                       nombre: order.customerName || 'Cliente',
                       direccion: order.formattedAddress || order.originalAddress || 'Sin dirección',
                       telefono: order.customerPhone || '',
-                      branchId: order.branchId || 'branch-gd1',
+                      branchId: order.branchId || 1,
                     };
                     return (
                       <View key={order.id} style={styles.orderDelivererCard}>
@@ -1003,7 +1003,7 @@ export default function RepartoScreen() {
                           </View>
                           <View style={styles.rowInfo}>
                             <Text style={styles.rowInfoLabel}>Sucursal:</Text>
-                            <Text style={styles.rowInfoValue}>{customer.branchId === 'branch-gd1' ? 'GD 1' : 'GD 2'}</Text>
+                            <Text style={styles.rowInfoValue}>{String(customer.branchId) === '1' || customer.branchId === 1 ? 'GD 1' : 'GD 2'}</Text>
                           </View>
                           {order.addressReference ? (
                             <View style={styles.rowInfo}>

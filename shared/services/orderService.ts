@@ -57,8 +57,8 @@ const mapOrder = (o: any, items: any[] = []): Order => ({
   addressReference: o.address_reference || undefined,
   locationVerified: o.location_verified || false,
   locationStatus: o.location_status || (o.latitude && o.longitude ? 'geocoded' : 'pending'),
-  customerName: o.customer_name || undefined,
-  customerPhone: o.customer_phone || undefined,
+  customerName: o.customer_name || o.customers?.nombre || (o.customers ? (o.customers.razon_social || o.customers.nombre) : undefined),
+  customerPhone: o.customer_phone || o.customers?.telefono || o.customers?.whatsapp || undefined,
   outOfStockPreference: o.out_of_stock_preference || undefined,
   mpPreferenceId: o.mp_preference_id || undefined,
   mpInitPoint: o.mp_init_point || undefined,
@@ -169,7 +169,7 @@ export const orderService = {
       delivery_date: updates.deliveryDate,
       delivery_start_time: updates.deliveryStartTime,
       delivery_end_time: updates.deliveryEndTime,
-      delivery_time_slot_id: updates.deliveryTimeSlotId,
+      delivery_time_slot_id: updates.deliveryTimeSlotId !== undefined && updates.deliveryTimeSlotId !== null && !isNaN(Number(updates.deliveryTimeSlotId)) ? Number(updates.deliveryTimeSlotId) : (updates.deliveryTimeSlotId === null ? null : undefined),
       delivery_method: updates.deliveryMethod,
       taken_by_id: updates.takenById,
       taken_at: updates.takenAt,
@@ -238,7 +238,7 @@ export const orderService = {
 
   create: async (order: Omit<Order, 'id'> & { id?: string, estimatedDeliveryShift?: 'mañana' | 'tarde' }, userMail?: string): Promise<Order> => {
     const orderId = order.id || `ord-${Date.now()}`;
-    const orderNum = order.numero || `PED-${Date.now().toString().slice(-6)}`;
+    const orderNum = order.numero || Date.now().toString().slice(-6);
 
     if (userMail) {
       await supabase.rpc('set_config', { placeholder: 'app.current_user_email', value: userMail, is_local: false });
@@ -263,12 +263,19 @@ export const orderService = {
       }
     }
 
+    const clienteIdNum = order.clienteId
+      ? (typeof order.clienteId === 'number' ? order.clienteId : (isNaN(Number(order.clienteId)) ? null : Number(order.clienteId)))
+      : null;
+
+    const branchIdNum = order.branchId
+      ? (typeof order.branchId === 'number' ? order.branchId : (isNaN(Number(order.branchId)) ? 1 : Number(order.branchId)))
+      : 1;
+
     // 1. Insert header
-    const dbOrder = {
-      id: orderId,
+    const dbOrder: any = {
       numero: orderNum,
-      cliente_id: order.clienteId,
-      branch_id: order.branchId,
+      cliente_id: clienteIdNum,
+      branch_id: branchIdNum,
       fecha: order.fecha || new Date().toISOString(),
       total: order.total,
       estado: order.estado || 'recibido',
@@ -284,7 +291,7 @@ export const orderService = {
       delivery_date: order.deliveryDate,
       delivery_start_time: order.deliveryStartTime,
       delivery_end_time: order.deliveryEndTime,
-      delivery_time_slot_id: order.deliveryTimeSlotId,
+      delivery_time_slot_id: order.deliveryTimeSlotId !== undefined && order.deliveryTimeSlotId !== null && !isNaN(Number(order.deliveryTimeSlotId)) ? Number(order.deliveryTimeSlotId) : null,
       delivery_method: order.deliveryMethod,
       original_address: order.originalAddress,
       formatted_address: order.formattedAddress,
@@ -297,10 +304,12 @@ export const orderService = {
       location_status: locationStatus,
       address_reference: order.addressReference,
       location_verified: order.locationVerified || locationStatus === 'geocoded',
-      customer_name: order.customerName,
-      customer_phone: order.customerPhone,
       out_of_stock_preference: order.outOfStockPreference || 'llamar',
     };
+
+    if (order.id && !isNaN(Number(order.id))) {
+      dbOrder.id = Number(order.id);
+    }
 
     let { data: insertedOrder, error: orderErr } = await supabase
       .from('orders')
@@ -309,31 +318,41 @@ export const orderService = {
       .single();
 
     if (orderErr) {
-      if ((dbOrder as any).out_of_stock_preference && (orderErr.message?.includes('out_of_stock_preference') || orderErr.message?.includes('outOfStockPreference') || orderErr.code === 'PGRST204')) {
-        delete (dbOrder as any).out_of_stock_preference;
-        const { data: retryData, error: retryErr } = await supabase
-          .from('orders')
-          .insert(dbOrder)
-          .select('*')
-          .single();
-        if (retryErr) throw retryErr;
-        insertedOrder = retryData;
+      if (orderErr.code === 'PGRST204' || orderErr.message?.includes('schema cache')) {
+        const missingMatch = orderErr.message?.match(/Could not find the '([^']+)' column/);
+        if (missingMatch && missingMatch[1]) {
+          delete (dbOrder as any)[missingMatch[1]];
+          const { data: retryData, error: retryErr } = await supabase
+            .from('orders')
+            .insert(dbOrder)
+            .select('*')
+            .single();
+          if (retryErr) throw retryErr;
+          insertedOrder = retryData;
+        } else {
+          throw orderErr;
+        }
       } else {
         throw orderErr;
       }
     }
 
+    const realOrderId = insertedOrder.id;
+
     // 2. Insert items
-    const dbItems = order.items.map(item => ({
-      order_id: orderId,
-      product_id: item.producto.id,
-      codigo: item.producto.codigo,
-      nombre: item.producto.nombre,
-      presentacion: item.producto.presentacion,
-      precio_unitario: item.precioUnitario,
-      cantidad: item.cantidad,
-      subtotal: item.subtotal,
-    }));
+    const dbItems = order.items.map((item) => {
+      const prodIdNum = item.producto.id && !isNaN(Number(item.producto.id)) ? Number(item.producto.id) : null;
+      return {
+        order_id: realOrderId,
+        product_id: prodIdNum,
+        codigo: item.producto.codigo,
+        nombre: item.producto.nombre,
+        presentacion: item.producto.presentacion,
+        precio_unitario: item.precioUnitario,
+        cantidad: item.cantidad,
+        subtotal: item.subtotal,
+      };
+    });
 
     if (dbItems.length > 0) {
       const { error: itemsErr } = await supabase

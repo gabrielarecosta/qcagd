@@ -9,7 +9,6 @@ const mapProfile = (d: any): InternalUser => ({
   branchId: d.branch_id || undefined,
   activo: d.activo,
   telefono: d.telefono || undefined,
-  password: d.password || undefined,
   auto: d.auto || undefined,
   patente: d.patente || undefined,
   fotoUrl: d.foto_url || undefined,
@@ -40,25 +39,30 @@ export const userService = {
     return data ? mapProfile(data) : undefined;
   },
 
-  getByBranchId: async (branchId: string): Promise<InternalUser[]> => {
+  getByBranchId: async (branchId: string | number): Promise<InternalUser[]> => {
+    const branchIdNum = typeof branchId === 'number' ? branchId : (isNaN(Number(branchId)) ? 1 : Number(branchId));
     const { data, error } = await supabase
       .from('profiles')
       .select('*')
-      .eq('branch_id', branchId)
+      .eq('branch_id', branchIdNum)
       .is('deleted_at', null);
     if (error) throw error;
     return (data || []).map(mapProfile);
   },
 
   update: async (id: string, updates: Partial<InternalUser>): Promise<InternalUser> => {
+    let branchIdNum: number | null = null;
+    if (updates.branchId) {
+      branchIdNum = typeof updates.branchId === 'number' ? updates.branchId : (isNaN(Number(updates.branchId)) ? 1 : Number(updates.branchId));
+    }
+
     const dbUpdates: any = {
       nombre: updates.nombre,
       email: updates.email,
       rol: updates.rol,
-      branch_id: updates.branchId,
+      branch_id: updates.branchId !== undefined ? branchIdNum : undefined,
       activo: updates.activo,
       telefono: updates.telefono,
-      password: updates.password,
       auto: updates.auto,
       patente: updates.patente,
       foto_url: updates.fotoUrl,
@@ -94,22 +98,29 @@ export const userService = {
     return mapProfile(data);
   },
 
-  create: async (user: Omit<InternalUser, 'id'> & { id?: string }): Promise<InternalUser> => {
-    const userId = user.id || `user-${Date.now()}`;
+  create: async (user: Omit<InternalUser, 'id'> & { id?: string | number }): Promise<InternalUser> => {
+    let branchIdNum = 1;
+    if (user.branchId) {
+      const parsed = parseInt(String(user.branchId), 10);
+      if (!isNaN(parsed)) branchIdNum = parsed;
+    }
+
     const dbInsert: any = {
-      id: userId,
       nombre: user.nombre,
       email: user.email,
       rol: user.rol,
-      branch_id: user.branchId,
+      branch_id: branchIdNum,
       activo: user.activo ?? true,
-      telefono: user.telefono,
-      password: user.password || '',
+      telefono: user.telefono || null,
       auto: user.auto || '',
       patente: user.patente || '',
       foto_url: user.fotoUrl || '',
       dni: user.dni || '',
     };
+
+    if (user.id && !isNaN(Number(user.id))) {
+      dbInsert.id = Number(user.id);
+    }
 
     const { data, error } = await supabase
       .from('profiles')
@@ -123,7 +134,7 @@ export const userService = {
       const { error: driverErr } = await supabase
         .from('drivers')
         .insert({
-          id: userId,
+          id: data.id,
           vehiculo_info: data.auto ? `${data.auto} (Patente: ${data.patente})` : 'Sin vehículo registrado',
           activo: data.activo ?? true
         });
@@ -162,5 +173,13 @@ export const userService = {
       return { success: true, user: mapProfile(data) };
     }
     return { success: false, error: 'Credenciales inválidas o usuario inactivo' };
+  },
+
+  resetPassword: async (email: string) => {
+    return await supabase.auth.resetPasswordForEmail(email);
+  },
+
+  updatePassword: async (newPassword: string) => {
+    return await supabase.auth.updateUser({ password: newPassword });
   }
 };

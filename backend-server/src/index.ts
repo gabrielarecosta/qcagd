@@ -447,7 +447,7 @@ app.post('/api/routes/recalculate-pending', authMiddleware, async (req: Authenti
 // MERCADO PAGO SCHEMAS & ENDPOINTS
 // ------------------------------------------------------------
 const createPreferenceSchema = z.object({
-  orderId: z.string(),
+  orderId: z.union([z.string(), z.number()]).transform(v => String(v)).optional(),
   items: z.array(
     z.object({
       title: z.string(),

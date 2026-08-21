@@ -10,10 +10,10 @@ export type OrderStatus =
   | 'cancelado';
 
 export interface Order {
-  id: string;
+  id: string | number;
   numero: string;
-  clienteId: string;
-  branchId: string; // Sucursal que lo procesa
+  clienteId: string | number;
+  branchId: string | number; // Sucursal que lo procesa
   fecha: string;
   items: OrderItem[];
   total: number;
@@ -32,7 +32,7 @@ export interface Order {
   deliveryDate?: string;
   deliveryStartTime?: string;
   deliveryEndTime?: string;
-  deliveryTimeSlotId?: string;
+  deliveryTimeSlotId?: string | number;
   deliveryMethod?: 'reparto' | 'retiro' | 'whatsapp';
 
   takenById?: string;

@@ -153,20 +153,20 @@ export const useAdminStore = create<AdminStore>((set, get) => ({
     if (!silent) set({ isLoading: true });
     try {
       const [
-        branches,
-        users,
-        clients,
-        products,
-        orders,
-        deliveries,
-        payments,
-        notifications,
-        superOffers
-      ] = await Promise.all([
+        branchesRes,
+        usersRes,
+        clientsRes,
+        productsRes,
+        ordersRes,
+        deliveriesRes,
+        paymentsRes,
+        notificationsRes,
+        superOffersRes
+      ] = await Promise.allSettled([
         branchService.getAll(),
         userService.getAll(),
         clientService.getAll(),
-        productService.getAll(), // Hydrates catalog with stock in default sucursal
+        productService.getAll(),
         orderService.getAll(),
         deliveryService.getAll(),
         paymentService.getAll(),
@@ -174,45 +174,76 @@ export const useAdminStore = create<AdminStore>((set, get) => ({
         productService.getSuperOffers()
       ]);
 
-      // Load stocks directly
-      const { data: invData, error: invErr } = await supabase.from('inventory').select('*');
-      if (invErr) throw invErr;
+      const branches = branchesRes.status === 'fulfilled' ? branchesRes.value : [];
+      const users = usersRes.status === 'fulfilled' ? usersRes.value : [];
+      const clients = clientsRes.status === 'fulfilled' ? clientsRes.value : [];
+      const products = productsRes.status === 'fulfilled' ? productsRes.value : [];
+      const orders = ordersRes.status === 'fulfilled' ? ordersRes.value : [];
+      const deliveries = deliveriesRes.status === 'fulfilled' ? deliveriesRes.value : [];
+      const payments = paymentsRes.status === 'fulfilled' ? paymentsRes.value : [];
+      const notifications = notificationsRes.status === 'fulfilled' ? notificationsRes.value : [];
+      const superOffers = superOffersRes.status === 'fulfilled' ? superOffersRes.value : [];
 
-      const stocks: ProductStock[] = (invData || []).map(s => ({
-        productId: s.product_id,
-        branchId: s.branch_id,
-        stock: Number(s.stock),
-        stockMinimo: Number(s.stock_minimo),
-        disponible: Number(s.stock) > 0
-      }));
+      // Load stocks directly with fallback
+      let stocks: ProductStock[] = [];
+      try {
+        const { data: invData } = await supabase.from('inventory').select('*');
+        if (invData) {
+          stocks = invData.map(s => ({
+            productId: s.product_id,
+            branchId: s.branch_id,
+            stock: Number(s.stock),
+            stockMinimo: Number(s.stock_minimo),
+            disponible: Number(s.stock) > 0
+          }));
+        }
+      } catch (invErr) {
+        console.warn('Advertencia cargando inventario en adminStore:', invErr);
+      }
 
-      // Load schedules from system settings
-      const { data: schedData } = await supabase
-        .from('system_settings')
-        .select('value')
-        .eq('key', 'branch_schedules')
-        .maybeSingle();
+      // Load schedules from system settings with fallback
+      let schedules: BranchSchedule[] = [];
+      try {
+        const { data: schedData } = await supabase
+          .from('system_settings')
+          .select('value')
+          .eq('key', 'branch_schedules')
+          .maybeSingle();
 
-      const schedules = schedData ? (schedData.value as BranchSchedule[]) : [];
+        schedules = schedData ? (schedData.value as BranchSchedule[]) : [];
+      } catch (schedErr) {
+        console.warn('Advertencia cargando horarios:', schedErr);
+      }
 
-      const { data: minAmountData } = await supabase
-        .from('app_config')
-        .select('value')
-        .eq('key', 'global_order_min_amount')
-        .maybeSingle();
+      let globalMinOrderAmount = 0;
+      try {
+        const { data: minAmountData } = await supabase
+          .from('app_config')
+          .select('value')
+          .eq('key', 'global_order_min_amount')
+          .maybeSingle();
 
-      const globalMinOrderAmount = minAmountData && minAmountData.value && typeof minAmountData.value === 'object' && 'amount' in minAmountData.value
-        ? Number((minAmountData.value as any).amount || 0)
-        : 0;
+        globalMinOrderAmount = minAmountData && minAmountData.value && typeof minAmountData.value === 'object' && 'amount' in minAmountData.value
+          ? Number((minAmountData.value as any).amount || 0)
+          : 0;
+      } catch (cfgErr) {
+        // ignore fallback
+      }
 
-      // Cargar repartidores basándonos ESTRICTAMENTE en Personal/Roles (profiles con rol 'repartidor')
+      // Cargar repartidores basándonos en Personal/Roles (profiles con rol 'repartidor')
       const repartidorUsers = users.filter(u => u.rol === 'repartidor');
 
-      const { data: driversData } = await supabase
-        .from('drivers')
-        .select('id, vehiculo_info, activo');
-
-      const driversMap = new Map((driversData || []).map((d: any) => [d.id, d]));
+      let driversMap = new Map();
+      try {
+        const { data: driversData } = await supabase
+          .from('drivers')
+          .select('id, vehiculo_info, activo');
+        if (driversData) {
+          driversMap = new Map(driversData.map((d: any) => [d.id, d]));
+        }
+      } catch (drvErr) {
+        // ignore fallback
+      }
 
       const drivers = repartidorUsers.map((u: any) => {
         const d = driversMap.get(u.id);
@@ -222,7 +253,7 @@ export const useAdminStore = create<AdminStore>((set, get) => ({
           nombre: u.nombre,
           email: u.email || '',
           rol: 'repartidor',
-          branchId: u.branchId || 'branch-gd1',
+          branchId: u.branchId || 1,
           activo: u.activo !== false,
           telefono: u.telefono || '',
           vehiculo: vehiculoInfo,

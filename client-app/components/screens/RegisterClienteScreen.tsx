@@ -146,7 +146,7 @@ export function RegisterClienteScreen({ onBack }: RegisterClienteScreenProps) {
       const telefonoFinal = isSucursal ? branchPhone.trim() : regPhone.trim();
       const emailFinal = isSucursal ? branchEmail.trim() : regEmail.trim();
       const cuitFinal = isSucursal ? branchCuit.trim() : regCuit.trim();
-      const branchAsignada = isSucursal ? selectedBranchId : 'branch-gd1';
+      const branchAsignada = isSucursal ? selectedBranchId : 1;
 
       // 1. Crear el cliente en Supabase sin dirección inicial
       const newCustomer = await clientService.create({

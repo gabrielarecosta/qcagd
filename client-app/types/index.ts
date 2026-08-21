@@ -7,7 +7,7 @@
 // PRODUCTO
 // ------------------------------------------------------------
 export interface Product {
-  id: string;
+  id: string | number;
   codigo: string;           // Código interno (ej: "LIM-0001")
   nombre: string;
   descripcion?: string;
@@ -151,9 +151,9 @@ export interface OrderItem {
 }
 
 export interface Order {
-  id: string;
+  id: string | number;
   numero: string;
-  clienteId: string;
+  clienteId: string | number;
   fecha: string;
   items: OrderItem[];
   total: number;
@@ -161,7 +161,7 @@ export interface Order {
   observaciones?: string;
   repartidorId?: string;
   estimatedDelivery?: string;
-  branchId?: string;
+  branchId?: string | number;
   paymentMethod?: string;
   paymentStatus?: string;
   abonaCon?: number;
@@ -186,6 +186,9 @@ export interface Order {
   customerName?: string;
   customerPhone?: string;
   outOfStockPreference?: 'llamar' | 'reemplazar' | 'cancelar';
+  mpPreferenceId?: string;
+  mpInitPoint?: string;
+  mpPreferenceExpiresAt?: string;
 }
 
 
@@ -193,7 +196,7 @@ export interface Order {
 // CLIENTE
 // ------------------------------------------------------------
 export interface Customer {
-  id: string;
+  id: string | number;
   nombre: string;
   razonSocial?: string;
   cuit?: string;
@@ -202,13 +205,13 @@ export interface Customer {
   direccion: string;
   localidad: string;
   provincia: string;
-  branchId?: string;
+  branchId?: string | number;
   tipoCliente?: 'minorista' | 'mayorista' | 'sucursal' | 'consumidor_final';
 }
 
 export interface CustomerAddress {
-  id?: string;
-  customerId: string;
+  id?: string | number;
+  customerId: string | number;
   direccion: string;
   indicaciones?: string;
   latitude?: number;

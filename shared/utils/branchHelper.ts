@@ -11,7 +11,8 @@ export function getCentralBranchInfo(branches: Branch[]) {
   if (!branches || branches.length === 0) return DEFAULT_SUCURSAL_CENTRAL;
 
   const central = branches.find(b => 
-    b.id === 'branch-gd1' || 
+    b.id === 1 || 
+    String(b.id) === '1' || 
     b.nombre.toLowerCase().includes('central') || 
     b.nombre.toLowerCase().includes('deheza 1')
   );

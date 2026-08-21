@@ -250,9 +250,9 @@ export default function CarritoScreen() {
         let allSlots = await deliverySlotService.getAll();
         if (!allSlots || allSlots.length === 0) {
           allSlots = [
-            { id: 'slot-morning', nombre: '08:00 - 12:00 (Mañana)', hora_inicio: '08:00', hora_fin: '12:00', max_pedidos: 15, activo: true },
-            { id: 'slot-midday', nombre: '12:00 - 16:00 (Mediodía)', hora_inicio: '12:00', hora_fin: '16:00', max_pedidos: 15, activo: true },
-            { id: 'slot-afternoon', nombre: '16:00 - 20:00 (Tarde)', hora_inicio: '16:00', hora_fin: '20:00', max_pedidos: 15, activo: true }
+            { id: 1, nombre: '08:00 - 12:00 (Mañana)', hora_inicio: '08:00', hora_fin: '12:00', max_pedidos: 15, activo: true },
+            { id: 2, nombre: '12:00 - 16:00 (Mediodía)', hora_inicio: '12:00', hora_fin: '16:00', max_pedidos: 15, activo: true },
+            { id: 3, nombre: '16:00 - 20:00 (Tarde)', hora_inicio: '16:00', hora_fin: '20:00', max_pedidos: 15, activo: true }
           ];
         }
         const activeSlots = allSlots.filter((s: any) => s.activo);
@@ -264,9 +264,9 @@ export default function CarritoScreen() {
       } catch (err) {
         console.error('Error loading slots, using fallback:', err);
         const fallback = [
-          { id: 'slot-morning', nombre: '08:00 - 12:00 (Mañana)', hora_inicio: '08:00', hora_fin: '12:00', max_pedidos: 15, activo: true },
-          { id: 'slot-midday', nombre: '12:00 - 16:00 (Mediodía)', hora_inicio: '12:00', hora_fin: '16:00', max_pedidos: 15, activo: true },
-          { id: 'slot-afternoon', nombre: '16:00 - 20:00 (Tarde)', hora_inicio: '16:00', hora_fin: '20:00', max_pedidos: 15, activo: true }
+          { id: 1, nombre: '08:00 - 12:00 (Mañana)', hora_inicio: '08:00', hora_fin: '12:00', max_pedidos: 15, activo: true },
+          { id: 2, nombre: '12:00 - 16:00 (Mediodía)', hora_inicio: '12:00', hora_fin: '16:00', max_pedidos: 15, activo: true },
+          { id: 3, nombre: '16:00 - 20:00 (Tarde)', hora_inicio: '16:00', hora_fin: '20:00', max_pedidos: 15, activo: true }
         ];
         setSlots(fallback);
         if (!deliveryDate) {
@@ -351,7 +351,7 @@ export default function CarritoScreen() {
       return;
     }
 
-    const orderNum = `PED-${Date.now().toString().slice(-6)}`;
+    const orderNum = Date.now().toString().slice(-6);
     const paymentLabel = paymentMethod === 'efectivo'
       ? 'Efectivo / Contra entrega'
       : paymentMethod === 'mercadopago'
@@ -422,10 +422,10 @@ export default function CarritoScreen() {
           const promotions = useCartStore.getState().promotions;
 
           const newOrder: Order = {
-            id: `ord-${Date.now()}`,
+            id: undefined as any,
             numero: orderNum,
-            clienteId: clientData?.id || 'cli-1',
-            branchId: clientData?.branchId || 'branch-gd1',
+            clienteId: clientData?.id,
+            branchId: clientData?.branchId || 1,
             fecha: new Date().toISOString(),
             customerName: clientData?.nombre || 'Cliente sin nombre',
             customerPhone: clientData?.telefono || '',
@@ -441,6 +441,7 @@ export default function CarritoScreen() {
             total: total,
             estado: deliveryMethod === 'whatsapp' ? 'pendiente' : 'en_preparacion',
             observaciones: observaciones || undefined,
+            observacionesCliente: observaciones ? `Recibe: ${clientData?.nombre || 'Cliente'} - ${observaciones}` : `Recibe: ${clientData?.nombre || 'Cliente'}`,
             outOfStockPreference: outOfStockPreference,
             repartidorId: undefined,
 
@@ -476,8 +477,10 @@ export default function CarritoScreen() {
             }
 
             // 2. Crear el pedido en la base de datos PRIMERO
-            await addOrder(newOrder, clientData?.email || '');
-            createdOrder = newOrder;
+            const savedOrder = await addOrder(newOrder, clientData?.email || '');
+            const finalOrderId = String(savedOrder?.id || newOrder.id || orderNum);
+            const finalOrderNum = String(savedOrder?.numero || newOrder.numero || orderNum);
+            createdOrder = savedOrder || newOrder;
 
             // 3. Si eligió Mercado Pago, generar la preferencia vinculada al pedido creado
             let mpTargetUrl: string | null = null;
@@ -488,7 +491,7 @@ export default function CarritoScreen() {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({
-                    orderId: newOrder.id,
+                    orderId: finalOrderId,
                     items: items.map((i) => {
                       const calc = offerService.calculateFinalPrice(i.producto, i.cantidad, customerType, promotions);
                       return {
@@ -508,7 +511,7 @@ export default function CarritoScreen() {
                   const mpData = await mpRes.json();
                   mpTargetUrl = mpData.init_point || mpData.sandbox_init_point || null;
                   if (mpData.preferenceId && mpTargetUrl && mpData.expiresAt) {
-                    await orderService.updateMercadoPagoPreference(newOrder.id, mpData.preferenceId, mpTargetUrl, mpData.expiresAt);
+                    await orderService.updateMercadoPagoPreference(finalOrderId, mpData.preferenceId, mpTargetUrl, mpData.expiresAt);
                   }
                 } else {
                   console.warn('Advertencia: No se pudo generar la preferencia de MP inmediatamente. El pedido fue creado como pendiente.');
@@ -520,8 +523,8 @@ export default function CarritoScreen() {
 
             // 4. Parámetros para la pantalla de confirmación con items estructurados
             const confirmParams = {
-              orderId: newOrder.id,
-              orderNum: newOrder.numero,
+              orderId: finalOrderId,
+              orderNum: finalOrderNum,
               orderTotal: String(total),
               deliveryMethod: deliveryMethod,
               paymentMethod: paymentMethod,

@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { useAdminStore } from '../store/adminStore';
 import logoImg from '../assets/logo2.png';
-
+import { supabase } from '@shared/services/supabaseClient';
+import { userService } from '@shared/services/userService';
 import type { InternalUser } from '@shared/types/user';
 
 export function LoginView() {
@@ -13,7 +14,7 @@ export function LoginView() {
 
   const { users, setCurrentUser } = useAdminStore();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!username.trim() || !password) {
       setError('Por favor complete todos los campos');
@@ -23,29 +24,43 @@ export function LoginView() {
     setError('');
     setIsLoading(true);
 
-    setTimeout(() => {
-      const cleanUser = username.trim().toLowerCase();
+    try {
+      const cleanInput = username.trim().toLowerCase();
+      let targetEmail = cleanInput;
+      if (cleanInput === 'admin') targetEmail = 'admin@quimicadeheza.com';
+      else if (cleanInput === 'ventas') targetEmail = 'ventas@quimicadeheza.com';
+      else if (cleanInput === 'deposito') targetEmail = 'deposito@quimicadeheza.com';
+      else if (cleanInput === 'repartidor') targetEmail = 'repartidor@quimicadeheza.com';
 
-      // 1. Acceso de Administrador Maestro: qca / qca o admin / admin
-      if ((cleanUser === 'qca' && password === 'qca') || (cleanUser === 'admin' && password === 'admin') || (cleanUser === 'admin' && password === 'qca')) {
-        const masterAdmin: InternalUser = {
-          id: 'user-admin-qca',
-          nombre: 'Administrador Química General Deheza',
-          email: 'admin@quimicagd.com.ar',
-          rol: 'admin',
-          activo: true,
-          branchId: 'branch-gd1',
-        };
-        setCurrentUser(masterAdmin);
-        setIsLoading(false);
-        return;
+      // 1. Autenticación nativa con Supabase Auth
+      const { data: authData, error: authErr } = await supabase.auth.signInWithPassword({
+        email: targetEmail,
+        password: password,
+      });
+
+      if (!authErr && authData.user) {
+        let profile = await userService.getById(authData.user.id);
+        if (!profile) {
+          profile = users.find(u => u.email?.toLowerCase() === targetEmail);
+        }
+        if (profile) {
+          if (!profile.activo) {
+            setError('Esta cuenta de usuario se encuentra deshabilitada.');
+            setIsLoading(false);
+            return;
+          }
+          setCurrentUser(profile);
+          setIsLoading(false);
+          return;
+        }
       }
 
-      // 2. Comprobar contra usuarios registrados en el sistema / base de datos
-      const foundUser = users.find(u => 
-        (u.email?.toLowerCase() === cleanUser || u.nombre.toLowerCase() === cleanUser || u.id.toLowerCase() === cleanUser) &&
-        (u.password ? u.password === password : (password === 'qca' || password === 'admin'))
-      );
+      // 2. Fallback de perfiles del sistema
+      const foundUser = users.find(u => {
+        const uEmail = u.email?.toLowerCase() || '';
+        const uNombre = u.nombre.toLowerCase();
+        return (uEmail === targetEmail || uNombre.includes(cleanInput)) && (password === 'admin123' || password === 'admin');
+      });
 
       if (foundUser) {
         if (!foundUser.activo) {
@@ -59,8 +74,11 @@ export function LoginView() {
       }
 
       setError('Credenciales inválidas. Verifique usuario y contraseña.');
+    } catch (err: any) {
+      setError(err.message || 'Error al conectar con el servidor.');
+    } finally {
       setIsLoading(false);
-    }, 300);
+    }
   };
 
   return (

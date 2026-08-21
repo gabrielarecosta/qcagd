@@ -23,7 +23,7 @@ export const branchService = {
     return (data || []).map(mapBranch);
   },
 
-  getById: async (id: string): Promise<Branch | undefined> => {
+  getById: async (id: string | number): Promise<Branch | undefined> => {
     const { data, error } = await supabase
       .from('branches')
       .select('*')
@@ -33,7 +33,7 @@ export const branchService = {
     return data ? mapBranch(data) : undefined;
   },
 
-  update: async (id: string, updates: Partial<Branch>): Promise<Branch> => {
+  update: async (id: string | number, updates: Partial<Branch>): Promise<Branch> => {
     const dbUpdates: any = {
       nombre: updates.nombre,
       direccion: updates.direccion,
@@ -58,10 +58,8 @@ export const branchService = {
     return mapBranch(data);
   },
 
-  create: async (branch: Omit<Branch, 'id'>): Promise<Branch> => {
-    const branchId = `branch-${Date.now()}`;
-    const dbInsert = {
-      id: branchId,
+  create: async (branch: Omit<Branch, 'id'> & { id?: string | number }): Promise<Branch> => {
+    const dbInsert: any = {
       nombre: branch.nombre,
       direccion: branch.direccion,
       telefono: branch.telefono,
@@ -69,6 +67,10 @@ export const branchService = {
       horario_atencion: branch.horarioAtencion,
       activo: branch.activo ?? true,
     };
+
+    if (branch.id) {
+      dbInsert.id = branch.id;
+    }
 
     const { data, error } = await supabase
       .from('branches')

@@ -9,7 +9,7 @@ export type ProductCategory =
   | 'institucional';
 
 export interface Product {
-  id: string;
+  id: string | number;
   codigo: string;
   nombre: string;
   categoria: ProductCategory;
@@ -28,15 +28,15 @@ export interface Product {
 }
 
 export interface ProductStock {
-  productId: string;
-  branchId: string;
+  productId: string | number;
+  branchId: string | number;
   stock: number;
   stockMinimo: number;
   disponible: boolean;
 }
 
 export interface SuperOffer {
-  id: string;
+  id: string | number;
   nombre: string;
   descripcion?: string;
   precioOferta: number;
@@ -46,8 +46,8 @@ export interface SuperOffer {
 }
 
 export interface SuperOfferItem {
-  id?: string;
-  productId: string;
+  id?: string | number;
+  productId: string | number;
   cantidad: number;
   unidad: string;
 }

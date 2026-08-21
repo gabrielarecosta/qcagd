@@ -205,7 +205,7 @@ export function BranchesView() {
               <tbody>
                 {branches.map(b => {
                   const stats = getBranchStats(b.id);
-                  const isCentral = b.id === 'branch-gd1' || b.nombre.toLowerCase().includes('central');
+                  const isCentral = String(b.id) === '1' || b.id === 1 || b.nombre.toLowerCase().includes('central');
                   return (
                     <tr key={b.id}>
                       <td style={{ fontWeight: 'bold' }}>
@@ -254,7 +254,7 @@ export function BranchesView() {
             <form onSubmit={handleSave}>
               <div className="modal-header">
                 <h2 className="card-title">
-                  Editar {editingBranch.id === 'branch-gd1' || editingBranch.nombre.toLowerCase().includes('central') ? '🏬 Casa Central' : 'Sucursal'}
+                  Editar {String(editingBranch.id) === '1' || editingBranch.id === 1 || editingBranch.nombre.toLowerCase().includes('central') ? '🏬 Casa Central' : 'Sucursal'}
                 </h2>
                 <button 
                   type="button" 

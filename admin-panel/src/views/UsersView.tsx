@@ -32,7 +32,7 @@ export function UsersView() {
     nombre: '',
     email: '',
     rol: 'ventas' as UserRole,
-    branchId: 'branch-gd1',
+    branchId: 1 as string | number,
     telefono: '',
     activo: true,
     password: '',
@@ -109,7 +109,7 @@ export function UsersView() {
 
   const handleOpenCreate = () => {
     setIsCreating(true);
-    const defaultBranch = activeBranchId !== 'all' ? activeBranchId : (branches[0]?.id || 'branch-gd1');
+    const defaultBranch = activeBranchId !== 'all' ? activeBranchId : (branches[0]?.id || 1);
     setFormUser({
       nombre: '',
       email: '',

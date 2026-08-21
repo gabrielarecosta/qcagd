@@ -27,7 +27,7 @@ export function ExcelImportView() {
     confirmImport
   } = useAdminStore();
 
-  const [selectedBranchId, setSelectedBranchId] = useState(branches[0]?.id || 'branch-gd1');
+  const [selectedBranchId, setSelectedBranchId] = useState<string | number>(branches[0]?.id || 1);
   const [step, setStep] = useState<Step>('upload');
   const [file, setFile] = useState<File | null>(null);
   

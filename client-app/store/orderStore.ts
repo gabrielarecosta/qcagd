@@ -7,7 +7,7 @@ interface OrderStore {
   isLoading: boolean;
   
   fetchOrders: (clienteId?: string, repartidorId?: string) => Promise<void>;
-  addOrder: (order: Order, userEmail?: string) => Promise<void>;
+  addOrder: (order: Order, userEmail?: string) => Promise<any>;
   updateOrderStatus: (orderId: string, status: OrderStatus, userEmail?: string) => Promise<void>;
   takeOrder: (orderId: string, repartidorId: string, userEmail?: string) => Promise<void>;
   
@@ -39,8 +39,9 @@ export const useOrderStore = create<OrderStore>((set, get) => ({
 
   addOrder: async (order, userEmail) => {
     const email = userEmail || '';
-    await orderService.create(order as any, email);
-    await get().fetchOrders(order.clienteId);
+    const created = await orderService.create(order as any, email);
+    await get().fetchOrders(order.clienteId ? String(order.clienteId) : undefined);
+    return created;
   },
 
   updateOrderStatus: async (orderId, status, userEmail) => {

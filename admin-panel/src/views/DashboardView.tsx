@@ -103,9 +103,9 @@ export function DashboardView({ onNavigate, onFilterProductsNoPhoto }: Dashboard
       c => c.activo && (activeBranchId === 'all' || c.branchId === activeBranchId)
     ).length;
 
-    const targetBranch = activeBranchId === 'all' ? 'branch-gd1' : activeBranchId;
+    const targetBranch = activeBranchId === 'all' ? 1 : activeBranchId;
     const lowStockCount = stocks.filter(
-      s => s.branchId === targetBranch && s.stock <= s.stockMinimo
+      s => String(s.branchId) === String(targetBranch) && s.stock <= s.stockMinimo
     ).length;
 
     const activeDeliveriesCount = deliveries.filter(
@@ -163,8 +163,8 @@ export function DashboardView({ onNavigate, onFilterProductsNoPhoto }: Dashboard
     }
 
     // Alerta 4: Stock crítico
-    const branchStockKey = activeBranchId === 'all' ? 'branch-gd1' : activeBranchId;
-    const criticalStock = stocks.filter(s => s.branchId === branchStockKey && s.stock <= s.stockMinimo);
+    const branchStockKey = activeBranchId === 'all' ? 1 : activeBranchId;
+    const criticalStock = stocks.filter(s => String(s.branchId) === String(branchStockKey) && s.stock <= s.stockMinimo);
     if (criticalStock.length > 0) {
       list.push({
         id: 'critical-stock-alert',
@@ -219,9 +219,9 @@ export function DashboardView({ onNavigate, onFilterProductsNoPhoto }: Dashboard
 
   // 5. Datos Bajo Stock Detallados (Top 4 crítico)
   const detailedLowStock = useMemo(() => {
-    const branchId = activeBranchId === 'all' ? 'branch-gd1' : activeBranchId;
+    const branchId = activeBranchId === 'all' ? 1 : activeBranchId;
     return stocks
-      .filter(s => s.branchId === branchId && s.stock <= s.stockMinimo)
+      .filter(s => String(s.branchId) === String(branchId) && s.stock <= s.stockMinimo)
       .slice(0, 4)
       .map(s => {
         const prod = products.find(p => p.id === s.productId);

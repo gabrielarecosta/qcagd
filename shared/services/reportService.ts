@@ -47,7 +47,7 @@ export const reportService = {
     });
 
     // 2. Fetch inventory/low stock
-    const targetBranch = branchId && branchId !== 'all' ? branchId : 'branch-gd1';
+    const targetBranch = branchId && branchId !== 'all' ? branchId : 1;
     const { data: lowStockData, error: lowStockErr } = await supabase
       .from('inventory')
       .select('count', { count: 'exact', head: true })

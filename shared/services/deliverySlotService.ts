@@ -1,11 +1,12 @@
 import { supabase } from './supabaseClient';
 
 export interface DeliverySlot {
-  id: string;
+  id: number | string;
   nombre: string;
   hora_inicio: string;
   hora_fin: string;
   max_pedidos: number | null;
+  capacidad_maxima?: number | null;
   activo: boolean;
 }
 
@@ -29,11 +30,12 @@ export const deliverySlotService = {
   /**
    * Obtiene una franja horaria por ID
    */
-  getById: async (id: string): Promise<DeliverySlot> => {
+  getById: async (id: string | number): Promise<DeliverySlot> => {
+    const numId = typeof id === 'number' ? id : (isNaN(Number(id)) ? id : Number(id));
     const { data, error } = await supabase
       .from('delivery_time_slots')
       .select('*')
-      .eq('id', id)
+      .eq('id', numId)
       .single();
     if (error) throw error;
     return data;
@@ -43,10 +45,9 @@ export const deliverySlotService = {
    * Crea una nueva franja horaria
    */
   create: async (slot: Omit<DeliverySlot, 'id'>): Promise<DeliverySlot> => {
-    const id = `slot-${Date.now()}`;
     const { data, error } = await supabase
       .from('delivery_time_slots')
-      .insert({ id, ...slot })
+      .insert(slot)
       .select('*')
       .single();
     if (error) throw error;
@@ -56,11 +57,12 @@ export const deliverySlotService = {
   /**
    * Actualiza una franja horaria existente
    */
-  update: async (id: string, updates: Partial<DeliverySlot>): Promise<DeliverySlot> => {
+  update: async (id: string | number, updates: Partial<DeliverySlot>): Promise<DeliverySlot> => {
+    const numId = typeof id === 'number' ? id : (isNaN(Number(id)) ? id : Number(id));
     const { data, error } = await supabase
       .from('delivery_time_slots')
       .update(updates)
-      .eq('id', id)
+      .eq('id', numId)
       .select('*')
       .single();
     if (error) throw error;
@@ -70,30 +72,38 @@ export const deliverySlotService = {
   /**
    * Elimina una franja horaria
    */
-  delete: async (id: string): Promise<void> => {
+  delete: async (id: string | number): Promise<void> => {
+    const numId = typeof id === 'number' ? id : (isNaN(Number(id)) ? id : Number(id));
     const { error } = await supabase
       .from('delivery_time_slots')
       .delete()
-      .eq('id', id);
+      .eq('id', numId);
     if (error) throw error;
   },
 
   /**
    * Obtiene la cantidad de pedidos agendados para una fecha y franja horaria específicas
    */
-  getSlotOrderCount: async (slotId: string, date: string): Promise<number> => {
-    const { count, error } = await supabase
-      .from('orders')
-      .select('*', { count: 'exact', head: true })
-      .eq('delivery_time_slot_id', slotId)
-      .eq('delivery_date', date)
-      .is('deleted_at', null)
-      .not('estado', 'eq', 'cancelado');
-      
-    if (error) {
-      console.error('Error counting orders for slot:', error);
+  getSlotOrderCount: async (slotId: string | number, date: string): Promise<number> => {
+    try {
+      const numId = typeof slotId === 'number' ? slotId : Number(slotId);
+      if (isNaN(numId)) {
+        return 0;
+      }
+      const { count, error } = await supabase
+        .from('orders')
+        .select('*', { count: 'exact', head: true })
+        .eq('delivery_time_slot_id', numId)
+        .eq('delivery_date', date)
+        .is('deleted_at', null)
+        .not('estado', 'eq', 'cancelado');
+        
+      if (error) {
+        return 0;
+      }
+      return count || 0;
+    } catch {
       return 0;
     }
-    return count || 0;
   },
 };

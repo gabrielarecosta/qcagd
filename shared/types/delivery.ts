@@ -10,7 +10,7 @@ export type RouteStatus = 'pendiente' | 'en_curso' | 'completada' | 'cancelada';
 export type StopStatus = 'pendiente' | 'en_camino' | 'entregado' | 'no_entregado';
 
 export interface DeliveryStop {
-  clienteId: string;
+  clienteId: string | number;
   clienteNombre: string;
   direccion: string;
   completado: boolean;
@@ -19,22 +19,22 @@ export interface DeliveryStop {
 }
 
 export interface DeliveryRoute {
-  id: string;
-  branchId: string;
+  id: string | number;
+  branchId: string | number;
   repartidorId: string; // ID del usuario interno con rol 'repartidor'
   fecha: string;
   estado: DeliveryStatus;
   horarioEstimado: string;
-  pedidosIds: string[];
+  pedidosIds: (string | number)[];
   stops: DeliveryStop[];
   observaciones?: string;
   plannedBy?: string;
 }
 
 export interface DeliveryRouteStop {
-  id: string;
-  routeId: string;
-  orderId: string;
+  id: string | number;
+  routeId: string | number;
+  orderId: string | number;
   stopOrder: number;
   status: StopStatus;
   arrivedAt?: string;

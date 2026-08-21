@@ -8,8 +8,8 @@ interface CartStore {
 
   // Acciones
   addProduct: (producto: Product, cantidad?: number, silent?: boolean) => void;
-  removeProduct: (productoId: string) => void;
-  updateQuantity: (productoId: string, cantidad: number) => void;
+  removeProduct: (productoId: string | number) => void;
+  updateQuantity: (productoId: string | number, cantidad: number) => void;
   clearCart: () => void;
   repeatOrder: (order: Order) => void;
   fetchPromotions: () => Promise<void>;
@@ -17,7 +17,7 @@ interface CartStore {
   // Computed values
   totalItems: () => number;
   totalPrice: () => number;
-  getItemQuantity: (productoId: string) => number;
+  getItemQuantity: (productoId: string | number) => number;
 }
 
 export const useCartStore = create<CartStore>((set, get) => ({
@@ -163,7 +163,7 @@ export const useCartStore = create<CartStore>((set, get) => ({
   },
 
   getItemQuantity: (productoId) => {
-    const item = get().items.find((i) => i.producto.id === productoId);
+    const item = get().items.find((i) => String(i.producto.id) === String(productoId));
     return item?.cantidad ?? 0;
   },
 }));
