@@ -1,4 +1,5 @@
 import { supabase } from './supabaseClient';
+import { parseBranchId } from '../utils/branchUtils';
 import { InternalUser } from '../types/user';
 
 const mapProfile = (d: any): InternalUser => ({
@@ -40,7 +41,7 @@ export const userService = {
   },
 
   getByBranchId: async (branchId: string | number): Promise<InternalUser[]> => {
-    const branchIdNum = typeof branchId === 'number' ? branchId : (isNaN(Number(branchId)) ? 1 : Number(branchId));
+    const branchIdNum = parseBranchId(branchId) || 1;
     const { data, error } = await supabase
       .from('profiles')
       .select('*')

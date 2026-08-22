@@ -1,12 +1,14 @@
 import { supabase } from './supabaseClient';
 import { KPIReport, GeneralReports } from '../types/report';
+import { parseBranchId } from '../utils/branchUtils';
 
 export const reportService = {
-  getKPIs: async (branchId?: string): Promise<KPIReport> => {
+  getKPIs: async (branchId?: string | number): Promise<KPIReport> => {
     // 1. Fetch orders from Supabase
     let query = supabase.from('orders').select('*').is('deleted_at', null);
-    if (branchId && branchId !== 'all') {
-      query = query.eq('branch_id', branchId);
+    const bId = parseBranchId(branchId);
+    if (bId !== undefined) {
+      query = query.eq('branch_id', bId);
     }
     const { data: orders, error: ordersErr } = await query;
     if (ordersErr) throw ordersErr;
@@ -28,10 +30,11 @@ export const reportService = {
     (orders || []).forEach(o => {
       const orderDate = new Date(o.fecha);
       const isToday = orderDate.toDateString() === todayStr;
-      const isThisWeek = orderDate >= oneWeekAgo;
 
-      if (o.estado === 'entregado' && isToday) ventasDia += Number(o.total);
-      if (o.estado === 'entregado' && isThisWeek) ventasSemana += Number(o.total);
+      if (o.estado === 'entregado') {
+        if (isToday) ventasDia += Number(o.total || 0);
+        if (orderDate >= oneWeekAgo) ventasSemana += Number(o.total || 0);
+      }
 
       if (o.estado === 'recibido' || o.estado === 'en_preparacion') pendingPreps++;
       if (o.estado === 'listo_para_reparto') pendingRepartos++;
@@ -39,23 +42,15 @@ export const reportService = {
       if (o.estado === 'entregado') delivered++;
 
       if (o.payment_status !== 'pagado' && o.payment_status !== 'aprobado' && o.estado !== 'cancelado') {
-        pendingPayments += Number(o.total);
+        pendingPayments += Number(o.total || 0);
       }
 
       if (o.payment_method === 'efectivo') cashOrders++;
       if (o.payment_method === 'mercado_pago') mpOrders++;
     });
 
-    // 2. Fetch inventory/low stock
-    const targetBranch = branchId && branchId !== 'all' ? branchId : 1;
-    const { data: lowStockData, error: lowStockErr } = await supabase
-      .from('inventory')
-      .select('count', { count: 'exact', head: true })
-      .eq('branch_id', targetBranch)
-      .filter('stock', 'lte', 'stock_minimo');
-
-    if (lowStockErr) throw lowStockErr;
-    const lowStockCount = lowStockData ? 0 : 0; // fallback, count: exact is better, let's select actually
+    // 2. Stock crítico
+    const targetBranch = parseBranchId(branchId) || 1;
     const { data: stocks } = await supabase
       .from('inventory')
       .select('id')
@@ -65,16 +60,16 @@ export const reportService = {
 
     // 3. Fetch active delivery routes
     let delivQuery = supabase.from('delivery_routes').select('*').neq('estado', 'entregado');
-    if (branchId && branchId !== 'all') {
-      delivQuery = delivQuery.eq('branch_id', branchId);
+    if (bId !== undefined) {
+      delivQuery = delivQuery.eq('branch_id', bId);
     }
     const { data: delivs } = await delivQuery;
     const scheduledRoutesCount = delivs ? delivs.length : 0;
 
     // 4. Clientes activos
     let clientQuery = supabase.from('customers').select('id').eq('activo', true).is('deleted_at', null);
-    if (branchId && branchId !== 'all') {
-      clientQuery = clientQuery.eq('branch_id', branchId);
+    if (bId !== undefined) {
+      clientQuery = clientQuery.eq('branch_id', bId);
     }
     const { data: clients } = await clientQuery;
     const activeClientsCount = clients ? clients.length : 0;
@@ -95,15 +90,16 @@ export const reportService = {
     };
   },
 
-  getGeneralReports: async (branchId?: string): Promise<GeneralReports> => {
+  getGeneralReports: async (branchId?: string | number): Promise<GeneralReports> => {
     // 1. Fetch orders with customer details
     let query = supabase
       .from('orders')
       .select('*, customers(nombre)')
       .is('deleted_at', null);
 
-    if (branchId && branchId !== 'all') {
-      query = query.eq('branch_id', branchId);
+    const bId = parseBranchId(branchId);
+    if (bId !== undefined) {
+      query = query.eq('branch_id', bId);
     }
     const { data: orders, error: orderErr } = await query;
     if (orderErr) throw orderErr;

@@ -12,11 +12,14 @@ const mapNotification = (d: any): InternalNotification => ({
   fecha: d.fecha,
 });
 
+import { parseBranchId } from '../utils/branchUtils';
+
 export const notificationService = {
-  getAll: async (branchId?: string): Promise<InternalNotification[]> => {
+  getAll: async (branchId?: string | number): Promise<InternalNotification[]> => {
     let query = supabase.from('notifications').select('*');
-    if (branchId && branchId !== 'all') {
-      query = query.or(`branch_id.eq.${branchId},branch_id.is.null`);
+    const bId = parseBranchId(branchId);
+    if (bId !== undefined) {
+      query = query.or(`branch_id.eq.${bId},branch_id.is.null`);
     }
     const { data, error } = await query.order('fecha', { ascending: false });
     if (error) throw error;

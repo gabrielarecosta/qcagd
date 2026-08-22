@@ -44,12 +44,15 @@ const mapRoute = (r: any, deliveries: any[] = [], events: any[] = [], ordersMap:
   };
 };
 
+import { parseBranchId } from '../utils/branchUtils';
+
 export const deliveryService = {
-  getAll: async (branchId?: string): Promise<DeliveryRoute[]> => {
+  getAll: async (branchId?: string | number): Promise<DeliveryRoute[]> => {
     try {
       let query = supabase.from('delivery_routes').select('*');
-      if (branchId && branchId !== 'all') {
-        query = query.eq('branch_id', branchId);
+      const bId = parseBranchId(branchId);
+      if (bId !== undefined) {
+        query = query.eq('branch_id', bId);
       }
       const { data: routes, error: routeErr } = await query.order('created_at', { ascending: false });
       if (routeErr) {

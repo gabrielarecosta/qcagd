@@ -76,11 +76,14 @@ const mapPaymentConfig = (d: any): PaymentMethodConfig => ({
   orden: d.orden ?? 0,
 });
 
+import { parseBranchId } from '../utils/branchUtils';
+
 export const paymentService = {
-  getAll: async (branchId?: string): Promise<PaymentLog[]> => {
+  getAll: async (branchId?: string | number): Promise<PaymentLog[]> => {
     let query = supabase.from('payment_logs').select('*');
-    if (branchId && branchId !== 'all') {
-      query = query.eq('branch_id', branchId);
+    const bId = parseBranchId(branchId);
+    if (bId !== undefined) {
+      query = query.eq('branch_id', bId);
     }
     const { data, error } = await query.order('fecha', { ascending: false });
     if (error) throw error;

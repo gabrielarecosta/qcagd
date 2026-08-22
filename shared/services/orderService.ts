@@ -65,11 +65,14 @@ const mapOrder = (o: any, items: any[] = []): Order => ({
   mpPreferenceExpiresAt: o.mp_preference_expires_at || undefined,
 });
 
+import { parseBranchId } from '../utils/branchUtils';
+
 export const orderService = {
-  getAll: async (branchId?: string): Promise<Order[]> => {
+  getAll: async (branchId?: string | number): Promise<Order[]> => {
     let query = supabase.from('orders').select('*').is('deleted_at', null);
-    if (branchId && branchId !== 'all') {
-      query = query.eq('branch_id', branchId);
+    const bId = parseBranchId(branchId);
+    if (bId !== undefined) {
+      query = query.eq('branch_id', bId);
     }
     const { data: ordersData, error: orderErr } = await query.order('fecha', { ascending: false });
     if (orderErr) throw orderErr;

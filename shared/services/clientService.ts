@@ -23,13 +23,16 @@ const mapCustomer = (d: any): Customer => ({
   mayoristaAutorizado: d.mayorista_autorizado ?? (d.tipo_cliente !== 'mayorista' && d.tipo_cliente !== 'sucursal'),
 });
 
+import { parseBranchId } from '../utils/branchUtils';
+
 const CUSTOMER_COLUMNS = '*';
 
 export const clientService = {
-  getAll: async (branchId?: string): Promise<Customer[]> => {
+  getAll: async (branchId?: string | number): Promise<Customer[]> => {
     let query = supabase.from('customers').select(CUSTOMER_COLUMNS).is('deleted_at', null);
-    if (branchId && branchId !== 'all') {
-      query = query.eq('branch_id', branchId);
+    const bId = parseBranchId(branchId);
+    if (bId !== undefined) {
+      query = query.eq('branch_id', bId);
     }
     const { data, error } = await query;
     if (error) throw error;
@@ -56,7 +59,7 @@ export const clientService = {
       whatsapp: updates.whatsapp,
       email: updates.email,
       direccion: updates.direccion,
-      branch_id: updates.branchId,
+      branch_id: updates.branchId ? parseBranchId(updates.branchId) : undefined,
       tipo_cliente: updates.tipoCliente,
       activo: updates.activo,
       observaciones: updates.observaciones,

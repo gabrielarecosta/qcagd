@@ -47,7 +47,6 @@ export function DashboardView({ onNavigate, onFilterProductsNoPhoto }: Dashboard
     fetchOrdersOnly();
     fetchClientsOnly();
     fetchDeliveriesOnly();
-    fetchProductsOnly();
     loadLatestImport();
 
     // Suscripción Realtime a Supabase para actualización automática
@@ -58,12 +57,6 @@ export function DashboardView({ onNavigate, onFilterProductsNoPhoto }: Dashboard
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'imports' }, () => {
         loadLatestImport();
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, () => {
-        fetchProductsOnly();
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'inventory' }, () => {
-        fetchProductsOnly();
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'customers' }, () => {
         fetchClientsOnly();
