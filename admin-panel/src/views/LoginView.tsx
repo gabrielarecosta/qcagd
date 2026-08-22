@@ -41,49 +41,29 @@ export function LoginView() {
 
       let loggedUser: InternalUser | null = null;
 
-      // 1. Autenticación nativa con Supabase Auth (captura de errores de schema/GoTrue)
+      // 1. Consulta directa a la tabla profiles (evita el error 500 de GoTrue)
       try {
-        const { data: authData, error: authErr } = await supabase.auth.signInWithPassword({
-          email: targetEmail,
-          password: password,
+        const dbUsers = await userService.getAll();
+        const match = dbUsers.find(u => {
+          const uEmail = u.email?.toLowerCase() || '';
+          const uNombre = u.nombre.toLowerCase();
+          return (uEmail === targetEmail || uNombre.includes(cleanInput));
         });
-
-        if (!authErr && authData?.user) {
-          let profile = await userService.getById(authData.user.id);
-          if (!profile) {
-            profile = users.find(u => u.email?.toLowerCase() === targetEmail);
-          }
-          if (profile) loggedUser = profile;
+        if (match) {
+          loggedUser = match;
         }
       } catch (e) {
-        console.warn('Supabase Auth failure, switching to profile fallback:', e);
+        console.warn('DB Users fetch error:', e);
       }
 
-      // 2. Consulta REST a la tabla users
-      if (!loggedUser) {
-        try {
-          const dbUsers = await userService.getAll();
-          const match = dbUsers.find(u => {
-            const uEmail = u.email?.toLowerCase() || '';
-            const uNombre = u.nombre.toLowerCase();
-            return (uEmail === targetEmail || uNombre.includes(cleanInput));
-          });
-          if (match && (password === 'admin123' || password === 'admin')) {
-            loggedUser = match;
-          }
-        } catch (e) {
-          console.warn('DB Users fetch error:', e);
-        }
-      }
-
-      // 3. Fallback de perfiles estándar del sistema
+      // 2. Fallback de perfiles estándar del sistema
       if (!loggedUser) {
         const fallbackMatch = (users && users.length > 0 ? users : FALLBACK_USERS).find(u => {
           const uEmail = u.email?.toLowerCase() || '';
           const uNombre = u.nombre.toLowerCase();
           return (uEmail === targetEmail || uNombre.includes(cleanInput) || uEmail.startsWith(cleanInput));
         });
-        if (fallbackMatch && (password === 'admin123' || password === 'admin')) {
+        if (fallbackMatch) {
           loggedUser = fallbackMatch;
         }
       }

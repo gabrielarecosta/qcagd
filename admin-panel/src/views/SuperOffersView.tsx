@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAdminStore } from '../store/adminStore';
 import { formatPrice } from '@shared/utils/formatCurrency';
+import { supabase } from '@shared/services';
 
 interface SuperOffer {
   id: string;
@@ -86,11 +87,6 @@ export function SuperOffersView() {
     if (!editingOffer) return;
     setIsSaving(true);
     try {
-      const { createClient } = await import('@supabase/supabase-js');
-      const supabase = createClient(
-        import.meta.env.VITE_SUPABASE_URL,
-        import.meta.env.VITE_SUPABASE_ANON_KEY
-      );
       const { error } = await supabase
         .from('super_offers')
         .update({
@@ -113,11 +109,6 @@ export function SuperOffersView() {
 
   const handleToggleActive = async (offer: SuperOffer) => {
     try {
-      const { createClient } = await import('@supabase/supabase-js');
-      const supabase = createClient(
-        import.meta.env.VITE_SUPABASE_URL,
-        import.meta.env.VITE_SUPABASE_ANON_KEY
-      );
       await supabase.from('super_offers').update({ activo: !offer.activo }).eq('id', offer.id);
       await fetchSuperOffersOnly();
     } catch (err: any) {

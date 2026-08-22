@@ -1,12 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { createClient } from '@supabase/supabase-js';
 import { useAdminStore } from '../store/adminStore';
-import { companySettingsService } from '@shared/services/companySettingsService';
-
-const supabase = createClient(
-  import.meta.env.VITE_SUPABASE_URL,
-  import.meta.env.VITE_SUPABASE_ANON_KEY
-);
+import { companySettingsService, supabase } from '@shared/services';
 
 interface AppBanner {
   id: string;

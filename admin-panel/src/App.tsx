@@ -205,11 +205,14 @@ function App() {
   } = useAdminStore();
 
   useEffect(() => {
-    if (isAutoLogin && !currentUser) {
-      setCurrentUser({ id: '1', nombre: 'Administrador General', email: 'admin@quimicadeheza.com', rol: 'admin', activo: true });
+    let effectiveUser = currentUser;
+    if (isAutoLogin && !effectiveUser) {
+      effectiveUser = { id: '1', nombre: 'Administrador General', email: 'admin@quimicadeheza.com', rol: 'admin', activo: true };
+      setCurrentUser(effectiveUser);
     }
 
-    if (!currentUser && !isAutoLogin) {
+    if (!effectiveUser) {
+      useAdminStore.setState({ isLoading: false });
       return;
     }
 
@@ -235,7 +238,7 @@ function App() {
       clearInterval(interval);
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [currentUser]);
 
   const unreadNotifications = useMemo(() => {
     return notifications.filter(n => !n.leido);
