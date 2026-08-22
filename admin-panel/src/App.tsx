@@ -207,6 +207,11 @@ function App() {
     if (isAutoLogin && !currentUser) {
       setCurrentUser({ id: '1', nombre: 'Administrador General', email: 'admin@quimicadeheza.com', rol: 'admin', activo: true });
     }
+
+    if (!currentUser && !isAutoLogin) {
+      return;
+    }
+
     fetchData();
 
     // Polling de seguridad de 60 segundos (optimizado para evitar tráfico excesivo)
