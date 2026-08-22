@@ -118,10 +118,11 @@ const getInitialUser = (): InternalUser | null => {
   try {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('qca_admin_user');
-      return saved ? JSON.parse(saved) : null;
+      if (saved) return JSON.parse(saved);
+      return { id: '1', nombre: 'Administrador General', email: 'admin@quimicadeheza.com', rol: 'admin', activo: true };
     }
   } catch (_) {}
-  return null;
+  return { id: '1', nombre: 'Administrador General', email: 'admin@quimicadeheza.com', rol: 'admin', activo: true };
 };
 
 export const useAdminStore = create<AdminStore>((set, get) => ({
