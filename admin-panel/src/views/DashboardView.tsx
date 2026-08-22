@@ -15,18 +15,96 @@ export function DashboardView({ onNavigate, onFilterProductsNoPhoto }: Dashboard
   const { 
     activeBranchId, 
     orders, 
-    stocks, 
-    products, 
-    deliveries, 
-    clients, 
     updateOrderStatus,
-    fetchData,
     fetchOrdersOnly,
-    fetchClientsOnly,
-    fetchDeliveriesOnly,
   } = useAdminStore();
 
   const [latestImport, setLatestImport] = useState<any | null>(null);
+
+  const [dbMetrics, setDbMetrics] = useState({
+    lowStockCount: 0,
+    lowStockItems: [] as Array<{ id: string | number; nombre: string; stock: number; minimo: number; percent: number }>,
+    freeProdsCount: 0,
+    noPhotoProdsCount: 0,
+    activeClientsCount: 0,
+    activeDeliveriesCount: 0,
+  });
+
+  const fetchDashboardDbMetrics = async () => {
+    try {
+      const targetBranch = activeBranchId === 'all' ? undefined : activeBranchId;
+      const branchNum = activeBranchId === 'all' ? 1 : (Number(activeBranchId) || 1);
+
+      let invQuery = supabase
+        .from('inventory')
+        .select('product_id, branch_id, stock, stock_minimo, products!inner(id, nombre, deleted_at)')
+        .is('products.deleted_at', null);
+
+      if (activeBranchId !== 'all') {
+        invQuery = invQuery.eq('branch_id', branchNum);
+      }
+
+      let clientQuery = supabase
+        .from('customers')
+        .select('id', { count: 'exact', head: true })
+        .eq('activo', true)
+        .is('deleted_at', null);
+
+      if (targetBranch !== undefined) {
+        clientQuery = clientQuery.eq('branch_id', targetBranch);
+      }
+
+      let deliveryQuery = supabase
+        .from('delivery_routes')
+        .select('id', { count: 'exact', head: true })
+        .neq('estado', 'entregado');
+
+      if (targetBranch !== undefined) {
+        deliveryQuery = deliveryQuery.eq('branch_id', targetBranch);
+      }
+
+      const [invRes, freeProdsRes, noPhotoProdsRes, clientsRes, deliveriesRes] = await Promise.all([
+        invQuery,
+        supabase
+          .from('products')
+          .select('id', { count: 'exact', head: true })
+          .is('deleted_at', null)
+          .or('precio.eq.0,precio.is.null'),
+        supabase
+          .from('products')
+          .select('id', { count: 'exact', head: true })
+          .is('deleted_at', null)
+          .or('imagen.is.null,imagen.eq.'),
+        clientQuery,
+        deliveryQuery,
+      ]);
+
+      const rawInv = invRes.data || [];
+      const critical = rawInv.filter((s: any) => Number(s.stock) <= Number(s.stock_minimo));
+      const lowStockItems = critical.slice(0, 4).map((s: any) => {
+        const prodName = s.products ? s.products.nombre : 'Producto';
+        const percent = s.stock_minimo > 0 ? Math.min((s.stock / s.stock_minimo) * 100, 100) : 0;
+        return {
+          id: s.product_id,
+          nombre: prodName,
+          stock: Number(s.stock),
+          minimo: Number(s.stock_minimo),
+          percent,
+        };
+      });
+
+      setDbMetrics({
+        lowStockCount: critical.length,
+        lowStockItems,
+        freeProdsCount: freeProdsRes.count || 0,
+        noPhotoProdsCount: noPhotoProdsRes.count || 0,
+        activeClientsCount: clientsRes.count || 0,
+        activeDeliveriesCount: deliveriesRes.count || 0,
+      });
+    } catch (err) {
+      console.error('Error cargando métricas directas de DB para Dashboard:', err);
+    }
+  };
 
   const loadLatestImport = async () => {
     try {
@@ -45,8 +123,7 @@ export function DashboardView({ onNavigate, onFilterProductsNoPhoto }: Dashboard
 
   useEffect(() => {
     fetchOrdersOnly();
-    fetchClientsOnly();
-    fetchDeliveriesOnly();
+    fetchDashboardDbMetrics();
     loadLatestImport();
 
     // Suscripción Realtime a Supabase para actualización automática
@@ -58,11 +135,17 @@ export function DashboardView({ onNavigate, onFilterProductsNoPhoto }: Dashboard
       .on('postgres_changes', { event: '*', schema: 'public', table: 'imports' }, () => {
         loadLatestImport();
       })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'inventory' }, () => {
+        fetchDashboardDbMetrics();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, () => {
+        fetchDashboardDbMetrics();
+      })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'customers' }, () => {
-        fetchClientsOnly();
+        fetchDashboardDbMetrics();
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'delivery_routes' }, () => {
-        fetchDeliveriesOnly();
+        fetchDashboardDbMetrics();
       })
       .subscribe();
 
@@ -70,6 +153,10 @@ export function DashboardView({ onNavigate, onFilterProductsNoPhoto }: Dashboard
       supabase.removeChannel(channel);
     };
   }, []);
+
+  useEffect(() => {
+    fetchDashboardDbMetrics();
+  }, [activeBranchId]);
 
   const [dateFilter, setDateFilter] = useState<'hoy' | 'ayer' | '7dias' | 'mes' | 'personalizado'>('7dias');
   const [openActionDropdownOrderId, setOpenActionDropdownOrderId] = useState<string | number | null>(null);
@@ -80,10 +167,8 @@ export function DashboardView({ onNavigate, onFilterProductsNoPhoto }: Dashboard
     setIsRefreshing(true);
     try {
       await Promise.all([
-        fetchData(true),
         fetchOrdersOnly(),
-        fetchClientsOnly(),
-        fetchDeliveriesOnly(),
+        fetchDashboardDbMetrics(),
         loadLatestImport(),
       ]);
     } catch (e) {
@@ -167,30 +252,17 @@ export function DashboardView({ onNavigate, onFilterProductsNoPhoto }: Dashboard
       })
       .reduce((acc, curr) => acc + curr.total, 0);
 
-    const activeClientsCount = clients.filter(
-      c => c.activo && (activeBranchId === 'all' || c.branchId === activeBranchId)
-    ).length;
-
-    const targetBranch = activeBranchId === 'all' ? 1 : activeBranchId;
-    const lowStockCount = stocks.filter(
-      s => String(s.branchId) === String(targetBranch) && s.stock <= s.stockMinimo
-    ).length;
-
-    const activeDeliveriesCount = deliveries.filter(
-      d => (activeBranchId === 'all' || d.branchId === activeBranchId) && d.estado !== 'entregado'
-    ).length;
-
     return {
       ventasPeriodo,
       ventasSemana,
       pagosPendientes,
-      clientesActivos: activeClientsCount,
+      clientesActivos: dbMetrics.activeClientsCount,
       pedidosPendientes: pendientesCount,
       pedidosEnReparto: enRepartoCount,
-      repartosHoy: activeDeliveriesCount,
-      bajoStockCount: lowStockCount
+      repartosHoy: dbMetrics.activeDeliveriesCount,
+      bajoStockCount: dbMetrics.lowStockCount
     };
-  }, [filteredOrders, orders, stocks, deliveries, clients, activeBranchId, baseToday]);
+  }, [filteredOrders, orders, dbMetrics, activeBranchId, baseToday]);
 
   // 3. Alertas de lo que requiere atención hoy (Feed Dinámico)
   const alertsFeed = useMemo(() => {
@@ -231,17 +303,15 @@ export function DashboardView({ onNavigate, onFilterProductsNoPhoto }: Dashboard
     }
 
     // Alerta 4: Stock crítico
-    const branchStockKey = activeBranchId === 'all' ? 1 : activeBranchId;
-    const criticalStock = stocks.filter(s => String(s.branchId) === String(branchStockKey) && s.stock <= s.stockMinimo);
-    if (criticalStock.length > 0) {
+    if (dbMetrics.lowStockCount > 0) {
       list.push({
         id: 'critical-stock-alert',
         type: 'red',
-        text: `${criticalStock.length} Artículos bajo stock mínimo`,
+        text: `${dbMetrics.lowStockCount} Artículos bajo stock mínimo`,
         sub: 'Stock en bodega requiere reposición.'
       });
     }
-
+ 
     // Alerta 5: Pagos pendientes de cobro
     const pagosPendientesCount = orders.filter(
       o => (!targetBranch || o.branchId === targetBranch) && o.paymentStatus !== 'pagado' && o.paymentStatus !== 'aprobado' && o.estado !== 'cancelado'
@@ -256,29 +326,27 @@ export function DashboardView({ onNavigate, onFilterProductsNoPhoto }: Dashboard
     }
 
     // Alerta 6: Productos sin precio fijado en catálogo
-    const freeProds = products.filter(p => p.precio === 0 || !p.precio);
-    if (freeProds.length > 0) {
+    if (dbMetrics.freeProdsCount > 0) {
       list.push({
         id: 'free-products-alert',
         type: 'cyan',
-        text: `${freeProds.length} Artículo(s) con precio en cero`,
+        text: `${dbMetrics.freeProdsCount} Artículo(s) con precio en cero`,
         sub: 'Catálogo de ventas requiere revisión.'
       });
     }
 
     // Alerta 7: Productos sin foto en catálogo
-    const noPhotoProds = products.filter(p => !p.imagen || p.imagen.trim() === '');
-    if (noPhotoProds.length > 0) {
+    if (dbMetrics.noPhotoProdsCount > 0) {
       list.push({
         id: 'no-photo-products-alert',
         type: 'pink',
-        text: `${noPhotoProds.length} Artículo(s) sin foto en el catálogo`,
+        text: `${dbMetrics.noPhotoProdsCount} Artículo(s) sin foto en el catálogo`,
         sub: 'Click para ver y cargar imágenes en Catálogo.'
       });
     }
 
     return list.slice(0, 8); // Límite de 8 alertas principales
-  }, [orders, stocks, products, activeBranchId]);
+  }, [orders, dbMetrics, activeBranchId]);
 
   // 4. Tabla de Pedidos Recientes (últimos 6 pedidos)
   const recentOrders = useMemo(() => {
@@ -287,23 +355,8 @@ export function DashboardView({ onNavigate, onFilterProductsNoPhoto }: Dashboard
 
   // 5. Datos Bajo Stock Detallados (Top 4 crítico)
   const detailedLowStock = useMemo(() => {
-    const branchId = activeBranchId === 'all' ? 1 : activeBranchId;
-    return stocks
-      .filter(s => String(s.branchId) === String(branchId) && s.stock <= s.stockMinimo)
-      .slice(0, 4)
-      .map(s => {
-        const prod = products.find(p => p.id === s.productId);
-        const name = prod ? prod.nombre : 'Producto Desconocido';
-        const percent = s.stockMinimo > 0 ? Math.min((s.stock / s.stockMinimo) * 100, 100) : 0;
-        return {
-          id: s.productId,
-          nombre: name,
-          stock: s.stock,
-          minimo: s.stockMinimo,
-          percent
-        };
-      });
-  }, [activeBranchId, stocks, products]);
+    return dbMetrics.lowStockItems;
+  }, [dbMetrics]);
 
   // 6. Gráfico de Ventas de los últimos 7 días (SVG)
   const last7DaysSales = useMemo(() => {
