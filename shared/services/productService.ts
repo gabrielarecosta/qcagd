@@ -43,8 +43,9 @@ export interface ProductQueryOptions {
   sortOrder?: 'asc' | 'desc';
   isPublic?: boolean;
   branchId?: string | number;
-  photoFilter?: 'all' | 'no-photo';
+  photoFilter?: 'all' | 'with-photo' | 'no-photo';
   activeStatusFilter?: 'all' | 'active' | 'inactive';
+  stockFilter?: 'all' | 'with-stock' | 'critico' | 'no-stock';
 }
 
 export const productService = {
@@ -65,8 +66,6 @@ export const productService = {
   getPaginated: async (options: ProductQueryOptions = {}): Promise<PaginatedResult<Product & { stock: number; stockMinimo: number }>> => {
     const page = options.page || 1;
     const pageSize = options.pageSize || 24;
-    const fromRange = (page - 1) * pageSize;
-    const toRange = fromRange + pageSize - 1;
     const isPublic = !!options.isPublic;
 
     const rate = await productService.getLatestExchangeRate();
@@ -75,108 +74,120 @@ export const productService = {
       .from('products')
       .select(
         isPublic
-          ? 'id, codigo, nombre, categoria, subcategoria, presentacion, unidad, descripcion, imagen, activo, visible_en_app, destacado, created_at, updated_at, deleted_at, deleted_by'
-          : '*',
-        { count: 'exact' }
-      )
-      .is('deleted_at', null);
+          ? 'id, codigo, nombre, categoria, subcategoria, presentacion, unidad, descripcion, imagen, activo, visible_en_app, destacado, created_at, updated_at'
+          : '*'
+      );
 
-    // Solo filtrar por activo=true si es público o si el filtro indica únicamente activos
+    // 1. Filtro por Estado Activo / Inactivo
     if (isPublic || options.activeStatusFilter === 'active') {
       query = query.eq('activo', true);
     } else if (options.activeStatusFilter === 'inactive') {
       query = query.or('activo.is.null,activo.eq.false');
     }
 
-    // Filtro por productos sin foto (para vista Admin)
+    // 2. Filtro por Foto (Con Foto / Sin Foto)
     if (options.photoFilter === 'no-photo') {
       query = query.or('imagen.is.null,imagen.eq.');
+    } else if (options.photoFilter === 'with-photo') {
+      query = query.not('imagen', 'is', null).neq('imagen', '');
     }
 
-    // 1. Filtrar por categoría
+    // 3. Filtro por Categoría
     if (options.categoria && options.categoria !== 'todos' && options.categoria !== 'all') {
       query = query.eq('categoria', options.categoria);
     }
 
-    // 2. Búsqueda por texto (nombre, código, descripción, presentación)
+    // 4. Búsqueda por texto (nombre, código, descripción, presentación)
     if (options.search && options.search.trim()) {
       const q = options.search.trim();
       query = query.or(`nombre.ilike.%${q}%,codigo.ilike.%${q}%,descripcion.ilike.%${q}%,presentacion.ilike.%${q}%`);
     }
 
-    // 3. Ordenamiento del lado de Supabase
-    const asc = options.sortOrder !== 'desc';
-    if (options.sortBy === 'precio-bajo') {
-      query = query.order('precio', { ascending: true });
-    } else if (options.sortBy === 'precio-alto') {
-      query = query.order('precio', { ascending: false });
-    } else if (options.sortBy === 'mas-vendido') {
-      query = query.order('id', { ascending: true });
-    } else if (options.sortBy === 'code') {
-      query = query.order('codigo', { ascending: asc });
-    } else if (options.sortBy === 'price') {
-      query = query.order('precio', { ascending: asc });
-    } else if (options.sortBy === 'category') {
-      query = query.order('categoria', { ascending: asc });
-    } else if (options.sortBy === 'name') {
-      query = query.order('nombre', { ascending: asc });
-    } else {
-      query = query
-        .order('destacado', { ascending: false })
-        .order('nombre', { ascending: true });
-    }
-
-    // 4. Paginación server-side con range
-    query = query.range(fromRange, toRange);
-
-    const { data: chunk, count, error } = await query;
-
+    const { data: rawProducts, error } = await query;
     if (error) {
-      console.error('Error en consulta paginada de productos:', error.message);
-      return {
-        data: [],
-        total: 0,
-        page,
-        pageSize,
-        totalPages: 0,
-      };
+      console.error('Error cargando productos en getPaginated:', error.message);
+      return { data: [], total: 0, page, pageSize, totalPages: 0 };
     }
 
-    const total = count ?? (chunk ? chunk.length : 0);
-    const totalPages = Math.ceil(total / pageSize) || 1;
+    const allMatchedProducts = rawProducts || [];
+    const prodIds = allMatchedProducts.map((p: any) => p.id);
 
-    // Cargar inventario únicamente para los productos devueltos en esta página
-    const prodIds = (chunk || []).map((p: any) => p.id);
-    let stocksMap = new Map();
+    // Cargar información de inventario/stock para los productos encontrados
+    const stocksMap = new Map<string, { stock: number; stockMinimo: number }>();
     if (prodIds.length > 0) {
       try {
-        const { data: stockData } = await supabase
-          .from('inventory')
-          .select('*')
-          .in('product_id', prodIds);
-        if (stockData) {
-          stockData.forEach((s: any) => {
-            stocksMap.set(String(s.product_id), s);
+        let invQuery = supabase.from('inventory').select('product_id, branch_id, stock, stock_minimo');
+        if (options.branchId && options.branchId !== 'all') {
+          const bId = Number(options.branchId);
+          if (!isNaN(bId)) invQuery = invQuery.eq('branch_id', bId);
+        }
+        const { data: invData } = await invQuery;
+        if (invData) {
+          invData.forEach((s: any) => {
+            const pid = String(s.product_id);
+            const prev = stocksMap.get(pid) || { stock: 0, stockMinimo: Number(s.stock_minimo) || 5 };
+            stocksMap.set(pid, {
+              stock: prev.stock + Number(s.stock || 0),
+              stockMinimo: Number(s.stock_minimo) || 5
+            });
           });
         }
       } catch (_) {}
     }
 
-    const mapped = (chunk || []).map((p: any) => {
-      const stockInfo = stocksMap.get(String(p.id));
+    let processed = allMatchedProducts.map((p: any) => {
+      const stInfo = stocksMap.get(String(p.id)) || { stock: 0, stockMinimo: 5 };
       return {
         ...mapProduct(p, rate, isPublic),
-        stock: stockInfo ? Number(stockInfo.stock) : 0,
-        stockMinimo: stockInfo ? Number(stockInfo.stock_minimo) : 0,
+        stock: stInfo.stock,
+        stockMinimo: stInfo.stockMinimo
       };
     });
 
+    // 5. Filtro por Nivel de Stock
+    if (options.stockFilter && options.stockFilter !== 'all') {
+      if (options.stockFilter === 'with-stock') {
+        processed = processed.filter(p => p.stock > 0);
+      } else if (options.stockFilter === 'critico') {
+        processed = processed.filter(p => p.stock <= p.stockMinimo);
+      } else if (options.stockFilter === 'no-stock') {
+        processed = processed.filter(p => p.stock <= 0);
+      }
+    }
+
+    // 6. Ordenamiento Multicriterio
+    const sortAsc = options.sortOrder !== 'desc';
+    processed.sort((a, b) => {
+      if (options.sortBy === 'stock') {
+        return sortAsc ? a.stock - b.stock : b.stock - a.stock;
+      } else if (options.sortBy === 'price' || options.sortBy === 'precio-bajo') {
+        return sortAsc ? a.precio - b.precio : b.precio - a.precio;
+      } else if (options.sortBy === 'precio-alto') {
+        return b.precio - a.precio;
+      } else if (options.sortBy === 'code') {
+        return sortAsc ? (a.codigo || '').localeCompare(b.codigo || '') : (b.codigo || '').localeCompare(a.codigo || '');
+      } else if (options.sortBy === 'category') {
+        return sortAsc ? (a.categoria || '').localeCompare(b.categoria || '') : (b.categoria || '').localeCompare(a.categoria || '');
+      } else if (options.sortBy === 'name') {
+        return sortAsc ? (a.nombre || '').localeCompare(b.nombre || '') : (b.nombre || '').localeCompare(a.nombre || '');
+      } else {
+        if (a.destacado !== b.destacado) return a.destacado ? -1 : 1;
+        return (a.nombre || '').localeCompare(b.nombre || '');
+      }
+    });
+
+    // 7. Paginación precisa
+    const total = processed.length;
+    const totalPages = Math.ceil(total / pageSize) || 1;
+    const fromIndex = (page - 1) * pageSize;
+    const pageData = processed.slice(fromIndex, fromIndex + pageSize);
+
     return {
-      data: mapped,
+      data: pageData,
       total,
       page,
       pageSize,
-      totalPages,
+      totalPages
     };
   },
 

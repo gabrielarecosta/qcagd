@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAdminStore } from '../store/adminStore';
 import { formatPrice } from '@shared/utils/formatCurrency';
 
@@ -37,7 +37,7 @@ interface SelectedComboItem {
 export function SuperOffersView() {
   const { superOffers, products, createSuperOffer, deleteSuperOffer, fetchSuperOffersOnly, fetchProductsOnly } = useAdminStore();
 
-  React.useEffect(() => {
+  useEffect(() => {
     fetchSuperOffersOnly();
     fetchProductsOnly();
   }, []);
@@ -99,11 +99,10 @@ export function SuperOffersView() {
           precio_oferta: editForm.precio_oferta,
           fecha_fin: editForm.fecha_fin ? new Date(editForm.fecha_fin).toISOString() : null,
           activo: editForm.activo,
-          updated_at: new Date().toISOString(),
         })
         .eq('id', editingOffer.id);
       if (error) throw error;
-      await fetchData(true);
+      await fetchSuperOffersOnly();
       setEditingOffer(null);
     } catch (err: any) {
       alert('Error al guardar: ' + (err.message || String(err)));
@@ -119,8 +118,8 @@ export function SuperOffersView() {
         import.meta.env.VITE_SUPABASE_URL,
         import.meta.env.VITE_SUPABASE_ANON_KEY
       );
-      await supabase.from('super_offers').update({ activo: !offer.activo, updated_at: new Date().toISOString() }).eq('id', offer.id);
-      await fetchData(true);
+      await supabase.from('super_offers').update({ activo: !offer.activo }).eq('id', offer.id);
+      await fetchSuperOffersOnly();
     } catch (err: any) {
       alert('Error al cambiar estado: ' + (err.message || String(err)));
     }
@@ -130,7 +129,7 @@ export function SuperOffersView() {
   const handleDelete = async (offer: SuperOffer) => {
     try {
       await deleteSuperOffer(offer.id);
-      await fetchData(true);
+      await fetchSuperOffersOnly();
       setConfirmDelete(null);
     } catch (err: any) {
       alert('Error al dar de baja la oferta: ' + (err.message || String(err)));
@@ -204,7 +203,7 @@ export function SuperOffersView() {
         },
         selectedItems
       );
-      await fetchData(true);
+      await fetchSuperOffersOnly();
       setIsCreating(false);
       alert('🎉 ¡Súper Oferta Creada Exitosamente!');
     } catch (err: any) {

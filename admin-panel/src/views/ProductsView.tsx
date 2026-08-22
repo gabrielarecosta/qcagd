@@ -32,7 +32,7 @@ export function ProductsView({
 
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
-  const [photoFilter, setPhotoFilter] = useState<'all' | 'no-photo'>(initialFilter);
+  const [photoFilter, setPhotoFilter] = useState<'all' | 'with-photo' | 'no-photo'>(initialFilter);
   const [activeStatusFilter, setActiveStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
   const [stockFilter, setStockFilter] = useState<'all' | 'with-stock' | 'critico' | 'no-stock'>('all');
   const [sortBy, setSortBy] = useState<'name' | 'category' | 'price' | 'stock' | 'code'>('name');
@@ -56,8 +56,10 @@ export function ProductsView({
         categoria: selectedCategory,
         photoFilter: photoFilter,
         activeStatusFilter: activeStatusFilter,
+        stockFilter: stockFilter,
         sortBy: sortBy,
         sortOrder: sortOrder,
+        branchId: activeBranchId,
         isPublic: false,
       });
 
@@ -73,7 +75,7 @@ export function ProductsView({
 
   React.useEffect(() => {
     loadPaginatedProducts();
-  }, [currentPage, search, selectedCategory, photoFilter, activeStatusFilter, sortBy, sortOrder]);
+  }, [currentPage, search, selectedCategory, photoFilter, activeStatusFilter, stockFilter, sortBy, sortOrder, activeBranchId]);
 
   React.useEffect(() => {
     setPhotoFilter(initialFilter);
@@ -255,8 +257,9 @@ export function ProductsView({
     setIsCreating(false);
   };
 
-  const handleExportProducts = () => {
-    const dataToExport = filteredProducts.map(p => {
+  const handleExportProducts = async () => {
+    const allProds = await productService.getAll();
+    const dataToExport = allProds.map(p => {
       const stockInfo = getProductStockInfo(p.id, activeBranchId);
       return {
         Código: p.codigo,
@@ -561,9 +564,9 @@ export function ProductsView({
             <select 
               className="form-select"
               value={photoFilter}
-              style={{ borderColor: photoFilter === 'no-photo' ? '#ec4899' : 'var(--border-color)', fontWeight: photoFilter === 'no-photo' ? 'bold' : 'normal' }}
+              style={{ borderColor: photoFilter !== 'all' ? '#ec4899' : 'var(--border-color)', fontWeight: photoFilter !== 'all' ? 'bold' : 'normal' }}
               onChange={e => {
-                const val = e.target.value as 'all' | 'no-photo';
+                const val = e.target.value as 'all' | 'with-photo' | 'no-photo';
                 setPhotoFilter(val);
                 setCurrentPage(1);
                 if (val === 'all' && onResetFilter) {
@@ -572,12 +575,13 @@ export function ProductsView({
               }}
             >
               <option value="all">Fotos: Todos</option>
+              <option value="with-photo">🖼️ Con foto</option>
               <option value="no-photo">⚠️ Sin foto</option>
             </select>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', color: 'var(--text-secondary)', fontSize: '13px', marginLeft: 'auto' }}>
-            Encontrados: <strong style={{ marginLeft: '4px', color: 'var(--text-primary)' }}>{filteredProducts.length}</strong> artículos
+            Encontrados: <strong style={{ marginLeft: '4px', color: 'var(--text-primary)' }}>{totalProductsCount.toLocaleString('es-AR')}</strong> artículos
           </div>
         </div>
       </div>

@@ -1,9 +1,10 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useAdminStore } from '../store/adminStore';
 import { formatPrice } from '@shared/utils/formatCurrency';
 import { getBranchName } from '@shared/utils/branchUtils';
 import { ORDER_STATUS_LABELS } from '@shared/utils/orderStatusUtils';
 import { OrderStatus } from '@shared/types';
+import { supabase } from '@shared/services/supabaseClient';
 
 interface DashboardViewProps {
   onNavigate?: (tab: any) => void;
@@ -21,13 +22,60 @@ export function DashboardView({ onNavigate, onFilterProductsNoPhoto }: Dashboard
     updateOrderStatus,
     fetchOrdersOnly,
     fetchClientsOnly,
-    fetchDeliveriesOnly
+    fetchDeliveriesOnly,
+    fetchProductsOnly
   } = useAdminStore();
 
-  React.useEffect(() => {
+  const [latestImport, setLatestImport] = useState<any | null>(null);
+
+  const loadLatestImport = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('imports')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (!error && data) {
+        setLatestImport(data);
+      }
+    } catch (_) {}
+  };
+
+  useEffect(() => {
     fetchOrdersOnly();
     fetchClientsOnly();
     fetchDeliveriesOnly();
+    fetchProductsOnly();
+    loadLatestImport();
+
+    // Suscripción Realtime a Supabase para actualización automática
+    const channel = supabase
+      .channel('realtime-dashboard-updates')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
+        fetchOrdersOnly();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'imports' }, () => {
+        loadLatestImport();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, () => {
+        fetchProductsOnly();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'inventory' }, () => {
+        fetchProductsOnly();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'customers' }, () => {
+        fetchClientsOnly();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'delivery_routes' }, () => {
+        fetchDeliveriesOnly();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const [dateFilter, setDateFilter] = useState<'hoy' | 'ayer' | '7dias' | 'mes' | 'personalizado'>('7dias');
@@ -446,10 +494,42 @@ export function DashboardView({ onNavigate, onFilterProductsNoPhoto }: Dashboard
         </button>
       </div>
 
-      {/* Sección 2: KPIs (8 tarjetas premium) */}
+      {/* Sección 2: KPIs (9 tarjetas premium interactivas) */}
       <div className="kpis-grid-premium">
+        {/* Último Excel Subido */}
+        <div 
+          className="kpi-card-premium"
+          style={{ cursor: 'pointer', transition: 'all 0.2s ease' }}
+          onClick={() => onNavigate?.('excel')}
+          title="Ver Historial de Importaciones Excel"
+        >
+          <div className="kpi-card-details">
+            <span className="kpi-title" style={{ color: '#10b981' }}>📊 Último Excel Subido</span>
+            <span className="kpi-value-premium" style={{ fontSize: '15px', fontWeight: 'bold', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '160px' }}>
+              {latestImport ? (latestImport.nombre_archivo || 'Importación activa') : 'Sin historial'}
+            </span>
+            <span className="kpi-sub-trend">
+              {latestImport && latestImport.created_at ? (
+                <>📅 {new Date(latestImport.created_at).toLocaleDateString('es-AR')} {new Date(latestImport.created_at).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}</>
+              ) : (
+                'Importar catálogo Excel'
+              )}
+            </span>
+          </div>
+          <div className="kpi-icon-container" style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)', color: '#10b981' }}>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/>
+            </svg>
+          </div>
+        </div>
+
         {/* Ventas del Período */}
-        <div className="kpi-card-premium">
+        <div 
+          className="kpi-card-premium" 
+          style={{ cursor: 'pointer', transition: 'all 0.2s ease' }}
+          onClick={() => onNavigate?.('orders')}
+          title="Ver Pedidos y Ventas"
+        >
           <div className="kpi-card-details">
             <span className="kpi-title">Ventas Período</span>
             <span className="kpi-value-premium">{formatPrice(kpis.ventasPeriodo)}</span>
@@ -465,7 +545,12 @@ export function DashboardView({ onNavigate, onFilterProductsNoPhoto }: Dashboard
         </div>
 
         {/* Ventas Semanales */}
-        <div className="kpi-card-premium">
+        <div 
+          className="kpi-card-premium"
+          style={{ cursor: 'pointer', transition: 'all 0.2s ease' }}
+          onClick={() => onNavigate?.('orders')}
+          title="Ver Tendencia de Pedidos"
+        >
           <div className="kpi-card-details">
             <span className="kpi-title">Ventas Semanales</span>
             <span className="kpi-value-premium">{formatPrice(kpis.ventasSemana)}</span>
@@ -479,7 +564,12 @@ export function DashboardView({ onNavigate, onFilterProductsNoPhoto }: Dashboard
         </div>
 
         {/* Pagos a Cobrar */}
-        <div className="kpi-card-premium">
+        <div 
+          className="kpi-card-premium"
+          style={{ cursor: 'pointer', transition: 'all 0.2s ease' }}
+          onClick={() => onNavigate?.('payments')}
+          title="Ver Control de Pagos y Caja"
+        >
           <div className="kpi-card-details">
             <span className="kpi-title">Pagos a Cobrar</span>
             <span className="kpi-value-premium">{formatPrice(kpis.pagosPendientes)}</span>
@@ -493,7 +583,12 @@ export function DashboardView({ onNavigate, onFilterProductsNoPhoto }: Dashboard
         </div>
 
         {/* Clientes Activos */}
-        <div className="kpi-card-premium">
+        <div 
+          className="kpi-card-premium"
+          style={{ cursor: 'pointer', transition: 'all 0.2s ease' }}
+          onClick={() => onNavigate?.('clients')}
+          title="Ver Directorio de Clientes"
+        >
           <div className="kpi-card-details">
             <span className="kpi-title">Clientes Activos</span>
             <span className="kpi-value-premium">{kpis.clientesActivos}</span>
@@ -501,13 +596,18 @@ export function DashboardView({ onNavigate, onFilterProductsNoPhoto }: Dashboard
           </div>
           <div className="kpi-icon-container" style={{ backgroundColor: 'var(--primary-light)', color: 'var(--primary-color)' }}>
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 1 0 7.75"/>
             </svg>
           </div>
         </div>
 
         {/* Pedidos Pendientes */}
-        <div className="kpi-card-premium">
+        <div 
+          className="kpi-card-premium"
+          style={{ cursor: 'pointer', transition: 'all 0.2s ease' }}
+          onClick={() => onNavigate?.('orders')}
+          title="Ver Pedidos Pendientes de Armado"
+        >
           <div className="kpi-card-details">
             <span className="kpi-title">Pendientes / Prep.</span>
             <span className="kpi-value-premium">{kpis.pedidosPendientes}</span>
@@ -521,7 +621,12 @@ export function DashboardView({ onNavigate, onFilterProductsNoPhoto }: Dashboard
         </div>
 
         {/* En Reparto */}
-        <div className="kpi-card-premium">
+        <div 
+          className="kpi-card-premium"
+          style={{ cursor: 'pointer', transition: 'all 0.2s ease' }}
+          onClick={() => onNavigate?.('orders')}
+          title="Ver Pedidos en Reparto"
+        >
           <div className="kpi-card-details">
             <span className="kpi-title">En Reparto</span>
             <span className="kpi-value-premium">{kpis.pedidosEnReparto}</span>
@@ -535,7 +640,12 @@ export function DashboardView({ onNavigate, onFilterProductsNoPhoto }: Dashboard
         </div>
 
         {/* Hojas de Ruta Activas */}
-        <div className="kpi-card-premium">
+        <div 
+          className="kpi-card-premium"
+          style={{ cursor: 'pointer', transition: 'all 0.2s ease' }}
+          onClick={() => onNavigate?.('deliveries')}
+          title="Ver Logística y Hojas de Ruta"
+        >
           <div className="kpi-card-details">
             <span className="kpi-title">Repartos de Hoy</span>
             <span className="kpi-value-premium">{kpis.repartosHoy}</span>
@@ -548,10 +658,15 @@ export function DashboardView({ onNavigate, onFilterProductsNoPhoto }: Dashboard
           </div>
         </div>
 
-        {/* Bajo Stock */}
-        <div className="kpi-card-premium" style={{ borderColor: kpis.bajoStockCount > 0 ? 'rgba(239, 68, 68, 0.3)' : 'var(--border-color)' }}>
+        {/* Bajo Stock Crítico */}
+        <div 
+          className="kpi-card-premium" 
+          style={{ cursor: 'pointer', borderColor: kpis.bajoStockCount > 0 ? 'rgba(239, 68, 68, 0.3)' : 'var(--border-color)', transition: 'all 0.2s ease' }}
+          onClick={() => onNavigate?.('products')}
+          title="Ver Productos Bajo Stock Crítico"
+        >
           <div className="kpi-card-details">
-            <span className="kpi-title" style={{ color: kpis.bajoStockCount > 0 ? 'var(--error-color)' : 'var(--text-secondary)' }}>Bajo Stock</span>
+            <span className="kpi-title" style={{ color: kpis.bajoStockCount > 0 ? 'var(--error-color)' : 'var(--text-secondary)' }}>Bajo Stock Crítico</span>
             <span className="kpi-value-premium" style={{ color: kpis.bajoStockCount > 0 ? 'var(--error-color)' : 'var(--text-primary)' }}>{kpis.bajoStockCount}</span>
             <span className="kpi-sub-trend">Bajo el mínimo crítico</span>
           </div>
@@ -804,23 +919,37 @@ export function DashboardView({ onNavigate, onFilterProductsNoPhoto }: Dashboard
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <span style={{ fontSize: '20px' }}>📄</span>
                   <div style={{ display: 'flex', flexDirection: 'column' }}>
-                    <span style={{ fontWeight: 700, fontSize: '13px' }}>lista_precios_junio.xlsx</span>
-                    <span style={{ fontSize: '11px', color: 'rgba(255, 255, 255, 0.7)' }}>Cargado 25 Jun 2026, 14:32</span>
+                    <span style={{ fontWeight: 700, fontSize: '13px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '200px' }}>
+                      {latestImport ? (latestImport.nombre_archivo || latestImport.filename || 'Importación activa') : 'Sin historial'}
+                    </span>
+                    <span style={{ fontSize: '11px', color: 'rgba(255, 255, 255, 0.7)' }}>
+                      {latestImport && (latestImport.created_at || latestImport.fecha) ? (
+                        <>Cargado {new Date(latestImport.created_at || latestImport.fecha).toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' })}, {new Date(latestImport.created_at || latestImport.fecha).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}</>
+                      ) : (
+                        'No hay sincronizaciones previas'
+                      )}
+                    </span>
                   </div>
                 </div>
 
                 <div style={{ marginTop: '8px' }}>
                   <div className="excel-stat-row">
                     <span>Artículos Nuevos</span>
-                    <span style={{ fontWeight: 700 }}>42</span>
+                    <span style={{ fontWeight: 700 }}>
+                      {latestImport ? (latestImport.productos_creados ?? 0) : 0}
+                    </span>
                   </div>
                   <div className="excel-stat-row">
                     <span>Precios Actualizados</span>
-                    <span style={{ fontWeight: 700 }}>118</span>
+                    <span style={{ fontWeight: 700 }}>
+                      {latestImport ? (latestImport.productos_actualizados ?? 0) : 0}
+                    </span>
                   </div>
                   <div className="excel-stat-row" style={{ borderBottom: 'none' }}>
                     <span>Errores / Descartados</span>
-                    <span style={{ fontWeight: 700 }}>0</span>
+                    <span style={{ fontWeight: 700 }}>
+                      {latestImport ? (latestImport.filas_rechazadas ?? (Array.isArray(latestImport.errores) ? latestImport.errores.length : 0)) : 0}
+                    </span>
                   </div>
                 </div>
 
