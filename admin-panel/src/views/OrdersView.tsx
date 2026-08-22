@@ -69,8 +69,8 @@ export function OrdersView() {
     });
   }, [orders, clients, search, activeBranchId, selectedStatus, selectedPaymentStatus]);
 
-  const getClientInfo = (clienteId: string, order?: Order) => {
-    const c = clients.find(item => item.id === clienteId);
+  const getClientInfo = (clienteId: string | number, order?: Order) => {
+    const c = clients.find(item => String(item.id) === String(clienteId));
     return {
       name: order?.customerName || (c ? (c.razonSocial || c.nombre) : 'Desconocido'),
       cuit: c ? c.cuit : '',
@@ -79,8 +79,8 @@ export function OrdersView() {
     };
   };
 
-  const getBranchName = (bId: string) => {
-    const b = branches.find(item => item.id === bId);
+  const getBranchName = (bId: string | number) => {
+    const b = branches.find(item => String(item.id) === String(bId));
     return b ? b.nombre : 'Sin sucursal';
   };
 

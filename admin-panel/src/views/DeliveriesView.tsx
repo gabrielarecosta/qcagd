@@ -384,7 +384,7 @@ export function DeliveriesView() {
           }
         }
 
-        const isSelected = selectedOrderIds.includes(o.id);
+        const isSelected = selectedOrderIds.includes(String(o.id));
         const matchedStop = optimizedPlan?.orderedStops?.find((s: any) => s.orderId === o.id);
 
         let iconHtml = '';
@@ -469,25 +469,26 @@ export function DeliveriesView() {
     });
   }, [deliveries, activeBranchId, selectedStatus]);
 
-  const getDriverName = (driverId: string) => {
-    const d = users.find(u => u.id === driverId) || drivers.find(dr => dr.id === driverId);
+  const getDriverName = (driverId: string | number) => {
+    const d = users.find(u => String(u.id) === String(driverId)) || drivers.find(dr => String(dr.id) === String(driverId));
     return d ? d.nombre : 'Sin chofer';
   };
 
-  const getBranchName = (bId: string) => {
-    const b = branches.find(item => item.id === bId);
+  const getBranchName = (bId: string | number) => {
+    const b = branches.find(item => String(item.id) === String(bId));
     return b ? b.nombre : 'Sin sucursal';
   };
 
-  const toggleOrderSelection = (id: string) => {
+  const toggleOrderSelection = (id: string | number) => {
+    const strId = String(id);
     setSelectedOrderIds(prev => 
-      prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
+      prev.includes(strId) ? prev.filter(item => item !== strId) : [...prev, strId]
     );
   };
 
   // Botón para seleccionar y agrupar automáticamente todos los pedidos del filtro actual
   const handleSelectAllGroup = () => {
-    const visibleIds = filteredEligibleOrders.map(o => o.id);
+    const visibleIds = filteredEligibleOrders.map(o => String(o.id));
     const allSelected = visibleIds.every(id => selectedOrderIds.includes(id));
 
     if (allSelected) {
@@ -496,7 +497,7 @@ export function DeliveriesView() {
     } else {
       // Marcar todos los de este grupo
       const combined = new Set([...selectedOrderIds, ...visibleIds]);
-      setSelectedOrderIds(Array.from(combined));
+      setSelectedOrderIds(Array.from(combined).map(String));
     }
   };
 
@@ -791,7 +792,7 @@ export function DeliveriesView() {
     await fetchData();
   };
 
-  const handleCompleteRoute = (deliveryId: string) => {
+  const handleCompleteRoute = (deliveryId: string | number) => {
     updateDeliveryStatus(deliveryId, 'entregado');
   };
 
@@ -925,7 +926,7 @@ export function DeliveriesView() {
                     <button 
                       className="btn btn-primary" 
                       style={{ padding: '8px 14px', fontSize: '13px', background: 'var(--warning-color)' }}
-                      onClick={() => handleDispatchRoute(d.id, d)}
+                      onClick={() => handleDispatchRoute(String(d.id), d)}
                     >
                       🚚 Despachar Chofer
                     </button>
@@ -1250,7 +1251,7 @@ export function DeliveriesView() {
                           <tbody>
                             {filteredEligibleOrders.map(o => {
                               const client = clients.find(c => c.id === o.clienteId);
-                              const isSelected = selectedOrderIds.includes(o.id);
+                              const isSelected = selectedOrderIds.includes(String(o.id));
                               const matchedStop = optimizedPlan?.orderedStops?.find((s: any) => s.orderId === o.id);
 
                               return (

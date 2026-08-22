@@ -17,7 +17,7 @@ export function ReportsView() {
   useEffect(() => {
     let active = true;
     setIsLoading(true);
-    const branchFilter = activeBranchId === 'all' ? undefined : activeBranchId;
+    const branchFilter = activeBranchId === 'all' ? undefined : String(activeBranchId);
     
     Promise.all([
       reportService.getKPIs(branchFilter),

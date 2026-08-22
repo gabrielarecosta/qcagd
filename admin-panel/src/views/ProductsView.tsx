@@ -217,7 +217,7 @@ export function ProductsView({
     e.preventDefault();
     if (!editingProduct) return;
 
-    updateProduct(editingProduct.id, {
+    updateProduct(String(editingProduct.id), {
       codigo: formProduct.codigo,
       nombre: formProduct.nombre,
       categoria: formProduct.categoria,
@@ -374,14 +374,15 @@ export function ProductsView({
     }
   };
 
-  const toggleSelectProduct = (productId: string) => {
+  const toggleSelectProduct = (productId: string | number) => {
+    const pid = String(productId);
     setSelectedProductIds(prev => 
-      prev.includes(productId) ? prev.filter(id => id !== productId) : [...prev, productId]
+      prev.includes(pid) ? prev.filter(id => id !== pid) : [...prev, pid]
     );
   };
 
   const toggleSelectAll = () => {
-    const paginatedIds = paginatedProducts.map(p => p.id);
+    const paginatedIds = paginatedProducts.map(p => String(p.id));
     const allSelected = paginatedIds.every(id => selectedProductIds.includes(id));
     if (allSelected) {
       setSelectedProductIds(prev => prev.filter(id => !paginatedIds.includes(id)));
@@ -391,7 +392,7 @@ export function ProductsView({
   };
 
   const handleOpenCreateOffer = () => {
-    const selectedProds = products.filter(p => selectedProductIds.includes(p.id));
+    const selectedProds = products.filter(p => selectedProductIds.includes(String(p.id)));
     const originalPrice = selectedProds.reduce((sum, p) => sum + p.precio, 0);
     
     setOfferForm({
@@ -407,7 +408,7 @@ export function ProductsView({
         qty = parseFloat(numMatch[1]);
       }
       return {
-        productId: p.id,
+        productId: String(p.id),
         nombre: p.nombre,
         precio: p.precio,
         cantidad: qty,
@@ -596,7 +597,7 @@ export function ProductsView({
                   <input 
                     type="checkbox" 
                     onChange={toggleSelectAll} 
-                    checked={paginatedProducts.length > 0 && paginatedProducts.every(p => selectedProductIds.includes(p.id))} 
+                    checked={paginatedProducts.length > 0 && paginatedProducts.every(p => selectedProductIds.includes(String(p.id)))} 
                   />
                 </th>
                 <th style={{ width: '100px', cursor: 'pointer' }} onClick={() => handleSort('code')}>
@@ -640,8 +641,8 @@ export function ProductsView({
                       <td style={{ width: '40px' }}>
                         <input 
                           type="checkbox" 
-                          checked={selectedProductIds.includes(p.id)} 
-                          onChange={() => toggleSelectProduct(p.id)} 
+                          checked={selectedProductIds.includes(String(p.id))} 
+                          onChange={() => toggleSelectProduct(String(p.id))} 
                         />
                       </td>
                       <td style={{ fontFamily: 'monospace', fontWeight: 'bold' }}>{p.codigo}</td>

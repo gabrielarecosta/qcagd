@@ -97,10 +97,10 @@ export function ClientsView({ initialSection = 'directorio' }: ClientsViewProps)
     mayoristaAutorizado: true,
   });
 
-  const fetchAddresses = async (customerId: string) => {
+  const fetchAddresses = async (customerId: string | number) => {
     setLoadingAddresses(true);
     try {
-      const addrs = await clientService.getAddresses(customerId);
+      const addrs = await clientService.getAddresses(String(customerId));
       setClientAddresses(addrs);
     } catch (err) {
       console.warn('Error cargando direcciones auxiliares:', err);
@@ -163,14 +163,14 @@ export function ClientsView({ initialSection = 'directorio' }: ClientsViewProps)
     setAddingAddr(true);
     try {
       await clientService.addAddress({
-        customerId: editingClient.id,
+        customerId: String(editingClient.id),
         direccion: newAddrText.trim(),
         indicaciones: newAddrIndicaciones.trim() || undefined,
       });
       setNewAddrText('');
       setNewAddrIndicaciones('');
       setShowAddAddress(false);
-      await fetchAddresses(editingClient.id);
+      await fetchAddresses(String(editingClient.id));
     } catch (err: any) {
       alert('Error agregando dirección auxiliar: ' + err.message);
     } finally {
@@ -179,7 +179,7 @@ export function ClientsView({ initialSection = 'directorio' }: ClientsViewProps)
   };
 
   const handleStartEditAuxAddr = (addr: CustomerAddress) => {
-    setEditingAddressId(addr.id || null);
+    setEditingAddressId(addr.id ? String(addr.id) : null);
     setEditAddrText(addr.direccion);
     setEditAddrIndicaciones(addr.indicaciones || '');
   };
@@ -192,7 +192,7 @@ export function ClientsView({ initialSection = 'directorio' }: ClientsViewProps)
         indicaciones: editAddrIndicaciones.trim() || undefined,
       });
       setEditingAddressId(null);
-      await fetchAddresses(editingClient.id);
+      await fetchAddresses(String(editingClient.id));
     } catch (err: any) {
       alert('Error guardando dirección: ' + err.message);
     }
@@ -202,7 +202,7 @@ export function ClientsView({ initialSection = 'directorio' }: ClientsViewProps)
     if (!editingClient || !confirm('¿Confirma eliminar esta dirección secundaria del cliente?')) return;
     try {
       await clientService.deleteAddress(addrId);
-      await fetchAddresses(editingClient.id);
+      await fetchAddresses(String(editingClient.id));
     } catch (err: any) {
       alert('Error eliminando dirección: ' + err.message);
     }
@@ -1250,7 +1250,7 @@ export function ClientsView({ initialSection = 'directorio' }: ClientsViewProps)
                                   type="button"
                                   className="btn btn-primary"
                                   style={{ padding: '4px 8px', fontSize: '11px' }}
-                                  onClick={() => addr.id && handleSaveAuxAddress(addr.id)}
+                                  onClick={() => addr.id && handleSaveAuxAddress(String(addr.id))}
                                 >
                                   💾 Guardar
                                 </button>
@@ -1289,7 +1289,7 @@ export function ClientsView({ initialSection = 'directorio' }: ClientsViewProps)
                                   type="button"
                                   className="btn btn-danger"
                                   style={{ padding: '3px 8px', fontSize: '11px', background: '#ef4444', color: '#fff', border: 'none', borderRadius: '4px' }}
-                                  onClick={() => addr.id && handleDeleteAuxAddress(addr.id)}
+                                  onClick={() => addr.id && handleDeleteAuxAddress(String(addr.id))}
                                 >
                                   🗑️ Eliminar
                                 </button>

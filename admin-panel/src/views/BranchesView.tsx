@@ -17,7 +17,7 @@ export function BranchesView() {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingBranch) return;
-    await updateBranch(editingBranch.id, editingBranch);
+    await updateBranch(String(editingBranch.id), editingBranch);
     setEditingBranch(null);
   };
 
@@ -162,9 +162,9 @@ export function BranchesView() {
   };
 
   // Calcular estadísticas para cada sucursal en caliente
-  const getBranchStats = (branchId: string) => {
-    const branchOrders = orders.filter(o => o.branchId === branchId);
-    const branchDeliverersCount = users.filter(u => u.branchId === branchId && u.rol === 'repartidor').length;
+  const getBranchStats = (branchId: string | number) => {
+    const branchOrders = orders.filter(o => String(o.branchId) === String(branchId));
+    const branchDeliverersCount = users.filter(u => String(u.branchId) === String(branchId) && u.rol === 'repartidor').length;
     const totalSales = branchOrders
       .filter(o => o.estado === 'entregado')
       .reduce((sum, o) => sum + o.total, 0);

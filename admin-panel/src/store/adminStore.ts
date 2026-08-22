@@ -29,7 +29,7 @@ import {
 
 interface AdminStore {
   // Estado activo
-  activeBranchId: string | 'all';
+  activeBranchId: string | number | 'all';
   currentUser: InternalUser | null;
   isLoading: boolean;
   
@@ -49,7 +49,7 @@ interface AdminStore {
   globalMinOrderAmount: number;
 
   // Acciones globales
-  setActiveBranchId: (id: string | 'all') => void;
+  setActiveBranchId: (id: string | number | 'all') => void;
   setCurrentUser: (user: InternalUser | null) => void;
   fetchData: (silent?: boolean) => Promise<void>;
   fetchProductsOnly: () => Promise<void>;
@@ -62,56 +62,56 @@ interface AdminStore {
   updateGlobalMinOrderAmount: (amount: number) => Promise<void>;
   
   // Sucursales
-  updateBranch: (id: string, updates: Partial<Branch>) => Promise<void>;
+  updateBranch: (id: string | number, updates: Partial<Branch>) => Promise<void>;
   createBranch: (branch: Omit<Branch, 'id'>) => Promise<void>;
   
   // Usuarios
-  updateUser: (id: string, updates: Partial<InternalUser>) => Promise<void>;
+  updateUser: (id: string | number, updates: Partial<InternalUser>) => Promise<void>;
   createUser: (user: Omit<InternalUser, 'id'>) => Promise<void>;
-  deleteUser: (id: string) => Promise<void>;
+  deleteUser: (id: string | number) => Promise<void>;
   
   // Productos & Stock
-  updateProduct: (id: string, updates: Partial<Product> & { dolarizado?: boolean; precio_usd?: number }) => Promise<void>;
+  updateProduct: (id: string | number, updates: Partial<Product> & { dolarizado?: boolean; precio_usd?: number }) => Promise<void>;
   createProduct: (product: Omit<Product, 'id'> & { dolarizado?: boolean; precio_usd?: number }, initialStock: Record<string, number>) => Promise<void>;
-  updateBranchStock: (productId: string, branchId: string, stock: number, stockMinimo: number, reason?: string) => Promise<void>;
-  bulkReplaceCatalog: (newProducts: Product[], branchId: string, rowStocks: any, fileName: string) => Promise<void>;
-  bulkUpdateExistingCatalog: (updatedProducts: Product[], branchId: string, rowStocks: any, fileName: string) => Promise<void>;
-  bulkAddNewCatalog: (newProducts: Product[], branchId: string, rowStocks: any, fileName: string) => Promise<void>;
+  updateBranchStock: (productId: string | number, branchId: string | number, stock: number, stockMinimo: number, reason?: string) => Promise<void>;
+  bulkReplaceCatalog: (newProducts: Product[], branchId: string | number, rowStocks: any, fileName: string) => Promise<void>;
+  bulkUpdateExistingCatalog: (updatedProducts: Product[], branchId: string | number, rowStocks: any, fileName: string) => Promise<void>;
+  bulkAddNewCatalog: (newProducts: Product[], branchId: string | number, rowStocks: any, fileName: string) => Promise<void>;
   checkFileHashExists: (hash: string) => Promise<any | null>;
   checkDuplicateImport: (fileName: string, hash: string) => Promise<any | null>;
   fetchImportsHistory: (limit?: number) => Promise<any[]>;
   createStagingImport: (fileName: string, fileHash: string, stagedRowsCount: number) => Promise<any>;
-  insertStagingRows: (importId: string, rows: any[]) => Promise<void>;
-  updateStagingRow: (rowId: string, updates: { estado: string; datos: any }) => Promise<void>;
-  confirmImport: (importId: string, branchId: string) => Promise<any>;
+  insertStagingRows: (importId: string | number, rows: any[]) => Promise<void>;
+  updateStagingRow: (rowId: string | number, updates: { estado: string; datos: any }) => Promise<void>;
+  confirmImport: (importId: string | number, branchId: string | number) => Promise<any>;
   
   // Clientes
-  updateClient: (id: string, updates: Partial<Customer>) => Promise<void>;
+  updateClient: (id: string | number, updates: Partial<Customer>) => Promise<void>;
   createClient: (client: Omit<Customer, 'id' | 'fechaAlta'>) => Promise<void>;
 
   // Pedidos
-  updateOrderStatus: (id: string, status: OrderStatus, notes?: string, clientNotes?: string) => Promise<void>;
-  updateOrder: (id: string, updates: Partial<Order>) => Promise<void>;
+  updateOrderStatus: (id: string | number, status: OrderStatus, notes?: string, clientNotes?: string) => Promise<void>;
+  updateOrder: (id: string | number, updates: Partial<Order>) => Promise<void>;
   createOrder: (order: Order) => Promise<void>;
 
   // Repartos y Choferes
   createDelivery: (delivery: Omit<DeliveryRoute, 'id'>) => Promise<void>;
-  updateDeliveryStatus: (id: string, status: DeliveryStatus, obs?: string) => Promise<void>;
-  updateDeliveryStop: (deliveryId: string, clienteId: string, completado: boolean, horaReal?: string, motivo?: string, receptorNombre?: string, observaciones?: string) => Promise<void>;
-  updateDriver: (id: string, updates: { nombre?: string; telefono?: string; email?: string; vehiculo?: string; activo?: boolean }) => Promise<void>;
+  updateDeliveryStatus: (id: string | number, status: DeliveryStatus, obs?: string) => Promise<void>;
+  updateDeliveryStop: (deliveryId: string | number, clienteId: string | number, completado: boolean, horaReal?: string, motivo?: string, receptorNombre?: string, observaciones?: string) => Promise<void>;
+  updateDriver: (id: string | number, updates: { nombre?: string; telefono?: string; email?: string; vehiculo?: string; activo?: boolean }) => Promise<void>;
 
   // Pagos
-  confirmPayment: (orderId: string, reference?: string) => Promise<void>;
+  confirmPayment: (orderId: string | number, reference?: string) => Promise<void>;
   createPaymentLog: (log: Omit<PaymentLog, 'id'>) => Promise<void>;
 
   // Configuración
-  updateSchedule: (branchId: string, updates: Partial<BranchSchedule>) => Promise<void>;
+  updateSchedule: (branchId: string | number, updates: Partial<BranchSchedule>) => Promise<void>;
 
   // Notificaciones
-  markNotificationRead: (id: string) => Promise<void>;
+  markNotificationRead: (id: string | number) => Promise<void>;
   markAllNotificationsRead: () => Promise<void>;
   createSuperOffer: (offer: any, items: any[]) => Promise<void>;
-  deleteSuperOffer: (id: string) => Promise<void>;
+  deleteSuperOffer: (id: string | number) => Promise<void>;
 }
 
 const getInitialUser = (): InternalUser | null => {
@@ -316,7 +316,7 @@ export const useAdminStore = create<AdminStore>((set, get) => ({
   },
 
   updateBranch: async (id, updates) => {
-    await branchService.update(id, updates);
+    await branchService.update(String(id), updates);
     await get().fetchData();
   },
 
@@ -326,7 +326,7 @@ export const useAdminStore = create<AdminStore>((set, get) => ({
   },
 
   updateUser: async (id, updates) => {
-    await userService.update(id, updates);
+    await userService.update(String(id), updates);
     await get().fetchData();
   },
 
@@ -337,7 +337,7 @@ export const useAdminStore = create<AdminStore>((set, get) => ({
 
   deleteUser: async (id) => {
     const userEmail = get().currentUser?.email || '';
-    await userService.delete(id, userEmail);
+    await userService.delete(String(id), userEmail);
     await get().fetchData();
   },
 
@@ -346,7 +346,7 @@ export const useAdminStore = create<AdminStore>((set, get) => ({
     const userEmail = get().currentUser?.email || '';
     await supabase.rpc('set_config', { placeholder: 'app.current_user_email', value: userEmail, is_local: false });
 
-    await productService.update(id, updates);
+    await productService.update(String(id), updates);
     await get().fetchData(true);
   },
 
@@ -358,7 +358,7 @@ export const useAdminStore = create<AdminStore>((set, get) => ({
 
   updateBranchStock: async (productId, branchId, stock, stockMinimo, reason) => {
     const userEmail = get().currentUser?.email || '';
-    await productService.updateStock(productId, branchId, stock, stockMinimo, userEmail, reason);
+    await productService.updateStock(String(productId), String(branchId), stock, stockMinimo, userEmail, reason);
     await get().fetchData(true);
   },
 
@@ -503,7 +503,7 @@ export const useAdminStore = create<AdminStore>((set, get) => ({
             .eq('id', existing.id);
 
           // Actualizar Stock
-          await productService.updateStock(existing.id, branchId, stockInfo.stock, stockInfo.stockMinimo, userEmail);
+          await productService.updateStock(String(existing.id), String(branchId), stockInfo.stock, stockInfo.stockMinimo, userEmail);
           actualizados++;
         }
       }
@@ -619,22 +619,22 @@ export const useAdminStore = create<AdminStore>((set, get) => ({
   },
 
   insertStagingRows: async (importId, rows) => {
-    await productService.insertStagingRows(importId, rows);
+    await productService.insertStagingRows(String(importId), rows);
   },
 
   updateStagingRow: async (rowId, updates) => {
-    await productService.updateStagingRow(rowId, updates);
+    await productService.updateStagingRow(String(rowId), updates);
   },
 
   confirmImport: async (importId, branchId) => {
     const userEmail = get().currentUser?.email || '';
-    const result = await productService.confirmImport(importId, branchId, userEmail);
+    const result = await productService.confirmImport(String(importId), String(branchId), userEmail);
     await get().fetchData(true);
     return result;
   },
 
   updateClient: async (id, updates) => {
-    await clientService.update(id, updates);
+    await clientService.update(String(id), updates);
     await get().fetchData();
   },
 
@@ -645,7 +645,7 @@ export const useAdminStore = create<AdminStore>((set, get) => ({
 
   updateOrderStatus: async (id, status, notes, clientNotes) => {
     const userEmail = get().currentUser?.email || '';
-    await orderService.update(id, {
+    await orderService.update(String(id), {
       estado: status,
       observaciones: notes,
       observacionesCliente: clientNotes,
@@ -656,7 +656,7 @@ export const useAdminStore = create<AdminStore>((set, get) => ({
 
   updateOrder: async (id, updates) => {
     const userEmail = get().currentUser?.email || '';
-    await orderService.update(id, updates as any, userEmail);
+    await orderService.update(String(id), updates as any, userEmail);
     await get().fetchData();
   },
 
@@ -672,13 +672,13 @@ export const useAdminStore = create<AdminStore>((set, get) => ({
   },
 
   updateDeliveryStatus: async (id, status, obs) => {
-    await deliveryService.updateStatus(id, status, obs);
+    await deliveryService.updateStatus(String(id), status, obs);
     await get().fetchData();
   },
 
   updateDeliveryStop: async (deliveryId, clienteId, completado, horaReal, motivo, receptorNombre, observaciones) => {
     const userEmail = get().currentUser?.email || '';
-    await deliveryService.updateStop(deliveryId, clienteId, completado, horaReal, motivo, receptorNombre, observaciones, userEmail);
+    await deliveryService.updateStop(String(deliveryId), String(clienteId), completado, horaReal, motivo, receptorNombre, observaciones, userEmail);
     await get().fetchData();
   },
 
@@ -735,8 +735,8 @@ export const useAdminStore = create<AdminStore>((set, get) => ({
       const { data: order } = await supabase.from('orders').select('*').eq('id', orderId).single();
       if (order) {
         await paymentService.create({
-          orderId,
-          branchId: order.branch_id,
+          orderId: String(orderId),
+          branchId: String(order.branch_id),
           fecha: new Date().toISOString(),
           monto: Number(order.total),
           metodo: order.payment_method,
@@ -757,7 +757,7 @@ export const useAdminStore = create<AdminStore>((set, get) => ({
     const currentSchedules = get().schedules;
     let exists = false;
     let nextSchedules = currentSchedules.map(s => {
-      if (s.branchId === branchId) {
+      if (String(s.branchId) === String(branchId)) {
         exists = true;
         return { ...s, ...updates };
       }
@@ -767,7 +767,7 @@ export const useAdminStore = create<AdminStore>((set, get) => ({
     if (!exists) {
       nextSchedules.push({
         id: `sched-${branchId}`,
-        branchId,
+        branchId: String(branchId),
         horariosAtencion: updates.horariosAtencion || [],
         horariosRetiro: updates.horariosRetiro || [],
         diasSinReparto: updates.diasSinReparto || [],
@@ -791,13 +791,13 @@ export const useAdminStore = create<AdminStore>((set, get) => ({
   },
 
   markNotificationRead: async (id) => {
-    await notificationService.markAsRead(id);
+    await notificationService.markAsRead(String(id));
     await get().fetchData();
   },
 
   markAllNotificationsRead: async () => {
     const branchId = get().activeBranchId;
-    await notificationService.markAllAsRead(branchId === 'all' ? undefined : branchId);
+    await notificationService.markAllAsRead(branchId === 'all' ? undefined : String(branchId));
     await get().fetchData();
   },
 
@@ -807,7 +807,7 @@ export const useAdminStore = create<AdminStore>((set, get) => ({
   },
 
   deleteSuperOffer: async (id) => {
-    await productService.deleteSuperOffer(id);
+    await productService.deleteSuperOffer(String(id));
     await get().fetchData(true);
   },
 

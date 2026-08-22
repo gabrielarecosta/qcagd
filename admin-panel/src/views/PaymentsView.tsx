@@ -206,8 +206,8 @@ export function PaymentsView({ initialTab = 'caja' }: PaymentsViewProps) {
 
     // log log
     createPaymentLog({
-      orderId: targetOrder.id,
-      branchId: targetOrder.branchId,
+      orderId: String(targetOrder.id),
+      branchId: String(targetOrder.branchId),
       fecha: new Date().toISOString(),
       monto: targetOrder.total,
       metodo: 'mercado_pago',

@@ -151,7 +151,7 @@ export function UsersView() {
     e.preventDefault();
     createUser({
       ...formUser,
-      branchId: formUser.branchId || undefined,
+      branchId: formUser.branchId ? String(formUser.branchId) : undefined,
     });
     setIsCreating(false);
   };

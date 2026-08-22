@@ -79,7 +79,7 @@ export function DashboardView({ onNavigate, onFilterProductsNoPhoto }: Dashboard
   }, []);
 
   const [dateFilter, setDateFilter] = useState<'hoy' | 'ayer' | '7dias' | 'mes' | 'personalizado'>('7dias');
-  const [openActionDropdownOrderId, setOpenActionDropdownOrderId] = useState<string | null>(null);
+  const [openActionDropdownOrderId, setOpenActionDropdownOrderId] = useState<string | number | null>(null);
   const [hoveredBar, setHoveredBar] = useState<{ x: number; y: number; label: string; amount: number } | null>(null);
 
   // Fecha de referencia actual (tiempo real de Supabase)
@@ -418,7 +418,7 @@ export function DashboardView({ onNavigate, onFilterProductsNoPhoto }: Dashboard
     ].join(" ");
   };
 
-  const handleUpdateStatus = (orderId: string, status: any) => {
+  const handleUpdateStatus = (orderId: string | number, status: any) => {
     updateOrderStatus(orderId, status);
     setOpenActionDropdownOrderId(null);
   };
