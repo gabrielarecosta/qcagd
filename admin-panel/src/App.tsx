@@ -184,6 +184,7 @@ function App() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [isManualRefreshing, setIsManualRefreshing] = useState(false);
 
   const { 
     activeBranchId, 
@@ -204,10 +205,10 @@ function App() {
   useEffect(() => {
     fetchData();
 
-    // Polling de seguridad de 8 segundos
+    // Polling de seguridad de 60 segundos (optimizado para evitar tráfico excesivo)
     const interval = setInterval(() => {
       fetchData(true);
-    }, 8000);
+    }, 60000);
 
     // Suscripción Supabase Realtime
     const channel = supabase
@@ -573,6 +574,37 @@ function App() {
                   <option key={b.id} value={b.id}>{b.nombre}</option>
                 ))}
               </select>
+              <button
+                type="button"
+                onClick={async () => {
+                  setIsManualRefreshing(true);
+                  await fetchData(true);
+                  setTimeout(() => setIsManualRefreshing(false), 400);
+                }}
+                disabled={isManualRefreshing}
+                title="Actualizar datos ahora"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  padding: '5px 12px',
+                  fontSize: '12.5px',
+                  fontWeight: 600,
+                  borderRadius: '9999px',
+                  border: '1px solid #cbd5e1',
+                  backgroundColor: '#ffffff',
+                  color: '#334155',
+                  cursor: isManualRefreshing ? 'wait' : 'pointer',
+                  marginLeft: '8px',
+                  boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+                  transition: 'all 0.2s'
+                }}
+              >
+                <span style={{ display: 'inline-block', transform: isManualRefreshing ? 'rotate(360deg)' : 'none', transition: 'transform 0.4s linear' }}>
+                  🔄
+                </span>
+                {isManualRefreshing ? 'Actualizando...' : 'Actualizar'}
+              </button>
             </div>
           </div>
 

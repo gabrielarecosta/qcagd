@@ -20,10 +20,10 @@ export function DashboardView({ onNavigate, onFilterProductsNoPhoto }: Dashboard
     deliveries, 
     clients, 
     updateOrderStatus,
+    fetchData,
     fetchOrdersOnly,
     fetchClientsOnly,
     fetchDeliveriesOnly,
-    fetchProductsOnly
   } = useAdminStore();
 
   const [latestImport, setLatestImport] = useState<any | null>(null);
@@ -74,6 +74,24 @@ export function DashboardView({ onNavigate, onFilterProductsNoPhoto }: Dashboard
   const [dateFilter, setDateFilter] = useState<'hoy' | 'ayer' | '7dias' | 'mes' | 'personalizado'>('7dias');
   const [openActionDropdownOrderId, setOpenActionDropdownOrderId] = useState<string | number | null>(null);
   const [hoveredBar, setHoveredBar] = useState<{ x: number; y: number; label: string; amount: number } | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const handleManualRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await Promise.all([
+        fetchData(true),
+        fetchOrdersOnly(),
+        fetchClientsOnly(),
+        fetchDeliveriesOnly(),
+        loadLatestImport(),
+      ]);
+    } catch (e) {
+      console.error('Error actualizando dashboard:', e);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   // Fecha de referencia actual (tiempo real de Supabase)
   const baseToday = useMemo(() => new Date(), []);
@@ -446,6 +464,29 @@ export function DashboardView({ onNavigate, onFilterProductsNoPhoto }: Dashboard
               </button>
             ))}
           </div>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={handleManualRefresh}
+            disabled={isRefreshing}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '6px 14px',
+              fontSize: '13px',
+              borderRadius: '9999px',
+              fontWeight: 600,
+              cursor: isRefreshing ? 'wait' : 'pointer',
+              marginLeft: '8px'
+            }}
+            title="Actualizar todos los datos del Dashboard"
+          >
+            <span style={{ display: 'inline-block', transform: isRefreshing ? 'rotate(360deg)' : 'none', transition: 'transform 0.4s linear' }}>
+              🔄
+            </span>
+            {isRefreshing ? 'Actualizando...' : 'Actualizar Dashboard'}
+          </button>
         </div>
       </div>
 
