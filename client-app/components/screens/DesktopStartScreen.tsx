@@ -254,19 +254,34 @@ export function DesktopStartScreen() {
 
     setIsRegisterLoading(true);
     try {
-      const { data: existing } = await supabase
-        .from('customers')
-        .select('id')
-        .eq('email', trimmedEmail.toLowerCase())
-        .maybeSingle();
+      // 1. Crear el usuario nativo en Supabase Auth (auth.users)
+      const { data: authData, error: authErr } = await supabase.auth.signUp({
+        email: trimmedEmail.toLowerCase(),
+        password: regPassword,
+        options: {
+          data: {
+            nombre: regName.trim(),
+            telefono: cleanedPhone,
+            rol: 'cliente',
+          },
+        },
+      });
 
-      if (existing) {
-        customAlert('Email registrado', 'Este email ya se encuentra registrado.');
+      if (authErr) {
+        customAlert('Error al registrar', authErr.message);
         setIsRegisterLoading(false);
         return;
       }
 
+      if (!authData.user) {
+        customAlert('Error', 'No se pudo generar la cuenta en Supabase Auth.');
+        setIsRegisterLoading(false);
+        return;
+      }
+
+      // 2. Crear el cliente en public.customers guardando explícitamente el userId de Supabase Auth
       await clientService.create({
+        userId: authData.user.id,
         nombre: regName.trim(),
         razonSocial: regName.trim(),
         telefono: cleanedPhone,
@@ -278,15 +293,16 @@ export function DesktopStartScreen() {
         activo: true,
       });
 
-      const success = await loginAsCliente(regName.trim());
+      // 3. Iniciar sesión automáticamente en Supabase Auth
+      const success = await loginAsCliente(trimmedEmail.toLowerCase(), regPassword);
       if (success) {
-        customAlert('Registro Exitoso', 'La cuenta fue creada correctamente.');
+        customAlert('Registro Exitoso', 'La cuenta fue creada e iniciaste sesión correctamente en Supabase Auth.');
       } else {
-        customAlert('Error de ingreso', 'No pudimos iniciar sesión automáticamente. Intentá ingresar manualmente.');
+        customAlert('Cuenta creada', 'La cuenta fue creada en Supabase. Por favor ingresá tus credenciales manualmente.');
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error in registration:', err);
-      customAlert('Error', 'No pudimos crear la cuenta. Intentá nuevamente.');
+      customAlert('Error', err?.message || 'No pudimos crear la cuenta. Intentá nuevamente.');
     } finally {
       setIsRegisterLoading(false);
     }

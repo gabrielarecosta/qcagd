@@ -258,19 +258,34 @@ export function MobileStartScreen() {
 
     setIsRegisterLoading(true);
     try {
-      const { data: existing } = await supabase
-        .from('customers')
-        .select('id')
-        .eq('email', trimmedEmail.toLowerCase())
-        .maybeSingle();
+      // 1. Crear el usuario nativo en Supabase Auth (auth.users)
+      const { data: authData, error: authErr } = await supabase.auth.signUp({
+        email: trimmedEmail.toLowerCase(),
+        password: regPassword,
+        options: {
+          data: {
+            nombre: regName.trim(),
+            telefono: cleanedPhone,
+            rol: 'cliente',
+          },
+        },
+      });
 
-      if (existing) {
-        setFormError('Este email ya está registrado.');
+      if (authErr) {
+        setFormError(authErr.message);
         setIsRegisterLoading(false);
         return;
       }
 
+      if (!authData.user) {
+        setFormError('No se pudo generar la cuenta en Supabase Auth.');
+        setIsRegisterLoading(false);
+        return;
+      }
+
+      // 2. Crear el cliente en public.customers guardando explícitamente el userId de Supabase Auth
       await clientService.create({
+        userId: authData.user.id,
         nombre: regName.trim(),
         razonSocial: regName.trim(),
         telefono: cleanedPhone,
@@ -282,13 +297,14 @@ export function MobileStartScreen() {
         activo: true,
       });
 
-      const success = await loginAsCliente(regName.trim());
+      // 3. Iniciar sesión automáticamente en Supabase Auth
+      const success = await loginAsCliente(trimmedEmail.toLowerCase(), regPassword);
       if (!success) {
-        setFormError('No pudimos iniciar sesión automáticamente. Intentá ingresar manualmente.');
+        setFormError('Cuenta creada en Supabase. Por favor ingresá tus credenciales manualmente.');
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error registering client:', err);
-      setFormError('No pudimos crear la cuenta. Intentá nuevamente.');
+      setFormError(err?.message || 'No pudimos crear la cuenta. Intentá nuevamente.');
     } finally {
       setIsRegisterLoading(false);
     }

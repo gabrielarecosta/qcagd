@@ -146,7 +146,7 @@ export const clientService = {
 
     let { data, error } = await supabase
       .from('customers')
-      .insert(dbInsert)
+      .upsert(dbInsert, { onConflict: 'email' })
       .select(CUSTOMER_COLUMNS)
       .single();
 
@@ -154,12 +154,22 @@ export const clientService = {
       delete dbInsert.user_id;
       const { data: retryData, error: retryErr } = await supabase
         .from('customers')
-        .insert(dbInsert)
+        .upsert(dbInsert, { onConflict: 'email' })
         .select(CUSTOMER_COLUMNS)
         .single();
       if (retryErr) throw retryErr;
       data = retryData;
     } else if (error) {
+      // Si el error es 23505 o duplicate key por otra vía, intentar obtener el registro existente
+      if (error.code === '23505' || error.message?.includes('duplicate key')) {
+        const { data: existingData } = await supabase
+          .from('customers')
+          .select(CUSTOMER_COLUMNS)
+          .eq('email', client.email)
+          .maybeSingle();
+
+        if (existingData) return mapCustomer(existingData);
+      }
       throw error;
     }
 

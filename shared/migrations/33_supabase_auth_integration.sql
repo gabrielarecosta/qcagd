@@ -34,23 +34,56 @@ CREATE TABLE IF NOT EXISTS public.drivers (
     activo BOOLEAN DEFAULT TRUE NOT NULL
 );
 
--- 4. Función y Trigger Automático para sincronizar usuarios de Supabase Auth a public.profiles
+-- 4. Función y Trigger Automático para sincronizar usuarios de Supabase Auth a public.profiles o public.customers
 CREATE OR REPLACE FUNCTION public.handle_new_auth_user()
 RETURNS TRIGGER AS $$
+DECLARE
+  v_rol TEXT;
+  v_nombre TEXT;
+  v_telefono TEXT;
 BEGIN
-  INSERT INTO public.profiles (id, email, nombre, rol, branch_id, activo)
-  VALUES (
-    NEW.id,
-    NEW.email,
-    COALESCE(NEW.raw_user_meta_data->>'nombre', split_part(NEW.email, '@', 1)),
-    COALESCE(NEW.raw_user_meta_data->>'rol', 'admin'),
-    1,
-    TRUE
-  )
-  ON CONFLICT (id) DO UPDATE SET
-    email = EXCLUDED.email,
-    nombre = EXCLUDED.nombre;
+  v_rol := COALESCE(NEW.raw_user_meta_data->>'rol', 'cliente');
+  v_nombre := COALESCE(NEW.raw_user_meta_data->>'nombre', split_part(NEW.email, '@', 1));
+  v_telefono := COALESCE(NEW.raw_user_meta_data->>'telefono', '');
+
+  IF v_rol = 'cliente' THEN
+    -- Si es un cliente, crear/actualizar en public.customers
+    INSERT INTO public.customers (user_id, email, nombre, telefono, direccion, branch_id, tipo_cliente, activo)
+    VALUES (
+      NEW.id,
+      NEW.email,
+      v_nombre,
+      v_telefono,
+      'General Deheza',
+      1,
+      COALESCE(NEW.raw_user_meta_data->>'tipo_cliente', 'minorista'),
+      TRUE
+    )
+    ON CONFLICT (email) DO UPDATE SET
+      user_id = EXCLUDED.user_id,
+      nombre = EXCLUDED.nombre;
+  ELSE
+    -- Si es un usuario interno del panel (admin, ventas, deposito, repartidor, etc.)
+    INSERT INTO public.profiles (id, email, nombre, rol, branch_id, activo)
+    VALUES (
+      NEW.id,
+      NEW.email,
+      v_nombre,
+      v_rol,
+      1,
+      TRUE
+    )
+    ON CONFLICT (id) DO UPDATE SET
+      email = EXCLUDED.email,
+      nombre = EXCLUDED.nombre,
+      rol = EXCLUDED.rol;
+  END IF;
+
   RETURN NEW;
+EXCEPTION
+  WHEN OTHERS THEN
+    RAISE WARNING 'Error en trigger handle_new_auth_user: %', SQLERRM;
+    RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
