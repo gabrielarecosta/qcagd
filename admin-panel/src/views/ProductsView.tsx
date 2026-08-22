@@ -124,8 +124,6 @@ export function ProductsView({
   const [recatResult, setRecatResult] = useState<{ total: number; actualizados: number; porCategoria: Record<string, number> } | null>(null);
   const [showRecatModal, setShowRecatModal] = useState(false);
 
-  const itemsPerPage = 30;
-
   const categories: CategoryItem[] = [
     { value: 'limpieza', label: 'Limpieza' },
     { value: 'quimicos', label: 'Químicos' },
