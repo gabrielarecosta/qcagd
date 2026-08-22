@@ -2,6 +2,7 @@ export type ClientType = 'mayorista' | 'minorista' | 'sucursal' | 'consumidor_fi
 
 export interface Customer {
   id: string | number;
+  userId?: string;
   nombre: string;
   razonSocial?: string;
   cuit?: string;

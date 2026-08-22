@@ -3,6 +3,7 @@ import { Customer, CustomerAddress } from '../types/client';
 
 const mapCustomer = (d: any): Customer => ({
   id: d.id,
+  userId: d.user_id || undefined,
   nombre: d.nombre,
   razonSocial: d.razon_social || undefined,
   cuit: d.cuit || undefined,
@@ -52,6 +53,7 @@ export const clientService = {
 
   update: async (id: string, updates: Partial<Customer>): Promise<Customer> => {
     const dbUpdates: any = {
+      user_id: updates.userId,
       nombre: updates.nombre,
       razon_social: updates.razonSocial,
       cuit: updates.cuit,
@@ -82,6 +84,7 @@ export const clientService = {
       .single();
 
     if (error && error.message?.includes('column')) {
+      delete dbUpdates.user_id;
       delete dbUpdates.cta_cte_autorizada;
       delete dbUpdates.limite_credito;
       delete dbUpdates.mayorista_autorizado;
@@ -105,7 +108,7 @@ export const clientService = {
     return mapCustomer(data);
   },
 
-  create: async (client: Omit<Customer, 'id' | 'fechaAlta'> & { id?: string | number }): Promise<Customer> => {
+  create: async (client: Omit<Customer, 'id' | 'fechaAlta'> & { id?: string | number; userId?: string }): Promise<Customer> => {
     let branchIdNum: number = 1;
     if (client.branchId) {
       if (typeof client.branchId === 'number') {
@@ -116,7 +119,10 @@ export const clientService = {
       }
     }
 
+    const targetUserId = client.userId || (typeof client.id === 'string' && client.id.includes('-') ? client.id : null);
+
     const dbInsert: any = {
+      user_id: targetUserId,
       nombre: client.nombre,
       razon_social: client.razonSocial ? client.razonSocial : null,
       cuit: client.cuit ? client.cuit : null,
@@ -138,12 +144,25 @@ export const clientService = {
       dbInsert.id = Number(client.id);
     }
 
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('customers')
       .insert(dbInsert)
       .select(CUSTOMER_COLUMNS)
       .single();
-    if (error) throw error;
+
+    if (error && error.message?.includes('user_id')) {
+      delete dbInsert.user_id;
+      const { data: retryData, error: retryErr } = await supabase
+        .from('customers')
+        .insert(dbInsert)
+        .select(CUSTOMER_COLUMNS)
+        .single();
+      if (retryErr) throw retryErr;
+      data = retryData;
+    } else if (error) {
+      throw error;
+    }
+
     return mapCustomer(data);
   },
 

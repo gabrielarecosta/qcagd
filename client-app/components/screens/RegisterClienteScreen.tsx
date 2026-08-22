@@ -182,7 +182,11 @@ export function RegisterClienteScreen({ onBack }: RegisterClienteScreenProps) {
         throw new Error(authErr.message);
       }
 
-      const userId = authData.user?.id || `cli-${Date.now()}`;
+      if (!authData.user) {
+        throw new Error('No se pudo generar la cuenta en Supabase Auth. Verifique que el correo no esté registrado.');
+      }
+
+      const userId = authData.user.id;
 
       // 2. Crear el cliente en la tabla `customers` vinculado al UUID de Supabase Auth
       const newCustomer = await clientService.create({

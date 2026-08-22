@@ -80,12 +80,12 @@ export const useAuthStore = create<AuthState>()(
             return false;
           }
 
-          // 2. Buscar datos del cliente vinculado en la tabla customers
-          const customerCols = 'id, nombre, razon_social, cuit, telefono, whatsapp, email, direccion, branch_id, tipo_cliente, activo, observaciones, fecha_alta';
+          // 2. Buscar datos del cliente vinculado por user_id o email en la tabla customers
+          const customerCols = 'id, user_id, nombre, razon_social, cuit, telefono, whatsapp, email, direccion, branch_id, tipo_cliente, activo, observaciones, fecha_alta';
           const { data: customerData } = await supabase
             .from('customers')
             .select(customerCols)
-            .or(`id.eq.${authData.user.id},email.eq.${u}`)
+            .or(`user_id.eq.${authData.user.id},email.eq.${u}`)
             .maybeSingle();
 
           const client: any = customerData || {
