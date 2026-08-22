@@ -98,15 +98,15 @@ export function LoginClienteScreen({ onBack }: LoginClienteScreenProps) {
 
   const handleClientLogin = async () => {
     setError(null);
-    if (!loginInput.trim()) {
-      setError('Por favor, escribí tu usuario, teléfono, CUIT o Email.');
+    if (!loginInput.trim() || !loginPassword) {
+      setError('Por favor, ingresá tu Email y Contraseña.');
       return;
     }
     const success = await loginAsCliente(loginInput, loginPassword);
     if (success) {
       setLoginPassword('');
     } else {
-      setError('No pudimos encontrar tus datos. Por favor, verifique e intente nuevamente.');
+      setError('Credenciales inválidas. Verifique tu Email y Contraseña e intente nuevamente.');
     }
   };
 
@@ -131,7 +131,7 @@ export function LoginClienteScreen({ onBack }: LoginClienteScreenProps) {
         <Animated.View style={titleAnim.animatedStyle}>
           <Text style={styles.loginTitle}>Ingreso Cliente</Text>
           <Text style={styles.loginSub}>
-            Ingresá tu usuario o datos de cuenta para acceder a tus pedidos y tracking.
+            Ingresá tu Email y Contraseña para acceder a tus pedidos y catálogo.
           </Text>
         </Animated.View>
 
@@ -145,17 +145,20 @@ export function LoginClienteScreen({ onBack }: LoginClienteScreenProps) {
         )}
 
         <AnimatedInput
-          placeholder="Usuario, Teléfono o CUIT (Ej: ana)"
+          placeholder="Email de tu cuenta (Ej: cliente@quimicadeheza.com)"
           value={loginInput}
           onChangeText={setLoginInput}
+          keyboardType="email-address"
+          autoCapitalize="none"
           delay={160}
         />
 
         <AnimatedInput
-          placeholder="Contraseña (Ej: ana)"
+          placeholder="Contraseña"
           value={loginPassword}
           onChangeText={setLoginPassword}
           secureTextEntry
+          autoCapitalize="none"
           delay={230}
         />
 

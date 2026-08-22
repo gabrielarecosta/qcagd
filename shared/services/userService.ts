@@ -2,6 +2,8 @@ import { supabase } from './supabaseClient';
 import { parseBranchId } from '../utils/branchUtils';
 import { InternalUser } from '../types/user';
 
+const PROFILE_FIELDS = 'id, nombre, email, rol, branch_id, sector_id, activo, telefono, auto, patente, foto_url, dni, created_at, updated_at';
+
 const mapProfile = (d: any): InternalUser => ({
   id: d.id,
   nombre: d.nombre,
@@ -20,7 +22,7 @@ export const userService = {
   getAll: async (): Promise<InternalUser[]> => {
     const { data, error } = await supabase
       .from('profiles')
-      .select('*')
+      .select(PROFILE_FIELDS)
       .is('deleted_at', null);
     if (error) throw error;
     return (data || []).map(mapProfile);
@@ -29,7 +31,7 @@ export const userService = {
   getById: async (id: string): Promise<InternalUser | undefined> => {
     const { data, error } = await supabase
       .from('profiles')
-      .select('*')
+      .select(PROFILE_FIELDS)
       .eq('id', id)
       .is('deleted_at', null)
       .single();
@@ -44,7 +46,7 @@ export const userService = {
     const branchIdNum = parseBranchId(branchId) || 1;
     const { data, error } = await supabase
       .from('profiles')
-      .select('*')
+      .select(PROFILE_FIELDS)
       .eq('branch_id', branchIdNum)
       .is('deleted_at', null);
     if (error) throw error;
@@ -78,7 +80,7 @@ export const userService = {
       .from('profiles')
       .update(dbUpdates)
       .eq('id', id)
-      .select('*')
+      .select(PROFILE_FIELDS)
       .single();
     if (error) throw error;
 
@@ -126,7 +128,7 @@ export const userService = {
     const { data, error } = await supabase
       .from('profiles')
       .insert(dbInsert)
-      .select('*')
+      .select(PROFILE_FIELDS)
       .single();
     if (error) throw error;
 
@@ -163,7 +165,7 @@ export const userService = {
   loginSimulated: async (email: string): Promise<{ success: boolean; user?: InternalUser; error?: string }> => {
     const { data, error } = await supabase
       .from('profiles')
-      .select('*')
+      .select(PROFILE_FIELDS)
       .eq('email', email)
       .eq('activo', true)
       .is('deleted_at', null)

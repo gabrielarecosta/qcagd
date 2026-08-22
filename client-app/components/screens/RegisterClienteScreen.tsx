@@ -18,9 +18,9 @@ import { customAlert } from '../../utils/alert';
 import MaterialCommunityIcons from '../icons/MaterialCommunityIcons';
 import { useEntrance } from '../../hooks/useEntrance';
 import { clientService } from '@shared/services/clientService';
-import { geocodeAddress } from '@shared/utils/geo';
 import { branchService } from '@shared/services/branchService';
 import { Branch } from '@shared/types/branch';
+import { supabase } from '@shared/services/supabaseClient';
 
 interface RegisterClienteScreenProps {
   onBack: () => void;
@@ -32,6 +32,7 @@ function AnimatedInput({
   placeholder,
   value,
   onChangeText,
+  secureTextEntry = false,
   keyboardType = 'default' as any,
   autoCapitalize = 'words' as any,
   delay = 0,
@@ -39,6 +40,7 @@ function AnimatedInput({
   placeholder: string;
   value: string;
   onChangeText: (t: string) => void;
+  secureTextEntry?: boolean;
   keyboardType?: any;
   autoCapitalize?: any;
   delay?: number;
@@ -60,6 +62,7 @@ function AnimatedInput({
           placeholderTextColor="#94a3b8"
           value={value}
           onChangeText={onChangeText}
+          secureTextEntry={secureTextEntry}
           keyboardType={keyboardType}
           autoCapitalize={autoCapitalize}
           autoCorrect={false}
@@ -83,6 +86,7 @@ export function RegisterClienteScreen({ onBack }: RegisterClienteScreenProps) {
   const [regName, setRegName] = useState('');
   const [regPhone, setRegPhone] = useState('');
   const [regEmail, setRegEmail] = useState('');
+  const [regPassword, setRegPassword] = useState('');
   const [regCuit, setRegCuit] = useState('');
 
   // Campos Sucursal
@@ -91,7 +95,8 @@ export function RegisterClienteScreen({ onBack }: RegisterClienteScreenProps) {
   const [branchCuit, setBranchCuit] = useState('');
   const [branchPhone, setBranchPhone] = useState('');
   const [branchEmail, setBranchEmail] = useState('');
-  const [selectedBranchId, setSelectedBranchId] = useState('branch-gd1');
+  const [branchPassword, setBranchPassword] = useState('');
+  const [selectedBranchId, setSelectedBranchId] = useState<string | number>(1);
   const [availableBranches, setAvailableBranches] = useState<Branch[]>([]);
 
   const [acceptedTerms, setAcceptedTerms] = useState(false);
@@ -120,16 +125,35 @@ export function RegisterClienteScreen({ onBack }: RegisterClienteScreenProps) {
   const handleRegister = async () => {
     setError(null);
 
-    if (accountType === 'consumidor_final') {
-      if (!regName.trim() || !regPhone.trim()) {
-        setError('Por favor completá los campos obligatorios: Nombre y Teléfono.');
-        return;
-      }
-    } else {
+    const isSucursal = accountType === 'sucursal';
+    const nombreFinal = isSucursal ? branchName.trim() : regName.trim();
+    const contactoFinal = isSucursal ? branchContact.trim() : regName.trim();
+    const telefonoFinal = isSucursal ? branchPhone.trim() : regPhone.trim();
+    const emailFinal = (isSucursal ? branchEmail.trim() : regEmail.trim()).toLowerCase();
+    const passwordFinal = isSucursal ? branchPassword : regPassword;
+    const cuitFinal = isSucursal ? branchCuit.trim() : regCuit.trim();
+    const branchAsignada = isSucursal ? selectedBranchId : 1;
+
+    if (isSucursal) {
       if (!branchName.trim() || !branchContact.trim() || !branchPhone.trim()) {
         setError('Por favor completá los campos obligatorios: Nombre de Sucursal, Contacto responsable y Teléfono.');
         return;
       }
+    } else {
+      if (!regName.trim() || !regPhone.trim()) {
+        setError('Por favor completá los campos obligatorios: Nombre y Teléfono.');
+        return;
+      }
+    }
+
+    if (!emailFinal || !emailFinal.includes('@')) {
+      setError('Por favor ingresá un Email válido para registrar tu cuenta.');
+      return;
+    }
+
+    if (!passwordFinal || passwordFinal.length < 6) {
+      setError('La contraseña debe tener al menos 6 caracteres.');
+      return;
     }
 
     if (!acceptedTerms) {
@@ -140,22 +164,35 @@ export function RegisterClienteScreen({ onBack }: RegisterClienteScreenProps) {
     setIsLoading(true);
 
     try {
-      const isSucursal = accountType === 'sucursal';
-      const nombreFinal = isSucursal ? branchName.trim() : regName.trim();
-      const contactoFinal = isSucursal ? branchContact.trim() : regName.trim();
-      const telefonoFinal = isSucursal ? branchPhone.trim() : regPhone.trim();
-      const emailFinal = isSucursal ? branchEmail.trim() : regEmail.trim();
-      const cuitFinal = isSucursal ? branchCuit.trim() : regCuit.trim();
-      const branchAsignada = isSucursal ? selectedBranchId : 1;
+      // 1. Crear el usuario nativo en Supabase Auth (auth.users)
+      const { data: authData, error: authErr } = await supabase.auth.signUp({
+        email: emailFinal,
+        password: passwordFinal,
+        options: {
+          data: {
+            nombre: nombreFinal,
+            telefono: telefonoFinal,
+            rol: 'cliente',
+            tipo_cliente: isSucursal ? 'sucursal' : 'minorista',
+          },
+        },
+      });
 
-      // 1. Crear el cliente en Supabase sin dirección inicial
+      if (authErr) {
+        throw new Error(authErr.message);
+      }
+
+      const userId = authData.user?.id || `cli-${Date.now()}`;
+
+      // 2. Crear el cliente en la tabla `customers` vinculado al UUID de Supabase Auth
       const newCustomer = await clientService.create({
+        id: userId,
         nombre: nombreFinal,
         razonSocial: isSucursal ? nombreFinal : undefined,
         cuit: cuitFinal || undefined,
         telefono: telefonoFinal,
         whatsapp: telefonoFinal,
-        email: emailFinal || undefined,
+        email: emailFinal,
         direccion: '',
         branchId: branchAsignada,
         tipoCliente: isSucursal ? 'sucursal' : 'minorista',
@@ -163,15 +200,14 @@ export function RegisterClienteScreen({ onBack }: RegisterClienteScreenProps) {
         observaciones: isSucursal ? `Sucursal registrada - Responsable: ${contactoFinal}` : 'Registro particular desde App',
       });
 
-
-      // 3. Loguear directamente al usuario con sus nuevos datos
+      // 3. Loguear directamente al usuario con sus nuevos datos de sesión
       setClienteSession(newCustomer);
 
       customAlert(
         '¡Registro Exitoso!',
         isSucursal 
-          ? `La sucursal "${nombreFinal}" ha sido registrada exitosamente. Ya podés realizar pedidos.`
-          : `¡Bienvenido/a ${nombreFinal}! Tu cuenta ha sido creada con éxito.`
+          ? `La sucursal "${nombreFinal}" ha sido registrada exitosamente en Supabase Auth. Ya podés realizar pedidos.`
+          : `¡Bienvenido/a ${nombreFinal}! Tu cuenta ha sido registrada exitosamente en Supabase Auth.`
       );
     } catch (err: any) {
       console.error('Error al registrar cuenta:', err);
@@ -280,12 +316,21 @@ export function RegisterClienteScreen({ onBack }: RegisterClienteScreenProps) {
             />
 
             <AnimatedInput
-              placeholder="Email (Opcional)"
+              placeholder="Email *"
               value={regEmail}
               onChangeText={setRegEmail}
               keyboardType="email-address"
               autoCapitalize="none"
               delay={200}
+            />
+
+            <AnimatedInput
+              placeholder="Contraseña (mínimo 6 caracteres) *"
+              value={regPassword}
+              onChangeText={setRegPassword}
+              secureTextEntry
+              autoCapitalize="none"
+              delay={220}
             />
 
             <AnimatedInput
@@ -365,12 +410,21 @@ export function RegisterClienteScreen({ onBack }: RegisterClienteScreenProps) {
             />
 
             <AnimatedInput
-              placeholder="Email Institucional / Facturación"
+              placeholder="Email Institucional / Facturación *"
               value={branchEmail}
               onChangeText={setBranchEmail}
               keyboardType="email-address"
               autoCapitalize="none"
               delay={300}
+            />
+
+            <AnimatedInput
+              placeholder="Contraseña (mínimo 6 caracteres) *"
+              value={branchPassword}
+              onChangeText={setBranchPassword}
+              secureTextEntry
+              autoCapitalize="none"
+              delay={320}
             />
           </View>
         )}

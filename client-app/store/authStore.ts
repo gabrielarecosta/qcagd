@@ -64,38 +64,50 @@ export const useAuthStore = create<AuthState>()(
 
       loginAsCliente: async (username, password) => {
         const u = username.trim().toLowerCase();
-        
-        const customerCols = 'id, nombre, razon_social, cuit, telefono, whatsapp, email, direccion, branch_id, tipo_cliente, activo, observaciones, fecha_alta';
-        // Buscar en la tabla de clientes de Supabase
-        let query = supabase.from('customers').select(customerCols).eq('activo', true).is('deleted_at', null);
-        
-        // Si contiene '@', buscar por email; si es número puro, por cuit/telefono; si no, por nombre
-        if (u.includes('@')) {
-          query = query.eq('email', u);
-        } else if (/^\d+$/.test(u.replace(/[-+]/g, ''))) {
-          query = query.or(`cuit.eq.${u},telefono.eq.${u}`);
-        } else {
-          query = query.ilike('nombre', `%${u}%`);
-        }
+        const p = password || '';
 
-        const { data: customers } = await query;
-        let client = customers && customers.length > 0 ? customers[0] : null;
+        if (!u || !p) return false;
 
-        // Fallback para demo con "ana"
-        if (!client && (u === 'ana' || u.includes('ana'))) {
-          const { data: ana } = await supabase
+        try {
+          // 1. Autenticación nativa con Supabase Auth (auth.users)
+          const { data: authData, error: authErr } = await supabase.auth.signInWithPassword({
+            email: u,
+            password: p,
+          });
+
+          if (authErr || !authData.user) {
+            console.warn('Error al autenticar en Supabase Auth:', authErr?.message);
+            return false;
+          }
+
+          // 2. Buscar datos del cliente vinculado en la tabla customers
+          const customerCols = 'id, nombre, razon_social, cuit, telefono, whatsapp, email, direccion, branch_id, tipo_cliente, activo, observaciones, fecha_alta';
+          const { data: customerData } = await supabase
             .from('customers')
             .select(customerCols)
-            .eq('email', 'ana@gmail.com')
+            .or(`id.eq.${authData.user.id},email.eq.${u}`)
             .maybeSingle();
-          client = ana;
-        }
 
-        if (client) {
+          const client: any = customerData || {
+            id: authData.user.id,
+            nombre: authData.user.user_metadata?.nombre || u.split('@')[0],
+            razon_social: authData.user.user_metadata?.razon_social || '',
+            cuit: '',
+            telefono: authData.user.user_metadata?.telefono || '',
+            whatsapp: authData.user.user_metadata?.telefono || '',
+            email: authData.user.email || u,
+            direccion: '',
+            branch_id: 1,
+            tipo_cliente: 'minorista',
+            activo: true,
+            observaciones: undefined,
+            fecha_alta: new Date().toISOString(),
+          };
+
           set({
             isLoggedIn: true,
             userRole: 'cliente',
-            lastUsername: username,
+            lastUsername: client.nombre,
             sessionExpired: false,
             clientData: {
               id: client.id,
@@ -104,79 +116,71 @@ export const useAuthStore = create<AuthState>()(
               cuit: client.cuit || '',
               telefono: client.telefono || '',
               whatsapp: client.whatsapp || '',
-              email: client.email || '',
+              email: client.email || u,
               direccion: client.direccion || '',
               branchId: client.branch_id || 1,
               tipoCliente: client.tipo_cliente || 'minorista',
-              activo: client.activo,
+              activo: client.activo ?? true,
               observaciones: client.observaciones || undefined,
               fechaAlta: client.fecha_alta,
             },
             repartidorData: null,
           });
           return true;
+        } catch (err) {
+          console.error('Error en loginAsCliente:', err);
+          return false;
         }
-        return false;
       },
 
       loginAsRepartidor: async (username, password) => {
         const u = username.trim().toLowerCase();
+        const p = password || '';
 
-        // 1. Obtener todos los repartidores activos de la base de datos
-        const { data: profiles } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('rol', 'repartidor');
+        if (!u || !p) return false;
 
-        const drivers = profiles || [];
-        let driver: any = null;
-
-        // 2. Mapeo específico por código o alias de Repartidor 1, 2 y 3
-        if (u === '1' || u === 'rep-1' || u === 'rep-001' || u === 'repartidor1' || u === 'repartidor 1' || u.includes('repartidor1@')) {
-          driver = drivers.find(d => d.id === 'rep-001' || d.email?.includes('repartidor1') || d.nombre?.toLowerCase().includes('repartidor 1') || d.nombre?.toLowerCase().includes('repartidor1')) || drivers[0];
-        } else if (u === '2' || u === 'rep-2' || u === 'rep-002' || u === 'repartidor2' || u === 'repartidor 2' || u.includes('repartidor2@')) {
-          driver = drivers.find(d => d.id === 'rep-002' || d.email?.includes('repartidor2') || d.nombre?.toLowerCase().includes('repartidor 2') || d.nombre?.toLowerCase().includes('repartidor2')) || drivers[1];
-        } else if (u === '3' || u === 'rep-3' || u === 'rep-003' || u === 'repartidor3' || u === 'repartidor 3' || u.includes('repartidor3@')) {
-          driver = drivers.find(d => d.id === 'rep-003' || d.email?.includes('repartidor3') || d.nombre?.toLowerCase().includes('repartidor 3') || d.nombre?.toLowerCase().includes('repartidor3')) || drivers[2];
-        } else {
-          // Búsqueda flexible por email, usuario, teléfono o nombre personalizado configurado en admin
-          const uClean = u.split('@')[0]; // Ej: 'ivan' de 'ivan@quimicageneraldeheza.com'
-          driver = drivers.find(d => {
-            const emailClean = d.email ? d.email.toLowerCase() : '';
-            const nombreClean = d.nombre ? d.nombre.toLowerCase() : '';
-            const idClean = d.id ? d.id.toLowerCase() : '';
-
-            return (
-              emailClean === u ||
-              (emailClean && uClean && emailClean.startsWith(uClean)) ||
-              (d.telefono && d.telefono.replace(/[^0-9]/g, '') === u.replace(/[^0-9]/g, '')) ||
-              (nombreClean && (nombreClean.includes(u) || nombreClean.includes(uClean))) ||
-              idClean === u
-            );
+        try {
+          // 1. Autenticación nativa con Supabase Auth (auth.users)
+          const { data: authData, error: authErr } = await supabase.auth.signInWithPassword({
+            email: u,
+            password: p,
           });
-        }
 
-        // Fallback por defecto si es el primer chofer
-        if (!driver && drivers.length > 0) {
-          driver = drivers[0];
-        }
-
-        if (driver) {
-          // Validar contraseña si está configurada
-          const storedPassword = driver.password || '';
-          if (storedPassword.trim() !== '' && password && storedPassword !== password) {
+          if (authErr || !authData.user) {
+            console.warn('Error al autenticar repartidor en Supabase Auth:', authErr?.message);
             return false;
           }
+
+          // 2. Obtener datos del perfil de repartidor
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('id, nombre, email, rol, branch_id, activo, telefono, auto, patente, foto_url, dni')
+            .eq('id', authData.user.id)
+            .maybeSingle();
+
+          const driver: any = profile || {
+            id: authData.user.id,
+            nombre: authData.user.user_metadata?.nombre || 'Chofer Oficial',
+            email: authData.user.email || u,
+            rol: 'repartidor',
+            branch_id: 1,
+            activo: true,
+            telefono: '',
+            auto: '',
+            patente: '',
+            foto_url: '',
+            dni: '',
+          };
 
           set({
             isLoggedIn: true,
             userRole: 'repartidor',
-            lastUsername: username,
+            lastUsername: driver.nombre,
             sessionExpired: false,
             clientData: null,
             repartidorData: {
               id: driver.id,
-              nombre: driver.nombre || 'Chofer Oficial',
+              nombre: driver.nombre,
               email: driver.email || '',
               telefono: driver.telefono || '',
               rol: 'repartidor',
@@ -189,12 +193,16 @@ export const useAuthStore = create<AuthState>()(
             },
           });
           return true;
+        } catch (err) {
+          console.error('Error en loginAsRepartidor:', err);
+          return false;
         }
-        
-        return false;
       },
 
       logout: () => {
+        try {
+          supabase.auth.signOut();
+        } catch (_) {}
         set({
           isLoggedIn: false,
           userRole: null,

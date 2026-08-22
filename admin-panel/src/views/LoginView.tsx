@@ -39,47 +39,33 @@ export function LoginView() {
       else if (cleanInput === 'deposito') targetEmail = 'deposito@quimicadeheza.com';
       else if (cleanInput === 'repartidor') targetEmail = 'repartidor@quimicadeheza.com';
 
-      let loggedUser: InternalUser | null = null;
+      // 1. Autenticación Real con Supabase Auth (emite JWT access_token y refresh_token)
+      const { data: authData, error: authErr } = await supabase.auth.signInWithPassword({
+        email: targetEmail,
+        password: password,
+      });
 
-      // 1. Consulta directa a la tabla profiles (evita el error 500 de GoTrue)
-      try {
-        const dbUsers = await userService.getAll();
-        const match = dbUsers.find(u => {
-          const uEmail = u.email?.toLowerCase() || '';
-          const uNombre = u.nombre.toLowerCase();
-          return (uEmail === targetEmail || uNombre.includes(cleanInput));
-        });
-        if (match) {
-          loggedUser = match;
+      if (!authErr && authData?.user) {
+        let profile = await userService.getById(authData.user.id);
+        if (!profile) {
+          profile = {
+            id: authData.user.id,
+            nombre: authData.user.user_metadata?.nombre || targetEmail.split('@')[0],
+            email: authData.user.email || targetEmail,
+            rol: authData.user.user_metadata?.rol || 'admin',
+            activo: true,
+          };
         }
-      } catch (e) {
-        console.warn('DB Users fetch error:', e);
-      }
-
-      // 2. Fallback de perfiles estándar del sistema
-      if (!loggedUser) {
-        const fallbackMatch = (users && users.length > 0 ? users : FALLBACK_USERS).find(u => {
-          const uEmail = u.email?.toLowerCase() || '';
-          const uNombre = u.nombre.toLowerCase();
-          return (uEmail === targetEmail || uNombre.includes(cleanInput) || uEmail.startsWith(cleanInput));
-        });
-        if (fallbackMatch) {
-          loggedUser = fallbackMatch;
-        }
-      }
-
-      if (loggedUser) {
-        if (!loggedUser.activo) {
-          setError('Esta cuenta de usuario se encuentra deshabilitada.');
-          setIsLoading(false);
-          return;
-        }
-        setCurrentUser(loggedUser);
+        setCurrentUser(profile);
         setIsLoading(false);
         return;
       }
 
-      setError('Credenciales inválidas. Verifique usuario y contraseña.');
+      if (authErr) {
+        setError(authErr.message || 'Credenciales inválidas. Verifique usuario y contraseña.');
+        setIsLoading(false);
+        return;
+      }
     } catch (err: any) {
       setError(err.message || 'Error al conectar con el servidor.');
     } finally {
