@@ -179,12 +179,23 @@ export default function RepartoScreen() {
     }
   };
 
+  const defaultDeliverer = {
+    id: 'del-default',
+    nombre: 'Repartidor de la tienda',
+    telefono: '3584123456',
+    vehiculo: 'Camión de Reparto',
+    foto: '',
+    lat: -32.7566,
+    lng: -63.7861,
+  };
+
   // Función para construir datos de tracking simulados basados en cada pedido
   const getOrderTracking = (order: Order): DeliveryTracking => {
+    const foundDeliverer = (mockDeliverers || []).find((d) => d.id === order.repartidorId) || (mockDeliverers && mockDeliverers[0]) || defaultDeliverer;
     return {
       id: `tracking-${order.id}`,
       orderId: order.id,
-      repartidor: mockDeliverers.find((d) => d.id === order.repartidorId) || mockDeliverers[0],
+      repartidor: foundDeliverer,
       estado: order.estado,
       horaEstimada: '',
       paradas: [

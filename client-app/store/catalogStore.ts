@@ -15,14 +15,26 @@ export interface AppBanner {
 
 interface CatalogStore {
   products: Product[];
+  totalProductsCount: number;
+  currentPage: number;
+  totalPagesCount: number;
+  pageSize: number;
   superOffers: any[];
   banners: AppBanner[];
   categoryBanners: Record<string, string>;
   categoryNames: Record<string, string>;
+  activeCategories: ProductCategory[]; // categorías habilitadas en BD
   isLoading: boolean;
   source: string;
   importedFileName?: string;
 
+  fetchPaginatedProducts: (options?: {
+    page?: number;
+    pageSize?: number;
+    search?: string;
+    categoria?: string;
+    sortBy?: 'relevante' | 'precio-bajo' | 'precio-alto' | 'mas-vendido';
+  }) => Promise<void>;
   fetchProducts: () => Promise<void>;
   fetchSuperOffers: () => Promise<void>;
   fetchBanners: () => Promise<void>;
@@ -34,21 +46,49 @@ interface CatalogStore {
 
 export const useCatalogStore = create<CatalogStore>((set, get) => ({
   products: [],
+  totalProductsCount: 0,
+  currentPage: 1,
+  totalPagesCount: 1,
+  pageSize: 24,
   superOffers: [],
   banners: [],
   categoryBanners: {},
   categoryNames: {},
+  activeCategories: [],
   isLoading: true,
 
   source: 'Supabase',
   importedFileName: undefined,
+
+  fetchPaginatedProducts: async (options = {}) => {
+    set({ isLoading: true });
+    try {
+      const isLoggedIn = useAuthStore.getState().isLoggedIn;
+      const res = await productService.getPaginated({
+        ...options,
+        isPublic: !isLoggedIn,
+      });
+
+      set({
+        products: res.data,
+        totalProductsCount: res.total,
+        currentPage: res.page,
+        totalPagesCount: res.totalPages,
+        pageSize: res.pageSize,
+        isLoading: false,
+      });
+    } catch (e) {
+      console.error('Error fetching paginated products:', e);
+      set({ isLoading: false });
+    }
+  },
 
   fetchProducts: async () => {
     set({ isLoading: true });
     try {
       const isLoggedIn = useAuthStore.getState().isLoggedIn;
       const prods = await productService.getAll(undefined, !isLoggedIn);
-      set({ products: prods, isLoading: false });
+      set({ products: prods, totalProductsCount: prods.length, isLoading: false });
     } catch (e) {
       console.error('Error fetching products in mobile app:', e);
       set({ isLoading: false });
@@ -73,7 +113,6 @@ export const useCatalogStore = create<CatalogStore>((set, get) => ({
         .eq('activo', true)
         .order('orden', { ascending: true });
       if (error) throw error;
-      // Map snake_case DB columns to camelCase interface
       const mapped: AppBanner[] = (data || []).map((b: any) => ({
         id: b.id,
         titulo: b.titulo,
@@ -111,10 +150,16 @@ export const useCatalogStore = create<CatalogStore>((set, get) => ({
         .select('*');
       if (error) throw error;
       const map: Record<string, string> = {};
+      // Las activas: si la columna activa existe filtramos, si no todas activas
+      const activeCats: ProductCategory[] = [];
       (data || []).forEach((n: any) => {
         map[n.categoria] = n.nombre;
+        // activa puede ser undefined si la migración 34 aún no se ejecutó → tratar como true
+        if (n.activa !== false) {
+          activeCats.push(n.categoria as ProductCategory);
+        }
       });
-      set({ categoryNames: map });
+      set({ categoryNames: map, activeCategories: activeCats });
     } catch (e) {
       console.error('Error fetching category names:', e);
     }

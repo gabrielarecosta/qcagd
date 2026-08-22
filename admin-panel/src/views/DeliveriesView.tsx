@@ -24,8 +24,13 @@ export function DeliveriesView() {
     updateOrder,
     drivers,
     updateDriver,
-    fetchData
+    fetchData,
+    fetchDeliveriesOnly
   } = useAdminStore();
+
+  useEffect(() => {
+    fetchDeliveriesOnly();
+  }, []);
 
   const centralBranchInfo = useMemo(() => getCentralBranchInfo(branches), [branches]);
 

@@ -18,8 +18,17 @@ export function DashboardView({ onNavigate, onFilterProductsNoPhoto }: Dashboard
     products, 
     deliveries, 
     clients, 
-    updateOrderStatus 
+    updateOrderStatus,
+    fetchOrdersOnly,
+    fetchClientsOnly,
+    fetchDeliveriesOnly
   } = useAdminStore();
+
+  React.useEffect(() => {
+    fetchOrdersOnly();
+    fetchClientsOnly();
+    fetchDeliveriesOnly();
+  }, []);
 
   const [dateFilter, setDateFilter] = useState<'hoy' | 'ayer' | '7dias' | 'mes' | 'personalizado'>('7dias');
   const [openActionDropdownOrderId, setOpenActionDropdownOrderId] = useState<string | null>(null);

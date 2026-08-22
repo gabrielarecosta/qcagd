@@ -4,7 +4,11 @@ import type { InternalUser, UserRole } from '@shared/types/user';
 
 
 export function UsersView() {
-  const { users, branches, activeBranchId, createUser, updateUser, deleteUser } = useAdminStore();
+  const { users, branches, activeBranchId, createUser, updateUser, deleteUser, fetchUsersOnly } = useAdminStore();
+
+  React.useEffect(() => {
+    fetchUsersOnly();
+  }, []);
 
   const handleDeleteClick = (id: string, nombre: string) => {
     setDeleteConfirmUser({ id, nombre, step: 1 });

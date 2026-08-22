@@ -35,7 +35,12 @@ interface SelectedComboItem {
 }
 
 export function SuperOffersView() {
-  const { superOffers, products, createSuperOffer, deleteSuperOffer, fetchData } = useAdminStore();
+  const { superOffers, products, createSuperOffer, deleteSuperOffer, fetchSuperOffersOnly, fetchProductsOnly } = useAdminStore();
+
+  React.useEffect(() => {
+    fetchSuperOffersOnly();
+    fetchProductsOnly();
+  }, []);
 
   // Filter state
   const [filterTab, setFilterTab] = useState<'active' | 'paused' | 'deleted' | 'all'>('active');

@@ -52,7 +52,11 @@ interface DepotSettings {
 }
 
 export function LogisticsView() {
-  const { users, activeBranchId, currentUser, fetchData, drivers } = useAdminStore();
+  const { users, activeBranchId, currentUser, fetchData, drivers, fetchDeliveriesOnly } = useAdminStore();
+
+  useEffect(() => {
+    fetchDeliveriesOnly();
+  }, []);
   
   // State variables
   const [orders, setOrders] = useState<OrderItemInfo[]>([]);

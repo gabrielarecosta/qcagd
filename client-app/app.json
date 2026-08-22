@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "QuimicaApp",
+    "name": "QUIMICA GENERAL DEHEZA",
     "slug": "quimicaapp",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -21,7 +21,7 @@
     },
     "web": {
       "bundler": "metro",
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/logo2.png"
     },
     "plugins": [
       [

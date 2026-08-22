@@ -52,6 +52,13 @@ interface AdminStore {
   setActiveBranchId: (id: string | 'all') => void;
   setCurrentUser: (user: InternalUser | null) => void;
   fetchData: (silent?: boolean) => Promise<void>;
+  fetchProductsOnly: () => Promise<void>;
+  fetchClientsOnly: () => Promise<void>;
+  fetchOrdersOnly: () => Promise<void>;
+  fetchDeliveriesOnly: () => Promise<void>;
+  fetchPaymentsOnly: () => Promise<void>;
+  fetchUsersOnly: () => Promise<void>;
+  fetchSuperOffersOnly: () => Promise<void>;
   updateGlobalMinOrderAmount: (amount: number) => Promise<void>;
   
   // Sucursales
@@ -152,39 +159,59 @@ export const useAdminStore = create<AdminStore>((set, get) => ({
   fetchData: async (silent = false) => {
     if (!silent) set({ isLoading: true });
     try {
-      const [
-        branchesRes,
-        usersRes,
-        clientsRes,
-        productsRes,
-        ordersRes,
-        deliveriesRes,
-        paymentsRes,
-        notificationsRes,
-        superOffersRes
-      ] = await Promise.allSettled([
+      const state = get();
+      const [branchesRes, notificationsRes] = await Promise.allSettled([
         branchService.getAll(),
-        userService.getAll(),
-        clientService.getAll(),
-        productService.getAll(),
-        orderService.getAll(),
-        deliveryService.getAll(),
-        paymentService.getAll(),
-        notificationService.getAll(),
-        productService.getSuperOffers()
+        notificationService.getAll()
       ]);
 
-      const branches = branchesRes.status === 'fulfilled' ? branchesRes.value : [];
-      const users = usersRes.status === 'fulfilled' ? usersRes.value : [];
-      const clients = clientsRes.status === 'fulfilled' ? clientsRes.value : [];
-      const products = productsRes.status === 'fulfilled' ? productsRes.value : [];
-      const orders = ordersRes.status === 'fulfilled' ? ordersRes.value : [];
-      const deliveries = deliveriesRes.status === 'fulfilled' ? deliveriesRes.value : [];
-      const payments = paymentsRes.status === 'fulfilled' ? paymentsRes.value : [];
-      const notifications = notificationsRes.status === 'fulfilled' ? notificationsRes.value : [];
-      const superOffers = superOffersRes.status === 'fulfilled' ? superOffersRes.value : [];
+      const branches = branchesRes.status === 'fulfilled' ? branchesRes.value : state.branches;
+      const notifications = notificationsRes.status === 'fulfilled' ? notificationsRes.value : state.notifications;
 
-      // Load stocks directly with fallback
+      let schedules: BranchSchedule[] = state.schedules;
+      if (!silent || schedules.length === 0) {
+        try {
+          const { data: schedData } = await supabase
+            .from('system_settings')
+            .select('value')
+            .eq('key', 'branch_schedules')
+            .maybeSingle();
+
+          schedules = schedData ? (schedData.value as BranchSchedule[]) : [];
+        } catch (_) {}
+      }
+
+      let globalMinOrderAmount = state.globalMinOrderAmount;
+      if (!silent) {
+        try {
+          const { data: minAmountData } = await supabase
+            .from('app_config')
+            .select('value')
+            .eq('key', 'global_order_min_amount')
+            .maybeSingle();
+
+          globalMinOrderAmount = minAmountData && minAmountData.value && typeof minAmountData.value === 'object' && 'amount' in minAmountData.value
+            ? Number((minAmountData.value as any).amount || 0)
+            : 0;
+        } catch (_) {}
+      }
+
+      set({
+        branches,
+        notifications,
+        schedules,
+        globalMinOrderAmount,
+        isLoading: false
+      });
+    } catch (e) {
+      console.error('Error fetching base data:', e);
+      set({ isLoading: false });
+    }
+  },
+
+  fetchProductsOnly: async () => {
+    try {
+      const products = await productService.getAll();
       let stocks: ProductStock[] = [];
       try {
         const { data: invData } = await supabase.from('inventory').select('*');
@@ -197,42 +224,39 @@ export const useAdminStore = create<AdminStore>((set, get) => ({
             disponible: Number(s.stock) > 0
           }));
         }
-      } catch (invErr) {
-        console.warn('Advertencia cargando inventario en adminStore:', invErr);
+      } catch (_) {}
+      set({ products, stocks });
+    } catch (e) {
+      console.error('Error fetching products:', e);
+    }
+  },
+
+  fetchClientsOnly: async () => {
+    try {
+      const clients = await clientService.getAll();
+      set({ clients });
+    } catch (e) {
+      console.error('Error fetching clients:', e);
+    }
+  },
+
+  fetchOrdersOnly: async () => {
+    try {
+      const orders = await orderService.getAll();
+      set({ orders });
+    } catch (e) {
+      console.error('Error fetching orders:', e);
+    }
+  },
+
+  fetchDeliveriesOnly: async () => {
+    try {
+      const deliveries = await deliveryService.getAll();
+      let users = get().users;
+      if (users.length === 0) {
+        users = await userService.getAll();
       }
-
-      // Load schedules from system settings with fallback
-      let schedules: BranchSchedule[] = [];
-      try {
-        const { data: schedData } = await supabase
-          .from('system_settings')
-          .select('value')
-          .eq('key', 'branch_schedules')
-          .maybeSingle();
-
-        schedules = schedData ? (schedData.value as BranchSchedule[]) : [];
-      } catch (schedErr) {
-        console.warn('Advertencia cargando horarios:', schedErr);
-      }
-
-      let globalMinOrderAmount = 0;
-      try {
-        const { data: minAmountData } = await supabase
-          .from('app_config')
-          .select('value')
-          .eq('key', 'global_order_min_amount')
-          .maybeSingle();
-
-        globalMinOrderAmount = minAmountData && minAmountData.value && typeof minAmountData.value === 'object' && 'amount' in minAmountData.value
-          ? Number((minAmountData.value as any).amount || 0)
-          : 0;
-      } catch (cfgErr) {
-        // ignore fallback
-      }
-
-      // Cargar repartidores basándonos en Personal/Roles (profiles con rol 'repartidor')
-      const repartidorUsers = users.filter(u => u.rol === 'repartidor');
-
+      const repartidorUsers = users.filter((u: any) => u.rol === 'repartidor');
       let driversMap = new Map();
       try {
         const { data: driversData } = await supabase
@@ -241,9 +265,7 @@ export const useAdminStore = create<AdminStore>((set, get) => ({
         if (driversData) {
           driversMap = new Map(driversData.map((d: any) => [d.id, d]));
         }
-      } catch (drvErr) {
-        // ignore fallback
-      }
+      } catch (_) {}
 
       const drivers = repartidorUsers.map((u: any) => {
         const d = driversMap.get(u.id);
@@ -260,25 +282,36 @@ export const useAdminStore = create<AdminStore>((set, get) => ({
         };
       });
 
-      set({
-        branches,
-        users,
-        clients,
-        products,
-        stocks,
-        orders,
-        deliveries,
-        schedules,
-        payments,
-        notifications,
-        superOffers,
-        drivers,
-        globalMinOrderAmount,
-        isLoading: false
-      });
+      set({ deliveries, users, drivers });
     } catch (e) {
-      console.error('Error fetching data from Supabase:', e);
-      set({ isLoading: false });
+      console.error('Error fetching deliveries:', e);
+    }
+  },
+
+  fetchPaymentsOnly: async () => {
+    try {
+      const payments = await paymentService.getAll();
+      set({ payments });
+    } catch (e) {
+      console.error('Error fetching payments:', e);
+    }
+  },
+
+  fetchUsersOnly: async () => {
+    try {
+      const users = await userService.getAll();
+      set({ users });
+    } catch (e) {
+      console.error('Error fetching users:', e);
+    }
+  },
+
+  fetchSuperOffersOnly: async () => {
+    try {
+      const superOffers = await productService.getSuperOffers();
+      set({ superOffers });
+    } catch (e) {
+      console.error('Error fetching super offers:', e);
     }
   },
 

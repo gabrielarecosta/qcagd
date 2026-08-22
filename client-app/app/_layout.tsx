@@ -113,6 +113,23 @@ export default function RootLayout() {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
     };
   }, []);
+  // Título y favicon para web
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    document.title = 'QUIMICA GENERAL DEHEZA';
+    // Favicon
+    const setFavicon = (href: string) => {
+      let link = document.querySelector<HTMLLinkElement>('link[rel~="icon"]');
+      if (!link) {
+        link = document.createElement('link');
+        link.rel = 'icon';
+        document.head.appendChild(link);
+      }
+      link.href = href;
+    };
+    setFavicon('/logo2.png');
+  }, []);
+
   if (!fontsLoaded && !fontError) {
     return null;
   }

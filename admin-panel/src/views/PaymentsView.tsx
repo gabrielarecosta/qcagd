@@ -18,8 +18,13 @@ export function PaymentsView({ initialTab = 'caja' }: PaymentsViewProps) {
     branches, 
     activeBranchId, 
     confirmPayment, 
-    createPaymentLog 
+    createPaymentLog,
+    fetchPaymentsOnly
   } = useAdminStore();
+
+  useEffect(() => {
+    fetchPaymentsOnly();
+  }, []);
 
   const [activeTab, setActiveTab] = useState<'caja' | 'config'>(initialTab);
   const [selectedMethod, setSelectedMethod] = useState<string>('all');

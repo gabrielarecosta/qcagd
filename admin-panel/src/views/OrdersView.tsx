@@ -16,7 +16,8 @@ export function OrdersView() {
     users,
     activeBranchId, 
     globalMinOrderAmount,
-    updateGlobalMinOrderAmount
+    updateGlobalMinOrderAmount,
+    fetchOrdersOnly
   } = useAdminStore();
 
   const [search, setSearch] = useState('');
@@ -24,6 +25,10 @@ export function OrdersView() {
   const [selectedPaymentStatus, setSelectedPaymentStatus] = useState<string>('all');
   const [localMinAmount, setLocalMinAmount] = useState<string>('');
   const [isSavingMinAmount, setIsSavingMinAmount] = useState(false);
+
+  React.useEffect(() => {
+    fetchOrdersOnly();
+  }, []);
 
   React.useEffect(() => {
     setLocalMinAmount(globalMinOrderAmount.toString());

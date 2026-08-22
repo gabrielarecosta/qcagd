@@ -20,16 +20,7 @@ interface AppBanner {
 export function ClientConfigView() {
   // Mock initial configuration states
 
-  const [categoriesConfig, setCategoriesConfig] = useState([
-    { id: '1', nombre: 'Limpieza', activa: true, itemsCount: 1540 },
-    { id: '2', nombre: 'Químicos', activa: true, itemsCount: 1200 },
-    { id: '3', nombre: 'Perfumería', activa: true, itemsCount: 850 },
-    { id: '4', nombre: 'Descartables', activa: true, itemsCount: 600 },
-    { id: '5', nombre: 'Piscina', activa: true, itemsCount: 400 },
-    { id: '6', nombre: 'Industrial', activa: true, itemsCount: 950 },
-    { id: '7', nombre: 'Hogar', activa: true, itemsCount: 300 },
-    { id: '8', nombre: 'Institucional', activa: false, itemsCount: 160 },
-  ]);
+  const [categoriesConfig, setCategoriesConfig] = useState<{ id: string; nombre: string; catKey: string; activa: boolean; itemsCount: number }[]>([]);
 
   const [banners, setBanners] = useState<AppBanner[]>([
     { 
@@ -84,21 +75,39 @@ export function ClientConfigView() {
           .select('*');
         if (bannerData) {
           const map: Record<string, string> = {};
-          bannerData.forEach((b: any) => {
-            map[b.categoria] = b.imagen;
-          });
+          bannerData.forEach((b: any) => { map[b.categoria] = b.imagen; });
           setCategoryBanners(map);
         }
 
+        // Cargar category_names dinámicamente
         const { data: nameData } = await supabase
           .from('category_names')
           .select('*');
         if (nameData) {
           const map: Record<string, string> = {};
-          nameData.forEach((n: any) => {
-            map[n.categoria] = n.nombre;
-          });
+          nameData.forEach((n: any) => { map[n.categoria] = n.nombre; });
           setCategoryNames(map);
+
+          // Contar productos por categoría
+          const { data: countData } = await supabase
+            .from('products')
+            .select('categoria')
+            .eq('activo', true);
+
+          const counts: Record<string, number> = {};
+          (countData || []).forEach((p: any) => {
+            counts[p.categoria] = (counts[p.categoria] || 0) + 1;
+          });
+
+          // Construir categoriesConfig desde la BD
+          const config = nameData.map((n: any, idx: number) => ({
+            id: String(idx + 1),
+            nombre: n.nombre,
+            catKey: n.categoria,
+            activa: n.activa !== false, // fallback true si columna no existe aun
+            itemsCount: counts[n.categoria] || 0,
+          }));
+          setCategoriesConfig(config);
         }
       } catch (e) {
         console.error('Error loading category data:', e);
@@ -212,10 +221,24 @@ export function ClientConfigView() {
     loadCompanySettings();
   }, []);
 
-  const handleToggleCategory = (id: string) => {
-    setCategoriesConfig(prev => 
-      prev.map(cat => cat.id === id ? { ...cat, activa: !cat.activa } : cat)
-    );
+  const handleToggleCategory = async (id: string) => {
+    const cat = categoriesConfig.find(c => c.id === id);
+    if (!cat) return;
+    const newActiva = !cat.activa;
+    // Optimistic update
+    setCategoriesConfig(prev => prev.map(c => c.id === id ? { ...c, activa: newActiva } : c));
+    // Persist to DB (columna activa - requiere migración 34)
+    try {
+      const { error } = await supabase
+        .from('category_names')
+        .update({ activa: newActiva })
+        .eq('categoria', cat.catKey);
+      if (error) {
+        console.warn('No se pudo guardar activa en BD (ejecutar migración 34):', error.message);
+      }
+    } catch (e) {
+      console.warn('Error guardando estado de categoría:', e);
+    }
   };
 
   const saveBannersToSupabase = async (updatedBanners: AppBanner[]) => {
@@ -406,7 +429,7 @@ export function ClientConfigView() {
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '16px' }}>
               {categoriesConfig.map(cat => {
-                const catKey = getCategoryKey(cat.nombre);
+                const catKey = cat.catKey;
                 const currentImg = categoryBanners[catKey] || '';
                 return (
                   <div key={cat.id} style={{ display: 'flex', flexDirection: 'column', gap: '12px', background: cat.activa ? 'var(--accent-light)' : '#f8fafc', padding: '16px', borderRadius: '12px', border: '1px solid', borderColor: cat.activa ? 'var(--accent-color)' : '#e2e8f0' }}>

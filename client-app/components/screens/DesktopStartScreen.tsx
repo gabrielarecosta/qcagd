@@ -20,6 +20,8 @@ import MaterialCommunityIcons from '../icons/MaterialCommunityIcons';
 import { supabase } from '@shared/services/supabaseClient';
 import { clientService } from '@shared/services/clientService';
 import { AppFooter } from '../AppFooter';
+import { MarqueeHeader } from '../ui/MarqueeHeader';
+import { BlinkingCatalogButton } from '../ui/BlinkingCatalogButton';
 
 const CAROUSEL_IMAGES = [
   {
@@ -294,6 +296,7 @@ export function DesktopStartScreen() {
 
   return (
     <View style={styles.screenBg}>
+      <MarqueeHeader />
       <View style={styles.mainCard}>
         {/* LADO IZQUIERDO: Portada y Carrusel (62% ancho) */}
         <View
@@ -546,15 +549,8 @@ export function DesktopStartScreen() {
                   <Text style={styles.btnSecondaryText}>Crear cuenta</Text>
                 </TouchableOpacity>
 
-                {/* Enlace ver catálogo */}
-                <TouchableOpacity
-                  style={styles.catalogLinkRow}
-                  onPress={() => router.push('/(tabs)/catalogo')}
-                  activeOpacity={0.7}
-                >
-                  <MaterialCommunityIcons name="shopping-outline" size={16} color={Colors.primary} style={{ marginRight: 6 }} />
-                  <Text style={styles.catalogLinkText}>Ver catálogo</Text>
-                </TouchableOpacity>
+                {/* Enlace ver catálogo titilando */}
+                <BlinkingCatalogButton onPress={() => router.push('/(tabs)/catalogo' as any)} />
               </View>
             )}
 

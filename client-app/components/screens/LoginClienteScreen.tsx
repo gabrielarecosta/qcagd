@@ -16,6 +16,9 @@ import { useAuthStore } from '../../store/authStore';
 import { customAlert } from '../../utils/alert';
 import MaterialCommunityIcons from '../icons/MaterialCommunityIcons';
 import { useEntrance } from '../../hooks/useEntrance';
+import { MarqueeHeader } from '../ui/MarqueeHeader';
+import { BlinkingCatalogButton } from '../ui/BlinkingCatalogButton';
+import { useRouter } from 'expo-router';
 
 interface LoginClienteScreenProps {
   onBack: () => void;
@@ -83,6 +86,7 @@ function AnimatedInput({
 }
 
 export function LoginClienteScreen({ onBack }: LoginClienteScreenProps) {
+  const router = useRouter();
   const { loginAsCliente, lastUsername, sessionExpired, setSessionExpired } = useAuthStore();
   const [loginInput, setLoginInput] = useState(lastUsername || '');
   const [loginPassword, setLoginPassword] = useState('');
@@ -114,6 +118,7 @@ export function LoginClienteScreen({ onBack }: LoginClienteScreenProps) {
 
   return (
     <SafeAreaView style={styles.safeArea}>
+      <MarqueeHeader />
       <ScrollView contentContainerStyle={styles.centerContent} keyboardShouldPersistTaps="handled">
 
         {/* Logo animado */}
@@ -170,6 +175,8 @@ export function LoginClienteScreen({ onBack }: LoginClienteScreenProps) {
           <TouchableOpacity style={styles.secondaryButton} onPress={handleBack} activeOpacity={0.8}>
             <Text style={styles.secondaryButtonText}>Volver</Text>
           </TouchableOpacity>
+
+          <BlinkingCatalogButton onPress={() => router.push('/(tabs)/catalogo' as any)} />
         </Animated.View>
 
       </ScrollView>

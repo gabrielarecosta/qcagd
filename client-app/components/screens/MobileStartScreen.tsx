@@ -21,6 +21,8 @@ import MaterialCommunityIcons from '../icons/MaterialCommunityIcons';
 import { supabase } from '@shared/services/supabaseClient';
 import { clientService } from '@shared/services/clientService';
 import { AppFooter } from '../AppFooter';
+import { MarqueeHeader } from '../ui/MarqueeHeader';
+import { BlinkingCatalogButton } from '../ui/BlinkingCatalogButton';
 
 const CAROUSEL_IMAGES = [
   {
@@ -294,6 +296,7 @@ export function MobileStartScreen() {
 
   return (
     <View style={styles.ordersMobilePage}>
+      <MarqueeHeader />
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ flexGrow: 1 }}
@@ -558,15 +561,8 @@ export function MobileStartScreen() {
                 <Text style={styles.btnSecondaryText}>Crear cuenta</Text>
               </TouchableOpacity>
 
-              {/* Ver catálogo */}
-              <TouchableOpacity
-                style={styles.catalogLink}
-                onPress={() => router.push('/(tabs)/catalogo')}
-                activeOpacity={0.7}
-              >
-                <MaterialCommunityIcons name="shopping-outline" size={18} color={Colors.primary} style={{ marginRight: 6 }} />
-                <Text style={styles.catalogLinkText}>Ver catálogo</Text>
-              </TouchableOpacity>
+              {/* Ver catálogo titilando */}
+              <BlinkingCatalogButton onPress={() => router.push('/(tabs)/catalogo' as any)} />
             </View>
           )}
 

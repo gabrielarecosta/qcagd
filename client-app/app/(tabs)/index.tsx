@@ -51,7 +51,14 @@ export default function HomeScreen() {
   const { repeatOrder, addProduct } = useCartStore();
   const { orders, activeDeliveryOrder, deliveredOrders, fetchOrders } = useOrderStore();
   const { isLoggedIn, clientData, userRole } = useAuthStore();
-  const { fetchProducts, fetchSuperOffers, superOffers, fetchBanners, banners, fetchCategoryBanners, categoryBanners, fetchCategoryNames, categoryNames } = useCatalogStore();
+  const { fetchProducts, fetchSuperOffers, superOffers, fetchBanners, banners, fetchCategoryBanners, categoryBanners, fetchCategoryNames, categoryNames, activeCategories } = useCatalogStore();
+
+  const displayedCategories = React.useMemo(() => {
+    if (activeCategories && activeCategories.length > 0) {
+      return QUICK_CATEGORIES.filter(cat => activeCategories.includes(cat));
+    }
+    return QUICK_CATEGORIES;
+  }, [activeCategories]);
 
   const [bannerIndex, setBannerIndex] = React.useState(0);
   const [selectedOfferDetails, setSelectedOfferDetails] = React.useState<any | null>(null);
@@ -73,7 +80,6 @@ export default function HomeScreen() {
     if (isLoggedIn && userRole === 'repartidor') {
       router.replace('/reparto');
     } else {
-      fetchProducts();
       fetchSuperOffers();
       fetchBanners();
       fetchCategoryBanners();
@@ -259,7 +265,8 @@ export default function HomeScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        {isDesktop && renderPromotionalBanners('desktop')}
+        {/* === BANNERS PROMOCIONALES === */}
+        {renderPromotionalBanners(isDesktop ? 'desktop' : 'mobile')}
 
         {/* === HEADER === */}
         <Animated.View style={[styles.header, headerAnim.animatedStyle]}>
@@ -273,6 +280,79 @@ export default function HomeScreen() {
               style={styles.logoImage}
               resizeMode="cover"
             />
+          </View>
+        </Animated.View>
+
+        {/* === ACCIONES RÁPIDAS === */}
+        <Animated.View style={[styles.section, quickActionsAnim.animatedStyle]}>
+          <Text style={styles.sectionTitle}>Acciones rápidas</Text>
+          <View style={styles.quickActions}>
+            <TouchableOpacity
+              style={[styles.quickAction, styles.quickActionPrimary]}
+              onPress={() => router.push('/(tabs)/catalogo')}
+              activeOpacity={0.88}
+            >
+              <MaterialCommunityIcons name="cart-plus" size={28} color={Colors.white} />
+              <Text style={styles.quickActionLabelPrimary}>Hacer pedido</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.quickAction, styles.quickActionSecondary]}
+              onPress={() => lastDelivered && handleRepeatOrder(lastDelivered)}
+              activeOpacity={0.88}
+            >
+              <MaterialCommunityIcons name="refresh" size={26} color={Colors.primary} />
+              <Text style={styles.quickActionLabel}>Repetir último{'\n'}pedido</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.quickAction, styles.quickActionSecondary]}
+              onPress={handleViewDelivery}
+              activeOpacity={0.88}
+            >
+              <MaterialCommunityIcons name="map-marker" size={26} color={Colors.primary} />
+              <Text style={styles.quickActionLabel}>Estado del{'\n'}reparto</Text>
+            </TouchableOpacity>
+          </View>
+        </Animated.View>
+
+        {/* === CATEGORÍAS === */}
+        <Animated.View style={[styles.section, categoriesAnim.animatedStyle]}>
+          <Text style={styles.sectionTitle}>Categorías principales</Text>
+          <View style={[styles.categoriesList, isDesktop && styles.categoriesListDesktop]}>
+            {displayedCategories.map((cat, i) => {
+              const bannerUrl = categoryBanners[cat] || '';
+              return (
+                <TouchableOpacity
+                  key={cat}
+                  style={[styles.categoryBannerCard, isDesktop && styles.categoryBannerCardDesktop]}
+                  onPress={() => handleCategoryPress(cat)}
+                  activeOpacity={0.82}
+                >
+                  {bannerUrl ? (
+                    <Image
+                      source={{ uri: bannerUrl }}
+                      style={styles.categoryBannerBg}
+                      resizeMode="cover"
+                    />
+                  ) : (
+                    <View style={[styles.categoryBannerBg, { backgroundColor: '#F1F5F9' }]} />
+                  )}
+                  <View style={styles.categoryBannerOverlay} />
+                  <View style={[styles.categoryBannerContent, isDesktop && styles.categoryBannerContentDesktop]}>
+                    <View style={styles.categoryBannerIconBg}>
+                      <MaterialCommunityIcons name={CATEGORY_ICONS[cat] as any} size={24} color="#fff" />
+                    </View>
+                    <Text style={[styles.categoryBannerText, isDesktop && styles.categoryBannerTextDesktop]}>
+                      {categoryNames[cat] || CATEGORY_LABELS[cat]}
+                    </Text>
+                    {!isDesktop && (
+                      <MaterialCommunityIcons name="chevron-right" size={20} color="#fff" style={{ marginLeft: 'auto' }} />
+                    )}
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
           </View>
         </Animated.View>
 
@@ -338,9 +418,7 @@ export default function HomeScreen() {
                         <Text style={[styles.offerOriginalPrice, { color: 'rgba(255, 255, 255, 0.5)' }]}>{formatPrice(offer.precio_original)}</Text>
                         <Text style={[styles.offerPromoPrice, { color: '#FFD700' }]}>{formatPrice(offer.precio_oferta)}</Text>
                       </View>
-                      <View
-                        style={[styles.offerBtn, { backgroundColor: '#FFFFFF' }]}
-                      >
+                      <View style={[styles.offerBtn, { backgroundColor: '#FFFFFF' }]}>
                         <Text style={[styles.offerBtnText, { color: cardColor }]}>🔍 Ver Combo</Text>
                       </View>
                     </TouchableOpacity>
@@ -350,9 +428,6 @@ export default function HomeScreen() {
             </View>
           </Animated.View>
         )}
-
-        {/* === BANNERS PROMOCIONALES === */}
-        {!isDesktop && renderPromotionalBanners('mobile')}
 
         {/* === BANNER REPARTO ACTIVO === */}
         {activeOrder && (
@@ -379,93 +454,6 @@ export default function HomeScreen() {
             </TouchableOpacity>
           </Animated.View>
         )}
-
-        {/* === ACCIONES RÁPIDAS === */}
-        <Animated.View style={[styles.section, quickActionsAnim.animatedStyle]}>
-          <Text style={styles.sectionTitle}>Acciones rápidas</Text>
-          <View style={styles.quickActions}>
-            <TouchableOpacity
-              style={[styles.quickAction, styles.quickActionPrimary]}
-              onPress={() => router.push('/(tabs)/catalogo')}
-              activeOpacity={0.88}
-            >
-              <MaterialCommunityIcons name="cart-plus" size={28} color={Colors.white} />
-              <Text style={styles.quickActionLabelPrimary}>Hacer pedido</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.quickAction, styles.quickActionSecondary]}
-              onPress={() => lastDelivered && handleRepeatOrder(lastDelivered)}
-              activeOpacity={0.88}
-            >
-              <MaterialCommunityIcons name="refresh" size={26} color={Colors.primary} />
-              <Text style={styles.quickActionLabel}>Repetir último{'\n'}pedido</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.quickAction, styles.quickActionSecondary]}
-              onPress={handleViewDelivery}
-              activeOpacity={0.88}
-            >
-              <MaterialCommunityIcons name="map-marker" size={26} color={Colors.primary} />
-              <Text style={styles.quickActionLabel}>Estado del{'\n'}reparto</Text>
-            </TouchableOpacity>
-          </View>
-        </Animated.View>
-
-        {/* === SECCIÓN REPETIR ÚLTIMO PEDIDO DETALLADO === */}
-        {lastDelivered && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Repetir último pedido</Text>
-            <OrderCard
-              order={lastDelivered}
-              onPress={(order) => setSelectedOrderForModal(order)}
-              onRepeat={handleRepeatOrder}
-              style={styles.lastOrderCard}
-              delay={0}
-            />
-          </View>
-        )}
-
-        {/* === CATEGORÍAS === */}
-        <Animated.View style={[styles.section, categoriesAnim.animatedStyle]}>
-          <Text style={styles.sectionTitle}>Categorías principales</Text>
-          <View style={[styles.categoriesList, isDesktop && styles.categoriesListDesktop]}>
-            {QUICK_CATEGORIES.map((cat, i) => {
-              const bannerUrl = categoryBanners[cat] || '';
-              return (
-                <TouchableOpacity
-                  key={cat}
-                  style={[styles.categoryBannerCard, isDesktop && styles.categoryBannerCardDesktop]}
-                  onPress={() => handleCategoryPress(cat)}
-                  activeOpacity={0.82}
-                >
-                  {bannerUrl ? (
-                    <Image
-                      source={{ uri: bannerUrl }}
-                      style={styles.categoryBannerBg}
-                      resizeMode="cover"
-                    />
-                  ) : (
-                    <View style={[styles.categoryBannerBg, { backgroundColor: '#F1F5F9' }]} />
-                  )}
-                  <View style={styles.categoryBannerOverlay} />
-                  <View style={[styles.categoryBannerContent, isDesktop && styles.categoryBannerContentDesktop]}>
-                    <View style={styles.categoryBannerIconBg}>
-                      <MaterialCommunityIcons name={CATEGORY_ICONS[cat] as any} size={24} color="#fff" />
-                    </View>
-                    <Text style={[styles.categoryBannerText, isDesktop && styles.categoryBannerTextDesktop]}>
-                      {categoryNames[cat] || CATEGORY_LABELS[cat]}
-                    </Text>
-                    {!isDesktop && (
-                      <MaterialCommunityIcons name="chevron-right" size={20} color="#fff" style={{ marginLeft: 'auto' }} />
-                    )}
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        </Animated.View>
 
         {/* === PRODUCTOS FRECUENTES === */}
         <Animated.View style={[styles.section, frequentAnim.animatedStyle]}>

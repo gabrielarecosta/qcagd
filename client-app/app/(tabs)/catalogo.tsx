@@ -69,9 +69,9 @@ export default function CatalogoScreen() {
 
   const {
     products,
-    searchProducts,
-    totalProducts,
-    fetchProducts,
+    totalProductsCount,
+    totalPagesCount,
+    fetchPaginatedProducts,
     isLoading,
     source,
     importedFileName,
@@ -81,32 +81,29 @@ export default function CatalogoScreen() {
     fetchSuperOffers,
     categoryNames,
     fetchCategoryNames,
+    activeCategories,
   } = useCatalogStore();
   const { categoria } = useLocalSearchParams<{ categoria?: string }>();
-
-  useEffect(() => {
-    fetchProducts();
-    fetchSuperOffers();
-    fetchCategoryBanners();
-    fetchCategoryNames();
-  }, [isLoggedIn]);
-
-  const filterOptions = useMemo(() => {
-    return [
-      { key: 'todos' as const, label: 'Todos', icon: 'magnify' },
-      ...ALL_PRODUCT_CATEGORIES.map((cat) => ({
-        key: cat,
-        label: categoryNames[cat] || CATEGORY_LABELS[cat],
-        icon: CATEGORY_ICONS[cat],
-      })),
-    ];
-  }, [categoryNames]);
 
   const [rawQuery, setRawQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<ProductCategory | 'todos'>('todos');
   const [sortBy, setSortBy] = useState<'relevante' | 'precio-bajo' | 'precio-alto' | 'mas-vendido'>('relevante');
   const [selectedProductDetails, setSelectedProductDetails] = useState<Product | null>(null);
   const [showFilterDropdown, setShowFilterDropdown] = useState(false);
+
+  const PAGE_SIZE = 24;
+  const [currentPage, setCurrentPage] = useState(1);
+  const flatListRef = useRef<FlatList>(null);
+
+  // Debounce para búsqueda
+  const query = useDebounce(rawQuery, 200);
+
+  // Cargar ofertas y banners accesorios
+  useEffect(() => {
+    fetchSuperOffers();
+    fetchCategoryBanners();
+    fetchCategoryNames();
+  }, [isLoggedIn]);
 
   // Si viene una categoría por parámetro, la aplicamos
   useEffect(() => {
@@ -115,68 +112,135 @@ export default function CatalogoScreen() {
     }
   }, [categoria]);
 
-  // Debounce: 200ms para no recalcular en cada tecla
-  const query = useDebounce(rawQuery, 200);
+  // Resetear a página 1 cuando cambia el filtro, término de búsqueda u orden
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [query, selectedCategory, sortBy]);
 
-  // Solo recalcula cuando query o categoría cambian (después del debounce)
-  const filteredProducts = useMemo(() => {
-    return searchProducts(
-      query,
-      selectedCategory === 'todos' ? undefined : selectedCategory
-    );
-  // `products` en las deps garantiza que el memo se recompute cuando
-  // Supabase responde, ya que searchProducts es una referencia estable.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query, selectedCategory, searchProducts, products]);
-
-  // Ordenar productos según coincidencia exacta de búsqueda, posesión de foto y criterio seleccionado
-  const sortedProducts = useMemo(() => {
-    const list = [...filteredProducts];
-
-    // Función auxiliar para determinar si tiene imagen válida
-    const hasImage = (p: any) => p.imagen && p.imagen.trim() !== '';
-
-    list.sort((a, b) => {
-      // 1. Priorizar coincidencia exacta de palabra si hay un término de búsqueda
-      if (query.trim()) {
-        const qEscaped = query.toLowerCase().trim().replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
-        const exactRegex = new RegExp('\\b' + qEscaped + '\\b', 'i');
-
-        const aExact = exactRegex.test(a.nombre) || exactRegex.test(a.codigo) ? 1 : 0;
-        const bExact = exactRegex.test(b.nombre) || exactRegex.test(b.codigo) ? 1 : 0;
-
-        if (aExact !== bExact) {
-          return bExact - aExact; // El que es coincidencia exacta va primero
-        }
-      }
-
-      // 2. Priorizar productos que tienen imagen para mejor estética visual
-      const aImg = hasImage(a) ? 1 : 0;
-      const bImg = hasImage(b) ? 1 : 0;
-
-      if (aImg !== bImg) {
-        return bImg - aImg;
-      }
-
-      // Si ambos tienen o ambos no tienen imagen, ordenamos según el criterio seleccionado
-      if (sortBy === 'precio-bajo') {
-        return a.precio - b.precio;
-      } else if (sortBy === 'precio-alto') {
-        return b.precio - a.precio;
-      } else if (sortBy === 'relevante') {
-        const aVal = a.destacado ? 1 : 0;
-        const bVal = b.destacado ? 1 : 0;
-        return bVal - aVal;
-      } else if (sortBy === 'mas-vendido') {
-        const aPop = (parseInt(a.id.replace(/[^0-9]/g, '')) || 0) % 97;
-        const bPop = (parseInt(b.id.replace(/[^0-9]/g, '')) || 0) % 97;
-        return bPop - aPop;
-      }
-      return 0;
+  // ⚡ CONSULTA PAGINADA SERVIDOR (Supabase range/limit + exact count)
+  useEffect(() => {
+    fetchPaginatedProducts({
+      page: currentPage,
+      pageSize: PAGE_SIZE,
+      search: query,
+      categoria: selectedCategory === 'todos' ? undefined : selectedCategory,
+      sortBy: sortBy,
     });
+  }, [currentPage, query, selectedCategory, sortBy, isLoggedIn]);
 
-    return list;
-  }, [filteredProducts, sortBy]);
+  const filterOptions = useMemo(() => {
+    const catsToShow = activeCategories.length > 0 ? activeCategories : ALL_PRODUCT_CATEGORIES;
+    return [
+      { key: 'todos' as const, label: 'Todos', icon: 'magnify' },
+      ...catsToShow.map((cat) => ({
+        key: cat,
+        label: categoryNames[cat] || CATEGORY_LABELS[cat],
+        icon: CATEGORY_ICONS[cat],
+      })),
+    ];
+  }, [categoryNames, activeCategories]);
+
+  const handlePageChange = useCallback((page: number) => {
+    if (page >= 1 && page <= totalPagesCount) {
+      setCurrentPage(page);
+      flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
+    }
+  }, [totalPagesCount]);
+
+  const renderPaginationFooter = useCallback(() => {
+    if (totalProductsCount === 0) return null;
+
+    const startItem = (currentPage - 1) * PAGE_SIZE + 1;
+    const endItem = Math.min(currentPage * PAGE_SIZE, totalProductsCount);
+
+    const pageNumbers: number[] = [];
+    const maxButtons = 5;
+    let startPage = Math.max(1, currentPage - Math.floor(maxButtons / 2));
+    let endPage = Math.min(totalPagesCount, startPage + maxButtons - 1);
+
+    if (endPage - startPage + 1 < maxButtons) {
+      startPage = Math.max(1, endPage - maxButtons + 1);
+    }
+
+    for (let i = startPage; i <= endPage; i++) {
+      pageNumbers.push(i);
+    }
+
+    return (
+      <View style={styles.paginationWrapper}>
+        <Text style={styles.paginationInfoText}>
+          Mostrando <Text style={styles.paginationHighlight}>{startItem}-{endItem}</Text> de <Text style={styles.paginationTotalText}>{totalProductsCount.toLocaleString('es-AR')}</Text> productos
+        </Text>
+
+        {totalPagesCount > 1 && (
+          <View style={styles.paginationControlsRow}>
+            {/* Primera página */}
+            <TouchableOpacity
+              style={[styles.paginationBtn, currentPage === 1 && styles.paginationBtnDisabled]}
+              onPress={() => handlePageChange(1)}
+              disabled={currentPage === 1}
+              activeOpacity={0.7}
+            >
+              <MaterialCommunityIcons name="chevron-double-left" size={18} color={currentPage === 1 ? '#94A3B8' : Colors.primary} />
+            </TouchableOpacity>
+
+            {/* Anterior */}
+            <TouchableOpacity
+              style={[styles.paginationBtn, currentPage === 1 && styles.paginationBtnDisabled]}
+              onPress={() => handlePageChange(currentPage - 1)}
+              disabled={currentPage === 1}
+              activeOpacity={0.7}
+            >
+              <MaterialCommunityIcons name="chevron-left" size={18} color={currentPage === 1 ? '#94A3B8' : Colors.primary} />
+              <Text style={[styles.paginationBtnText, currentPage === 1 && styles.paginationBtnTextDisabled]}>Ant</Text>
+            </TouchableOpacity>
+
+            {/* Números de página */}
+            {startPage > 1 && <Text style={styles.paginationEllipsis}>...</Text>}
+
+            {pageNumbers.map((p) => {
+              const isActive = p === currentPage;
+              return (
+                <TouchableOpacity
+                  key={p}
+                  style={[styles.paginationNumberBtn, isActive && styles.paginationNumberBtnActive]}
+                  onPress={() => handlePageChange(p)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.paginationNumberText, isActive && styles.paginationNumberTextActive]}>
+                    {p}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+
+            {endPage < totalPagesCount && <Text style={styles.paginationEllipsis}>...</Text>}
+
+            {/* Siguiente */}
+            <TouchableOpacity
+              style={[styles.paginationBtn, currentPage === totalPagesCount && styles.paginationBtnDisabled]}
+              onPress={() => handlePageChange(currentPage + 1)}
+              disabled={currentPage === totalPagesCount}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.paginationBtnText, currentPage === totalPagesCount && styles.paginationBtnTextDisabled]}>Sig</Text>
+              <MaterialCommunityIcons name="chevron-right" size={18} color={currentPage === totalPagesCount ? '#94A3B8' : Colors.primary} />
+            </TouchableOpacity>
+
+            {/* Última página */}
+            <TouchableOpacity
+              style={[styles.paginationBtn, currentPage === totalPagesCount && styles.paginationBtnDisabled]}
+              onPress={() => handlePageChange(totalPagesCount)}
+              disabled={currentPage === totalPagesCount}
+              activeOpacity={0.7}
+            >
+              <MaterialCommunityIcons name="chevron-double-right" size={18} color={currentPage === totalPagesCount ? '#94A3B8' : Colors.primary} />
+            </TouchableOpacity>
+          </View>
+        )}
+      </View>
+    );
+  }, [totalProductsCount, currentPage, totalPagesCount, handlePageChange]);
 
   // Filtrar ofertas que pertenecen a esta categoría específica
   const categoryOffers = useMemo(() => {
@@ -260,9 +324,9 @@ export default function CatalogoScreen() {
     []
   );
 
-  const keyExtractor = useCallback((item: Product) => item.id, []);
+  const keyExtractor = useCallback((item: Product) => String(item.id), []);
 
-  const total = totalProducts();
+  const total = totalProductsCount;
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -319,9 +383,7 @@ export default function CatalogoScreen() {
               <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8 }}>
                 <Text style={styles.headerTitle}>Catálogo</Text>
                 <Text style={styles.headerSubtitle}>
-                  {filteredProducts.length === total
-                    ? `${total.toLocaleString('es-AR')} art.`
-                    : `${filteredProducts.length.toLocaleString('es-AR')} de ${total.toLocaleString('es-AR')}`}
+                  {`${total.toLocaleString('es-AR')} art.`}
                 </Text>
               </View>
               {Platform.OS === 'web' && (
@@ -436,13 +498,30 @@ export default function CatalogoScreen() {
         )}
       </View>
 
+      {/* ── Barra fija "Volver a categorías" (visible siempre que haya una categoría seleccionada) ── */}
+      {selectedCategory !== 'todos' && (
+        <View style={styles.backBarFixed}>
+          <TouchableOpacity
+            style={styles.backBarBtn}
+            onPress={() => setSelectedCategory('todos')}
+            activeOpacity={0.8}
+          >
+            <MaterialCommunityIcons name="arrow-left" size={16} color={Colors.primary} />
+            <Text style={styles.backBarBtnText}>Todas las secciones</Text>
+          </TouchableOpacity>
+          <Text style={styles.backBarCategory}>
+            {categoryNames[selectedCategory] || CATEGORY_LABELS[selectedCategory]}
+          </Text>
+        </View>
+      )}
+
       {/* ── Lista de productos ── */}
       {isLoading ? (
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 }}>
           <ActivityIndicator size="large" color={Colors.primary} />
           <Text style={{ color: Colors.textSecondary, fontSize: 16 }}>Cargando catálogo...</Text>
         </View>
-      ) : filteredProducts.length === 0 ? (
+      ) : totalProductsCount === 0 ? (
         <View style={styles.emptyState}>
           <Text style={styles.emptyIcon}>🔍</Text>
           <Text style={styles.emptyTitle}>No encontramos productos</Text>
@@ -452,8 +531,9 @@ export default function CatalogoScreen() {
         </View>
       ) : (
         <FlatList
+          ref={flatListRef}
           key={`grid-cols-${numGridColumns}`}
-          data={sortedProducts}
+          data={products}
           keyExtractor={keyExtractor}
           renderItem={renderItem}
           numColumns={numGridColumns}
@@ -462,12 +542,6 @@ export default function CatalogoScreen() {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
-          initialNumToRender={10}
-          maxToRenderPerBatch={10}
-          updateCellsBatchingPeriod={50}
-          windowSize={3}
-          removeClippedSubviews={true}
-          getItemLayout={getItemLayout}
 
           ListHeaderComponent={
             selectedCategory !== 'todos' ? (
@@ -599,14 +673,7 @@ export default function CatalogoScreen() {
             )
           }
 
-          ListFooterComponent={
-            <View style={styles.listFooter}>
-              <Text style={styles.listFooterText}>
-                {filteredProducts.length.toLocaleString('es-AR')} artículos
-                {source === 'importado' && importedFileName && ` · ${importedFileName}`}
-              </Text>
-            </View>
-          }
+          ListFooterComponent={renderPaginationFooter}
         />
       )}
 
@@ -1040,6 +1107,57 @@ const styles = StyleSheet.create({
   listHeaderContainer: {
     marginBottom: Spacing.md,
   },
+  backBarFixed: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: '#EFF6FF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#BFDBFE',
+  },
+  backBarBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    backgroundColor: '#DBEAFE',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#93C5FD',
+  },
+  backBarBtnText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: Colors.primary,
+  },
+  backBarCategory: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: Colors.textPrimary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  backToCategoriesBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    backgroundColor: '#EFF6FF',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    alignSelf: 'flex-start',
+    marginBottom: 12,
+  },
+  backToCategoriesBtnText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.primary,
+  },
   coverBannerCard: {
     height: 140,
     borderRadius: Radius.xl,
@@ -1425,5 +1543,89 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 10,
     fontWeight: 'bold',
+  },
+
+  // Estilos de Paginación
+  paginationWrapper: {
+    paddingVertical: Spacing.xl,
+    paddingHorizontal: Spacing.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+    marginTop: Spacing.md,
+  },
+  paginationInfoText: {
+    fontSize: 13,
+    color: '#64748B',
+    textAlign: 'center',
+  },
+  paginationHighlight: {
+    fontWeight: '700',
+    color: Colors.primary,
+  },
+  paginationTotalText: {
+    fontWeight: '700',
+    color: Colors.textPrimary,
+  },
+  paginationControlsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    flexWrap: 'wrap',
+  },
+  paginationBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 2,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: Radius.md,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+  },
+  paginationBtnDisabled: {
+    backgroundColor: '#F8FAFC',
+    borderColor: '#E2E8F0',
+    opacity: 0.6,
+  },
+  paginationBtnText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.primary,
+  },
+  paginationBtnTextDisabled: {
+    color: '#94A3B8',
+  },
+  paginationNumberBtn: {
+    minWidth: 36,
+    height: 36,
+    borderRadius: Radius.md,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+  },
+  paginationNumberBtnActive: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+  },
+  paginationNumberText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#334155',
+  },
+  paginationNumberTextActive: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+  },
+  paginationEllipsis: {
+    fontSize: 14,
+    color: '#94A3B8',
+    paddingHorizontal: 2,
   },
 });

@@ -25,8 +25,13 @@ export function ProductsView({
     updateProduct, 
     createProduct, 
     updateBranchStock,
-    createSuperOffer
+    createSuperOffer,
+    fetchProductsOnly
   } = useAdminStore();
+
+  React.useEffect(() => {
+    fetchProductsOnly();
+  }, []);
 
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
@@ -81,6 +86,10 @@ export function ProductsView({
     precioOferta: 0,
   });
   const [offerItems, setOfferItems] = useState<{ productId: string; nombre: string; precio: number; cantidad: number; unidad: string }[]>([]);
+
+  const [isRecategorizing, setIsRecategorizing] = useState(false);
+  const [recatResult, setRecatResult] = useState<{ total: number; actualizados: number; porCategoria: Record<string, number> } | null>(null);
+  const [showRecatModal, setShowRecatModal] = useState(false);
 
   const itemsPerPage = 30;
 
@@ -310,6 +319,85 @@ export function ProductsView({
     XLSX.writeFile(workbook, fileName);
   };
 
+  // ─── Recategorización Automática ────────────────────────────────────────────
+  const RECAT_RULES: { categoria: string; patterns: string[] }[] = [
+    { categoria: 'piscina', patterns: ['piscina','pileta','cloro','clorina','algicida','alguicida','floculante','tricloro','cyanurico','estabilizador cloro','skimmer'] },
+    { categoria: 'quimicos', patterns: ['acido','soda caustica','hipoclorito','lavandina','percarbonato','peroxido','amoniac','alcohol isopropil','alcohol etilico','metanol','bicarbonato','fosfato','sulfato','nitrato','agua oxigenada','formol','glutaraldehido','solvente','acetona','thinner','diluyente','saponificad','glicerina','propilenglicol','surfactante','tensoactivo','neutralizante','desoxidante'] },
+    { categoria: 'limpieza', patterns: ['limpia','limpiador','limpiavidrio','lustramueble','multiuso','desengrasante','desinfectant','bactericida','virucida','higienizante','sanitizante','germicida','detergente','quitamancha','prelavado','suavizante ropa','blanqueador','enjuague ropa','lavaropa','lavavajilla','lavaplatos','escobillon','mop','trapeador','esponja','virulana','desodorizante amb','aromatizador','ambientador','aerosol limpieza','polvo limpiador','crema limpiadora','gel limpiador','quitasarro','antisarro'] },
+    { categoria: 'descartables', patterns: ['descartable','vaso plastico','vaso descart','plato plastico','plato descart','cubierto plast','tenedor plast','cuchara plast','cuchillo plast','sorbete','bombilla','pajita','bandeja alum','fuente alum','film stretch','film plastico','papel film','papel manteca','papel aluminio','bolsa residuo','bolsa basura','bolsa plastica','nylon','servilleta','papel de cocina','papel toalla','tissue','papel higienico','rollo cocina','panuelo desechable','guante latex','guante nitri','guante poliet','guante descart','cofia','barbijo','tapaboca','cubre calzado','camisolin','bata descartable'] },
+    { categoria: 'perfumeria', patterns: ['shampoo','champu','acondicionador','balsamo cabello','crema corporal','crema hidratante','crema facial','crema de manos','locion corporal','serum','gel de ducha','gel de bano','jabon liquido','jabon corporal','jabon tocador','desodorante roll','desodorante stick','desodorante spray','antitranspirante','talco','perfume','colonia','body splash','maquillaje','base de maquillaje','labial','rimmel','mascara de pestanas','sombra de ojos','delineador','agua micelar','protector solar','bloqueador solar','bronceador','depilatorio','hilo dental','cepillo dental','pasta dental','enjuague bucal','gel antibacterial'] },
+    { categoria: 'industrial', patterns: ['lubricante industrial','aceite de motor','aceite hidraulico','aceite industrial','grasa industrial','anticorrosivo','antioxido','pintura industrial','epoxy','epoxi','impermeabilizante','sellador industrial','silicona industrial','teflon','ptfe','desengripante','limpiador de circuitos','absorbente industrial','kit de derrame','arena absorbente','sepiolita'] },
+    { categoria: 'institucional', patterns: ['institucional','para hospital','clinica medica','uso medico','quirurgico','laboratorio clinico','farmacia','enfermeria','papel kraft','papel bond','resma de papel','sobre manila','archivador','papeleria','toner','tinta de impresora','formulario','etiqueta autoadhesiva','rollo termico','rollo posnet','escolar','hoteleria','hotelero','restaurante','gastronomico','cafeteria','panaderia','carniceria'] },
+    { categoria: 'hogar', patterns: ['hogar','cocina','jardin','insecticida','raticida','plagicida','mata mosca','mata cucaracha','repelente','mata insecto','fumigador','barniz','vela aromatica','sahumer','incienso','difusor aromas','alfombra','vajilla','olla ','sarten'] },
+  ];
+
+  const categorizarProducto = (nombre: string, codigo: string, descripcion?: string): string | null => {
+    const texto = [nombre, codigo, descripcion || ''].join(' ').toLowerCase()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    for (const rule of RECAT_RULES) {
+      for (const pattern of rule.patterns) {
+        const p = pattern.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        if (texto.includes(p)) return rule.categoria;
+      }
+    }
+    return null;
+  };
+
+  const handleRecategorizarAutomaticamente = async () => {
+    setIsRecategorizing(true);
+    setShowRecatModal(true);
+    setRecatResult(null);
+
+    try {
+      // Cargar TODOS los productos (sin paginación)
+      const { data: allProducts, error } = await supabase
+        .from('products')
+        .select('id, nombre, codigo, descripcion, categoria');
+
+      if (error) throw error;
+
+      const total = allProducts?.length || 0;
+      let actualizados = 0;
+      const porCategoria: Record<string, number> = {};
+
+      // Agrupar actualizaciones por categoría
+      const updates: { id: any; categoria: string }[] = [];
+      for (const p of (allProducts || [])) {
+        const nuevaCat = categorizarProducto(p.nombre, p.codigo, p.descripcion);
+        const catFinal = nuevaCat || 'hogar';
+        if (catFinal !== p.categoria) {
+          updates.push({ id: p.id, categoria: catFinal });
+          porCategoria[catFinal] = (porCategoria[catFinal] || 0) + 1;
+          actualizados++;
+        }
+      }
+
+      // Actualizar en batches de 50 por categoría
+      const byCat: Record<string, any[]> = {};
+      for (const u of updates) {
+        if (!byCat[u.categoria]) byCat[u.categoria] = [];
+        byCat[u.categoria].push(u.id);
+      }
+      for (const [cat, ids] of Object.entries(byCat)) {
+        for (let i = 0; i < ids.length; i += 50) {
+          const chunk = ids.slice(i, i + 50);
+          const { error: updErr } = await supabase
+            .from('products')
+            .update({ categoria: cat })
+            .in('id', chunk);
+          if (updErr) console.error('Error updating batch:', updErr);
+        }
+      }
+
+      setRecatResult({ total, actualizados, porCategoria });
+    } catch (e) {
+      console.error('Error recategorizando:', e);
+      alert('Error durante la recategorización. Ver consola.');
+    } finally {
+      setIsRecategorizing(false);
+    }
+  };
+
   const toggleSelectProduct = (productId: string) => {
     setSelectedProductIds(prev => 
       prev.includes(productId) ? prev.filter(id => id !== productId) : [...prev, productId]
@@ -389,6 +477,14 @@ export function ProductsView({
           )}
           <button className="btn btn-secondary" onClick={handleExportProducts}>
             📤 Exportar Excel
+          </button>
+          <button
+            className="btn btn-secondary"
+            onClick={handleRecategorizarAutomaticamente}
+            disabled={isRecategorizing}
+            style={{ background: '#7c3aed', color: '#fff', border: 'none', display: 'flex', alignItems: 'center', gap: '6px' }}
+          >
+            {isRecategorizing ? '⏳ Recategorizando...' : '🔄 Recategorizar automáticamente'}
           </button>
           <button className="btn btn-primary" onClick={handleOpenCreate}>
             ➕ Nuevo Producto
@@ -1136,6 +1232,69 @@ export function ProductsView({
                 <button type="submit" className="btn btn-primary">Crear Producto</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal Resultado Recategorización ── */}
+      {showRecatModal && (
+        <div className="modal-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div className="modal-content" style={{ background: '#fff', borderRadius: '12px', padding: '32px', maxWidth: '480px', width: '90%', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
+            <h2 style={{ marginTop: 0, fontSize: '18px', color: '#1e293b' }}>
+              {isRecategorizing ? '⏳ Recategorizando productos...' : '✅ Recategorización completada'}
+            </h2>
+
+            {isRecategorizing && (
+              <div style={{ textAlign: 'center', padding: '24px 0' }}>
+                <div style={{ fontSize: '40px', marginBottom: '12px', animation: 'spin 1s linear infinite' }}>🔄</div>
+                <p style={{ color: '#64748b', margin: 0 }}>Procesando {products.length.toLocaleString('es-AR')} productos...<br />Por favor no cierres esta ventana.</p>
+              </div>
+            )}
+
+            {recatResult && !isRecategorizing && (
+              <div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '20px' }}>
+                  <div style={{ background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: '8px', padding: '16px', textAlign: 'center' }}>
+                    <div style={{ fontSize: '28px', fontWeight: '700', color: '#0284c7' }}>{recatResult.total.toLocaleString('es-AR')}</div>
+                    <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>Total procesados</div>
+                  </div>
+                  <div style={{ background: '#f0fdf4', border: '1px solid #86efac', borderRadius: '8px', padding: '16px', textAlign: 'center' }}>
+                    <div style={{ fontSize: '28px', fontWeight: '700', color: '#16a34a' }}>{recatResult.actualizados.toLocaleString('es-AR')}</div>
+                    <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>Reclasificados</div>
+                  </div>
+                </div>
+
+                {recatResult.actualizados > 0 && (
+                  <div>
+                    <p style={{ fontSize: '13px', fontWeight: '600', color: '#374151', marginBottom: '8px' }}>Productos reclasificados por categoría:</p>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '200px', overflowY: 'auto' }}>
+                      {Object.entries(recatResult.porCategoria).sort((a, b) => b[1] - a[1]).map(([cat, n]) => (
+                        <div key={cat} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 12px', background: '#f8fafc', borderRadius: '6px' }}>
+                          <span style={{ fontSize: '13px', textTransform: 'capitalize', fontWeight: '500' }}>{cat}</span>
+                          <span style={{ fontSize: '13px', fontWeight: '700', color: '#7c3aed', background: '#ede9fe', padding: '2px 8px', borderRadius: '12px' }}>{n.toLocaleString('es-AR')}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {recatResult.actualizados === 0 && (
+                  <p style={{ color: '#64748b', textAlign: 'center', padding: '12px 0' }}>
+                    🎉 Todos los productos ya tenían la categoría correcta. No se realizaron cambios.
+                  </p>
+                )}
+              </div>
+            )}
+
+            <div style={{ marginTop: '24px', display: 'flex', justifyContent: 'flex-end' }}>
+              <button
+                className="btn btn-primary"
+                onClick={() => { setShowRecatModal(false); setRecatResult(null); }}
+                disabled={isRecategorizing}
+              >
+                {isRecategorizing ? 'Procesando...' : 'Cerrar'}
+              </button>
+            </div>
           </div>
         </div>
       )}

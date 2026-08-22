@@ -25,21 +25,34 @@ const STATUS_INDEX: Record<string, number> = {
 };
 
 export function DeliveryCard({ delivery }: DeliveryCardProps) {
-  const currentStep = STATUS_INDEX[delivery.estado] ?? 0;
+  const currentStep = STATUS_INDEX[delivery?.estado] ?? 0;
   
   // Buscar el pedido en el store para obtener el número de pedido real
-  const order = useOrderStore((state) => state.orders.find((o) => o.id === delivery.orderId));
+  const order = useOrderStore((state) => state.orders.find((o) => o.id === delivery?.orderId));
   const orderNum = order ? order.numero : '0000';
 
+  const repartidor = delivery?.repartidor || {
+    id: 'default',
+    nombre: 'Repartidor de la tienda',
+    telefono: '3584123456',
+    vehiculo: 'Vehículo de reparto',
+  };
+
+  const repartidorNombre = repartidor.nombre || 'Repartidor de la tienda';
+  const repartidorInicial = repartidorNombre.charAt(0).toUpperCase() || 'R';
+  const repartidorTelefono = repartidor.telefono || '3584123456';
+  const repartidorVehiculo = repartidor.vehiculo || 'Vehículo de reparto';
+
   const handleCallDeliverer = () => {
-    Linking.openURL(`tel:${delivery.repartidor.telefono}`);
+    Linking.openURL(`tel:${repartidorTelefono}`);
   };
 
   const handleWhatsAppDeliverer = () => {
     const text = encodeURIComponent(
       `Hola! Consulto por el estado del reparto de mi pedido ${orderNum}.`
     );
-    Linking.openURL(`https://wa.me/5493511234567?text=${text}`);
+    const cleanPhone = repartidorTelefono.replace(/[^0-9]/g, '');
+    Linking.openURL(`https://wa.me/${cleanPhone.startsWith('54') ? cleanPhone : `549${cleanPhone}`}?text=${text}`);
   };
 
   return (
@@ -49,14 +62,14 @@ export function DeliveryCard({ delivery }: DeliveryCardProps) {
         <View style={styles.delivererInfo}>
           <View style={styles.avatarCircle}>
             <Text style={styles.avatarText}>
-              {delivery.repartidor.nombre.charAt(0)}
+              {repartidorInicial}
             </Text>
           </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.delivererLabel}>Tu repartidor</Text>
-            <Text style={styles.delivererName}>{delivery.repartidor.nombre}</Text>
+            <Text style={styles.delivererName}>{repartidorNombre}</Text>
             <Text style={styles.delivererVehicle} numberOfLines={1}>
-              {delivery.repartidor.vehiculo}
+              {repartidorVehiculo}
             </Text>
           </View>
         </View>

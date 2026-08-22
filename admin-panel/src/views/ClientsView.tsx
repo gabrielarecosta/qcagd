@@ -8,7 +8,12 @@ import { supabase } from '@shared/services/supabaseClient';
 import { AddressLocationPicker } from '../components/AddressLocationPicker';
 
 export function ClientsView() {
-  const { clients, branches, updateClient, createClient, activeBranchId } = useAdminStore();
+  const { clients, branches, updateClient, createClient, activeBranchId, fetchClientsOnly } = useAdminStore();
+
+  useEffect(() => {
+    fetchClientsOnly();
+  }, []);
+
   const [search, setSearch] = useState('');
   const [selectedBranch, setSelectedBranch] = useState('all');
   const [selectedType, setSelectedType] = useState('all');

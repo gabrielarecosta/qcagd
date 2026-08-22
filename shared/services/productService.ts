@@ -26,6 +26,24 @@ const mapProduct = (d: any, rate: number = 1000, isPublic: boolean = false): Pro
   };
 };
 
+export interface PaginatedResult<T> {
+  data: T[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
+export interface ProductQueryOptions {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  categoria?: string;
+  sortBy?: 'relevante' | 'precio-bajo' | 'precio-alto' | 'mas-vendido';
+  isPublic?: boolean;
+  branchId?: string | number;
+}
+
 export const productService = {
   getLatestExchangeRate: async (): Promise<number> => {
     const { data, error } = await supabase
@@ -39,6 +57,104 @@ export const productService = {
       return 1000;
     }
     return data ? Number(data.valor_nuevo) : 1000;
+  },
+
+  getPaginated: async (options: ProductQueryOptions = {}): Promise<PaginatedResult<Product & { stock: number; stockMinimo: number }>> => {
+    const page = options.page || 1;
+    const pageSize = options.pageSize || 24;
+    const fromRange = (page - 1) * pageSize;
+    const toRange = fromRange + pageSize - 1;
+    const isPublic = !!options.isPublic;
+
+    const rate = await productService.getLatestExchangeRate();
+
+    let query = supabase
+      .from('products')
+      .select(
+        isPublic
+          ? 'id, codigo, nombre, categoria, subcategoria, presentacion, unidad, descripcion, imagen, activo, visible_en_app, destacado, created_at, updated_at, deleted_at, deleted_by'
+          : '*',
+        { count: 'exact' }
+      )
+      .is('deleted_at', null)
+      .eq('activo', true);
+
+    // 1. Filtrar por categoría
+    if (options.categoria && options.categoria !== 'todos') {
+      query = query.eq('categoria', options.categoria);
+    }
+
+    // 2. Búsqueda por texto (nombre, código, descripción)
+    if (options.search && options.search.trim()) {
+      const q = options.search.trim();
+      query = query.or(`nombre.ilike.%${q}%,codigo.ilike.%${q}%,descripcion.ilike.%${q}%`);
+    }
+
+    // 3. Ordenamiento del lado de Supabase
+    if (options.sortBy === 'precio-bajo') {
+      query = query.order('precio', { ascending: true });
+    } else if (options.sortBy === 'precio-alto') {
+      query = query.order('precio', { ascending: false });
+    } else if (options.sortBy === 'mas-vendido') {
+      query = query.order('id', { ascending: true });
+    } else {
+      query = query
+        .order('destacado', { ascending: false })
+        .order('nombre', { ascending: true });
+    }
+
+    // 4. Paginación server-side con range
+    query = query.range(fromRange, toRange);
+
+    const { data: chunk, count, error } = await query;
+
+    if (error) {
+      console.error('Error en consulta paginada de productos:', error.message);
+      return {
+        data: [],
+        total: 0,
+        page,
+        pageSize,
+        totalPages: 0,
+      };
+    }
+
+    const total = count ?? (chunk ? chunk.length : 0);
+    const totalPages = Math.ceil(total / pageSize) || 1;
+
+    // Cargar inventario únicamente para los productos devueltos en esta página
+    const prodIds = (chunk || []).map((p: any) => p.id);
+    let stocksMap = new Map();
+    if (prodIds.length > 0) {
+      try {
+        const { data: stockData } = await supabase
+          .from('inventory')
+          .select('*')
+          .in('product_id', prodIds);
+        if (stockData) {
+          stockData.forEach((s: any) => {
+            stocksMap.set(String(s.product_id), s);
+          });
+        }
+      } catch (_) {}
+    }
+
+    const mapped = (chunk || []).map((p: any) => {
+      const stockInfo = stocksMap.get(String(p.id));
+      return {
+        ...mapProduct(p, rate, isPublic),
+        stock: stockInfo ? Number(stockInfo.stock) : 0,
+        stockMinimo: stockInfo ? Number(stockInfo.stock_minimo) : 0,
+      };
+    });
+
+    return {
+      data: mapped,
+      total,
+      page,
+      pageSize,
+      totalPages,
+    };
   },
 
   getAll: async (branchId?: string, isPublic?: boolean): Promise<(Product & { stock: number; stockMinimo: number })[]> => {
@@ -1064,7 +1180,7 @@ export const productService = {
     const { data, error } = await supabase
       .from('super_offers')
       .select(isPublic ? `
-        id, nombre, descripcion, activo, created_at, updated_at,
+        id, nombre, descripcion, activo, created_at,
         super_offer_items (
           id, offer_id, product_id, cantidad, unidad,
           products:products (
@@ -1103,8 +1219,7 @@ export const productService = {
       .from('super_offers')
       .update({
         activo: false,
-        deleted_at: nowStr,
-        updated_at: nowStr
+        deleted_at: nowStr
       })
       .eq('id', id);
 
@@ -1112,8 +1227,7 @@ export const productService = {
       const { error: fallbackErr } = await supabase
         .from('super_offers')
         .update({
-          activo: false,
-          updated_at: nowStr
+          activo: false
         })
         .eq('id', id);
       if (fallbackErr) throw fallbackErr;
