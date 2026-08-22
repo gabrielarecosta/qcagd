@@ -17,6 +17,9 @@ export interface Customer {
   latitude?: number;
   longitude?: number;
   locationVerified?: boolean;
+  ctaCteAutorizada?: boolean;
+  limiteCredito?: number;
+  mayoristaAutorizado?: boolean;
 }
 
 export interface CustomerAddress {

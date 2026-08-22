@@ -6,6 +6,7 @@ import { getPaymentMethodLabel } from '@shared/utils/paymentUtils';
 import { getOrderStatusLabel } from '@shared/utils/orderStatusUtils';
 import * as XLSX from 'xlsx';
 import { supabase } from '@shared/services/supabaseClient';
+import { ExtraModuleWrapper } from '../components/ExtraModuleWrapper';
 
 export function ReportsView() {
   const { activeBranchId } = useAdminStore();
@@ -124,15 +125,21 @@ export function ReportsView() {
     <div className="view-container">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
         <div>
-          <h1 className="page-title">Estadísticas y Reportes</h1>
-          <p className="page-desc">Informes analíticos de facturación, desempeño de sucursales y rotación de stock</p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+            <h1 className="page-title" style={{ margin: 0 }}>Estadísticas y Reportes Financieros Avanzados</h1>
+            <span style={{ backgroundColor: '#ef4444', color: '#ffffff', fontSize: '11px', fontWeight: 800, padding: '3px 8px', borderRadius: '6px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              📌 MÓDULO ADICIONAL OPCIONAL (COTIZA APARTE)
+            </span>
+          </div>
+          <p className="page-desc" style={{ marginTop: '4px' }}>Informes analíticos de facturación, desempeño de sucursales y rotación de stock</p>
         </div>
         <button className="btn btn-secondary" onClick={handleExportStats}>
           📤 Exportar Excel Completo
         </button>
       </div>
 
-      {/* Tarjetas KPI de Resumen */}
+      <ExtraModuleWrapper title="Módulo de Reportes Financieros Avanzados" description="Los reportes analíticos consolidados de facturación, métricas VIP y rotación de stock se encuentran contemplados como módulo adicional opcional.">
+        {/* Tarjetas KPI de Resumen */}
       <div className="form-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '20px', marginBottom: '24px' }}>
         <div className="card-wrapper" style={{ padding: '20px' }}>
           <h4 style={{ margin: '0 0 6px 0', fontSize: '13px', color: '#64748b' }}>FACTURACIÓN HOY</h4>
@@ -382,6 +389,7 @@ export function ReportsView() {
           </div>
         </div>
       </div>
+      </ExtraModuleWrapper>
     </div>
   );
 }

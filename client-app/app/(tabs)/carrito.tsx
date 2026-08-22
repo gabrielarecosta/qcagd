@@ -141,6 +141,11 @@ export default function CarritoScreen() {
 
   // Helper para saber si un método de pago está habilitado para el tipo de cliente actual
   const isMethodAllowed = useCallback((methodId: string) => {
+    if (methodId === 'cuenta_corriente') {
+      // Requerir explícitamente autorización previa del administrador
+      if (!clientData?.ctaCteAutorizada) return false;
+    }
+
     if (!paymentConfigs || paymentConfigs.length === 0) return true;
     const cfg = paymentConfigs.find(c => c.id === methodId);
     if (!cfg || !cfg.activo) return false;
@@ -149,7 +154,7 @@ export default function CarritoScreen() {
     if (currentType === 'sucursal') return cfg.disponibleSucursal;
     if (currentType === 'mayorista') return cfg.disponibleMayorista;
     return cfg.disponibleMinorista; // minorista / consumidor_final
-  }, [paymentConfigs, clientData?.tipoCliente]);
+  }, [paymentConfigs, clientData?.tipoCliente, clientData?.ctaCteAutorizada]);
 
   // Si el método actual fue deshabilitado, cambiar automáticamente al primer método disponible
   useEffect(() => {

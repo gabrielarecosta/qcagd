@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useAdminStore } from '../store/adminStore';
 import type { InternalUser, UserRole } from '@shared/types/user';
-
+import { ExtraModuleWrapper } from '../components/ExtraModuleWrapper';
 
 export function UsersView() {
   const { users, branches, activeBranchId, createUser, updateUser, deleteUser, fetchUsersOnly } = useAdminStore();
@@ -160,15 +160,21 @@ export function UsersView() {
     <div className="view-container">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
         <div>
-          <h1 className="page-title">Personal e Internos</h1>
-          <p className="page-desc">Administrar accesos de colaboradores, asignar roles operativos y sectorizar tareas</p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+            <h1 className="page-title" style={{ margin: 0 }}>Roles y Permisos de Personal Complejos</h1>
+            <span style={{ backgroundColor: '#ef4444', color: '#ffffff', fontSize: '11px', fontWeight: 800, padding: '3px 8px', borderRadius: '6px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              📌 MÓDULO ADICIONAL OPCIONAL (COTIZA APARTE)
+            </span>
+          </div>
+          <p className="page-desc" style={{ marginTop: '4px' }}>Administrar accesos de colaboradores, asignar roles operativos y sectorizar tareas</p>
         </div>
         <button className="btn btn-primary" onClick={handleOpenCreate}>
           ➕ Registrar Colaborador
         </button>
       </div>
 
-      {/* Filtros */}
+      <ExtraModuleWrapper title="Módulo de Roles y Permisos Complejos" description="La gestión avanzada de roles y permisos con matriz de accesos sectorizados por sucursal se encuentra contemplada como módulo adicional opcional.">
+        {/* Filtros */}
       <div className="card-wrapper" style={{ marginBottom: '20px', padding: '16px' }}>
         <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
           <div style={{ flex: 1, minWidth: '250px' }}>
@@ -263,6 +269,7 @@ export function UsersView() {
           </table>
         </div>
       </div>
+      </ExtraModuleWrapper>
 
       {/* Modal Editar */}
       {editingUser && (

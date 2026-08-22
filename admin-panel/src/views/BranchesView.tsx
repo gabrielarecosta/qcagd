@@ -4,6 +4,7 @@ import { Branch } from '@shared/types/branch';
 import { formatPrice } from '@shared/utils/formatCurrency';
 import { geocodeAddress } from '@shared/utils/geo';
 import { suggestDehezaStreets } from '@shared/utils/dehezaStreets';
+import { ExtraModuleWrapper } from '../components/ExtraModuleWrapper';
 
 export function BranchesView() {
   const { branches, updateBranch, orders, users } = useAdminStore();
@@ -176,13 +177,19 @@ export function BranchesView() {
   };
 
   return (
-    <div>
-      <div>
-        <h1 className="page-title">Gestión de Sucursales y Casa Central</h1>
-        <p className="page-desc">Administrar la ubicación de Casa Central / Depósito, datos de contacto y coordenadas geográficas</p>
+    <div className="view-container">
+      <div style={{ marginBottom: '24px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+          <h1 className="page-title" style={{ margin: 0 }}>Gestión de Sucursales y Casa Central</h1>
+          <span style={{ backgroundColor: '#ef4444', color: '#ffffff', fontSize: '11px', fontWeight: 800, padding: '3px 8px', borderRadius: '6px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+            📌 MÓDULO ADICIONAL OPCIONAL (COTIZA APARTE)
+          </span>
+        </div>
+        <p className="page-desc" style={{ marginTop: '4px' }}>Administrar la ubicación de Casa Central / Depósito, datos de contacto y coordenadas geográficas</p>
       </div>
 
-      <div className="card-wrapper">
+      <ExtraModuleWrapper title="Módulo Multi-Sucursal Avanzado" description="La gestión de múltiples sucursales con depósitos, reglas y stocks independientes se encuentra contemplada como módulo adicional opcional.">
+        <div className="card-wrapper">
         <div className="card-header">
           <h2 className="card-title">Listado de Sucursales</h2>
         </div>
@@ -246,6 +253,7 @@ export function BranchesView() {
           </div>
         </div>
       </div>
+      </ExtraModuleWrapper>
 
       {/* Modal para Editar Sucursal / Casa Central */}
       {editingBranch && (

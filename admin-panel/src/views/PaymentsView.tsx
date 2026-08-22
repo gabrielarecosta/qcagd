@@ -6,6 +6,7 @@ import { companySettingsService } from '@shared/services/companySettingsService'
 
 import { formatPrice } from '@shared/utils/formatCurrency';
 import { getPaymentMethodLabel, getPaymentStatusLabel } from '@shared/utils/paymentUtils';
+import { ExtraModuleWrapper } from '../components/ExtraModuleWrapper';
 
 interface PaymentsViewProps {
   initialTab?: 'caja' | 'config';
@@ -233,8 +234,21 @@ export function PaymentsView({ initialTab = 'caja' }: PaymentsViewProps) {
     <div className="view-container">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <div>
-          <h1 className="page-title">Caja y Medios de Pago</h1>
-          <p className="page-desc">Monitorear cobros de repartidores, verificar transferencias bancarias y habilitar o restringir medios de pago por cliente</p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+            <h1 className="page-title" style={{ margin: 0 }}>
+              {activeTab === 'caja' ? 'Caja Avanzada y Conciliación' : 'Medios de Pago & CBU'}
+            </h1>
+            {activeTab === 'caja' && (
+              <span style={{ backgroundColor: '#ef4444', color: '#ffffff', fontSize: '11px', fontWeight: 800, padding: '3px 8px', borderRadius: '6px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                📌 MÓDULO ADICIONAL OPCIONAL (COTIZA APARTE)
+              </span>
+            )}
+          </div>
+          <p className="page-desc" style={{ marginTop: '4px' }}>
+            {activeTab === 'caja' 
+              ? 'Monitorear cobros de repartidores, verificar transferencias bancarias y liquidación de cajas'
+              : 'Configurar datos bancarios (CBU/Alias), cuentas de transferencia y habilitación de medios de pago'}
+          </p>
         </div>
         {activeTab === 'caja' && (
           <button className="btn btn-primary" onClick={() => setShowSimulator(true)} style={{ background: '#009ee3' }}>
@@ -257,13 +271,13 @@ export function PaymentsView({ initialTab = 'caja' }: PaymentsViewProps) {
           onClick={() => setActiveTab('config')}
           style={{ padding: '8px 18px', fontSize: '14px', borderRadius: '8px' }}
         >
-          ⚙️ Configuración de Medios de Pago
+          ⚙️ Configuración de Medios de Pago & CBU
         </button>
       </div>
 
-      {/* ── TAB 1: CAJA Y CONCILIACIÓN ── */}
+      {/* ── TAB 1: CAJA Y CONCILIACIÓN (Módulo Extra) ── */}
       {activeTab === 'caja' && (
-        <>
+        <ExtraModuleWrapper title="Módulo de Caja Avanzado y Conciliación" description="El control avanzado de caja, arqueos y conciliación bancaria/pasarelas se encuentra contemplado como módulo adicional opcional.">
           {/* KPI Cards */}
           <div className="form-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', marginBottom: '24px' }}>
             <div className="card-wrapper" style={{ padding: '20px' }}>
@@ -399,10 +413,10 @@ export function PaymentsView({ initialTab = 'caja' }: PaymentsViewProps) {
               </table>
             </div>
           </div>
-        </>
+        </ExtraModuleWrapper>
       )}
 
-      {/* ── TAB 2: CONFIGURACIÓN DE MEDIOS DE PAGO & DATOS BANCARIOS ── */}
+      {/* ── TAB 2: CONFIGURACIÓN DE MEDIOS DE PAGO & DATOS BANCARIOS (UNLOCKED / EN PROPUESTA) ── */}
       {activeTab === 'config' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
           

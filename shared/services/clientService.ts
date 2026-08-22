@@ -18,9 +18,12 @@ const mapCustomer = (d: any): Customer => ({
   latitude: d.latitude ? Number(d.latitude) : undefined,
   longitude: d.longitude ? Number(d.longitude) : undefined,
   locationVerified: d.location_verified || false,
+  ctaCteAutorizada: d.cta_cte_autorizada ?? false,
+  limiteCredito: d.limite_credito ? Number(d.limite_credito) : 0,
+  mayoristaAutorizado: d.mayorista_autorizado ?? (d.tipo_cliente !== 'mayorista' && d.tipo_cliente !== 'sucursal'),
 });
 
-const CUSTOMER_COLUMNS = 'id, nombre, razon_social, cuit, telefono, whatsapp, email, direccion, branch_id, tipo_cliente, activo, observaciones, fecha_alta, latitude, longitude, location_verified';
+const CUSTOMER_COLUMNS = '*';
 
 export const clientService = {
   getAll: async (branchId?: string): Promise<Customer[]> => {
@@ -60,18 +63,42 @@ export const clientService = {
       latitude: updates.latitude,
       longitude: updates.longitude,
       location_verified: updates.locationVerified ?? (updates.latitude ? true : undefined),
+      cta_cte_autorizada: updates.ctaCteAutorizada,
+      limite_credito: updates.limiteCredito,
+      mayorista_autorizado: updates.mayoristaAutorizado,
       updated_at: new Date().toISOString(),
     };
 
     Object.keys(dbUpdates).forEach(key => dbUpdates[key] === undefined && delete dbUpdates[key]);
 
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('customers')
       .update(dbUpdates)
       .eq('id', id)
-      .select(CUSTOMER_COLUMNS)
+      .select('*')
       .single();
-    if (error) throw error;
+
+    if (error && error.message?.includes('column')) {
+      delete dbUpdates.cta_cte_autorizada;
+      delete dbUpdates.limite_credito;
+      delete dbUpdates.mayorista_autorizado;
+      const { data: retryData, error: retryErr } = await supabase
+        .from('customers')
+        .update(dbUpdates)
+        .eq('id', id)
+        .select('*')
+        .single();
+      if (retryErr) throw retryErr;
+      data = { 
+        ...retryData, 
+        cta_cte_autorizada: updates.ctaCteAutorizada, 
+        limite_credito: updates.limiteCredito, 
+        mayorista_autorizado: updates.mayoristaAutorizado 
+      };
+    } else if (error) {
+      throw error;
+    }
+
     return mapCustomer(data);
   },
 

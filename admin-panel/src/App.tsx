@@ -26,6 +26,7 @@ type TabType =
   | 'superoffers'
   | 'excel'
   | 'clients'
+  | 'ctaCte'
   | 'orders'
   | 'deliveries'
   | 'logistics'
@@ -127,6 +128,13 @@ const getSidebarIcon = (id: TabType) => {
           <circle cx="9" cy="7" r="4"/>
           <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
           <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+        </svg>
+      );
+    case 'ctaCte':
+      return (
+        <svg {...props}>
+          <rect x="2" y="4" width="20" height="16" rx="2" ry="2"/>
+          <line x1="2" y1="10" x2="22" y2="10"/>
         </svg>
       );
     case 'branches':
@@ -285,19 +293,19 @@ function App() {
     { id: 'dashboard', label: 'Dashboard', group: 'Operaciones' },
     { id: 'orders', label: 'Monitor Pedidos', group: 'Operaciones' },
     { id: 'deliveries', label: 'Hojas de Ruta', group: 'Operaciones' },
-    { id: 'payments', label: 'Caja / Pagos', group: 'Operaciones' },
-
+    { id: 'payments', label: 'Caja Avanzada (Módulo Extra)', group: 'Operaciones' },
     
     { id: 'products', label: 'Catálogo Artículos', group: 'Catálogo & Clientes' },
     { id: 'superoffers', label: '🔥 Súper Ofertas', group: 'Catálogo & Clientes' },
     { id: 'excel', label: 'Cargar desde Excel', group: 'Catálogo & Clientes' },
     { id: 'clients', label: 'Directorio Clientes', group: 'Catálogo & Clientes' },
+    { id: 'ctaCte', label: '💳 Cta. Cte. (Módulo Extra)', group: 'Catálogo & Clientes' },
     
-    { id: 'branches', label: 'Sucursales', group: 'Configuración' },
+    { id: 'branches', label: 'Multi-Sucursal (Módulo Extra)', group: 'Configuración' },
     { id: 'paymentConfig', label: 'Medios de Pago & CBU', group: 'Configuración' },
     { id: 'clientConfig', label: 'Configuración App', group: 'Configuración' },
-    { id: 'users', label: 'Personal / Roles', group: 'Configuración' },
-    { id: 'reports', label: 'Reportes / Métricas', group: 'Configuración' },
+    { id: 'users', label: 'Roles Complejos (Módulo Extra)', group: 'Configuración' },
+    { id: 'reports', label: 'Reportes Avanzados (Módulo Extra)', group: 'Configuración' },
   ] as const;
 
   // Render the selected view
@@ -327,7 +335,9 @@ function App() {
       case 'excel':
         return <ExcelImportView />;
       case 'clients':
-        return <ClientsView />;
+        return <ClientsView initialSection="directorio" />;
+      case 'ctaCte':
+        return <ClientsView initialSection="ctaCte" />;
       case 'orders':
         return <OrdersView />;
       case 'deliveries':
