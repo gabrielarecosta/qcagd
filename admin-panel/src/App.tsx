@@ -178,6 +178,7 @@ const getSidebarIcon = (id: TabType) => {
 };
 
 function App() {
+  const isAutoLogin = typeof window !== 'undefined' && window.location.search.includes('autologin=1');
   const urlTab = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('tab') : null;
   const [activeTab, setActiveTab] = useState<TabType>((urlTab as TabType) || 'dashboard');
   const [productFilter, setProductFilter] = useState<'all' | 'no-photo'>('all');
@@ -386,7 +387,6 @@ function App() {
     setSearchQuery('');
   };
 
-  const isAutoLogin = typeof window !== 'undefined' && window.location.search.includes('autologin=1');
   const activeUser = currentUser || (isAutoLogin ? { id: '1', nombre: 'Administrador General', email: 'admin@quimicadeheza.com', rol: 'admin', activo: true } : null);
 
   if (!activeUser) {
