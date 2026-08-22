@@ -25,11 +25,15 @@ export function DeliveriesView() {
     drivers,
     updateDriver,
     fetchData,
-    fetchDeliveriesOnly
+    fetchDeliveriesOnly,
+    fetchOrdersOnly,
+    fetchClientsOnly
   } = useAdminStore();
 
   useEffect(() => {
     fetchDeliveriesOnly();
+    fetchOrdersOnly();
+    fetchClientsOnly();
   }, []);
 
   const centralBranchInfo = useMemo(() => getCentralBranchInfo(branches), [branches]);
@@ -209,20 +213,22 @@ export function DeliveriesView() {
         if (!order) continue;
 
         const client = clients.find(c => String(c.id) === String(order.clienteId));
-        let lat = order.latitude ? Number(order.latitude) : (client as any)?.latitude ? Number((client as any).latitude) : 0;
-        let lng = order.longitude ? Number(order.longitude) : (client as any)?.longitude ? Number((client as any).longitude) : 0;
+        const rawLat = order.latitude ?? (client as any)?.latitude;
+        const rawLng = order.longitude ?? (client as any)?.longitude;
+        let lat = rawLat && !isNaN(Number(rawLat)) ? Number(rawLat) : 0;
+        let lng = rawLng && !isNaN(Number(rawLng)) ? Number(rawLng) : 0;
 
         // Si no tiene coordenadas válidas, resolver con geocodificación precisa y sugerencia de calle
-        if (!lat || !lng) {
+        if (!lat || !lng || isNaN(lat) || isNaN(lng)) {
           const address = order.formattedAddress || order.originalAddress || client?.direccion || '';
           try {
             const geo = await geocodeAddress(address, 'General Deheza', 'Córdoba');
-            if (geo && (geo.latitude !== -32.7561 || geo.longitude !== -63.7845)) {
+            if (geo && (geo.latitude !== -32.7561 || geo.longitude !== -63.7845) && !isNaN(geo.latitude)) {
               lat = geo.latitude;
               lng = geo.longitude;
             } else {
               const dehezaSug = suggestDehezaStreets(address, 1);
-              if (dehezaSug.length > 0) {
+              if (dehezaSug.length > 0 && !isNaN(dehezaSug[0].latitude)) {
                 lat = dehezaSug[0].latitude;
                 lng = dehezaSug[0].longitude;
               } else {
@@ -232,7 +238,7 @@ export function DeliveriesView() {
             }
           } catch (e) {
             const dehezaSug = suggestDehezaStreets(address, 1);
-            if (dehezaSug.length > 0) {
+            if (dehezaSug.length > 0 && !isNaN(dehezaSug[0].latitude)) {
               lat = dehezaSug[0].latitude;
               lng = dehezaSug[0].longitude;
             } else {
@@ -282,7 +288,7 @@ export function DeliveriesView() {
     };
 
     runOptimization();
-  }, [selectedOrderIds, startPointCoords, isPlanning]);
+  }, [selectedOrderIds, startPointCoords, isPlanning, orders, clients]);
 
   // Renderizar mapa interactivo Leaflet del modal de planificación
   useEffect(() => {
@@ -369,13 +375,15 @@ export function DeliveriesView() {
       // Renderizar TODOS los pedidos filtrados en el mapa
       filteredEligibleOrders.forEach((o, idx) => {
         const client = clients.find(c => String(c.id) === String(o.clienteId));
-        let lat = o.latitude ? Number(o.latitude) : (client as any)?.latitude ? Number((client as any).latitude) : 0;
-        let lng = o.longitude ? Number(o.longitude) : (client as any)?.longitude ? Number((client as any).longitude) : 0;
+        const rawLat = o.latitude ?? (client as any)?.latitude;
+        const rawLng = o.longitude ?? (client as any)?.longitude;
+        let lat = rawLat && !isNaN(Number(rawLat)) ? Number(rawLat) : 0;
+        let lng = rawLng && !isNaN(Number(rawLng)) ? Number(rawLng) : 0;
 
-        if (!lat || !lng) {
+        if (!lat || !lng || isNaN(lat) || isNaN(lng)) {
           const address = o.formattedAddress || o.originalAddress || client?.direccion || '';
           const sug = suggestDehezaStreets(address, 1);
-          if (sug.length > 0) {
+          if (sug.length > 0 && !isNaN(sug[0].latitude)) {
             lat = sug[0].latitude;
             lng = sug[0].longitude;
           } else {
@@ -383,6 +391,8 @@ export function DeliveriesView() {
             lng = -63.7845 + (idx * 0.0008);
           }
         }
+
+        if (isNaN(lat) || isNaN(lng)) return;
 
         const isSelected = selectedOrderIds.includes(String(o.id));
         const matchedStop = optimizedPlan?.orderedStops?.find((s: any) => String(s.orderId) === String(o.id));
@@ -428,26 +438,26 @@ export function DeliveriesView() {
 
       // Trazar línea de recorrido si hay paradas seleccionadas
       if (optimizedPlan && optimizedPlan.orderedStops && optimizedPlan.orderedStops.length > 0) {
-        const polylineCoords: [number, number][] = [
+        const rawCoords: [number, number][] = [
           [startPointCoords.latitude, startPointCoords.longitude],
-          ...optimizedPlan.orderedStops.map((s: any) => [s.latitude, s.longitude] as [number, number]),
+          ...optimizedPlan.orderedStops.map((s: any) => [Number(s.latitude), Number(s.longitude)] as [number, number]),
         ];
 
-        const polyline = L.polyline(polylineCoords, {
-          color: '#10b981',
-          weight: 4,
-          opacity: 0.85,
-          dashArray: '6, 6',
-        }).addTo(map);
+        const polylineCoords = rawCoords.filter(([la, lo]) => !isNaN(la) && !isNaN(lo) && la !== 0 && lo !== 0);
 
-        modalMarkersRef.current.push(polyline);
+        if (polylineCoords.length > 1) {
+          const polyline = L.polyline(polylineCoords, {
+            color: '#10b981',
+            weight: 4,
+            opacity: 0.85,
+            dashArray: '6, 6',
+          }).addTo(map);
 
-        if (map) {
-          if (polylineCoords.length > 0) {
+          modalMarkersRef.current.push(polyline);
+
+          if (map) {
             const bounds = L.latLngBounds(polylineCoords);
             (map as any).fitBounds(bounds, { padding: [40, 40] as any, maxZoom: 15 });
-          } else {
-            (map as any).setView([startPointCoords.latitude, startPointCoords.longitude], 13.8);
           }
         }
       }
