@@ -205,12 +205,12 @@ export function DeliveriesView() {
 
       for (let i = 0; i < selectedOrderIds.length; i++) {
         const orderId = selectedOrderIds[i];
-        const order = orders.find(o => o.id === orderId);
+        const order = orders.find(o => String(o.id) === String(orderId));
         if (!order) continue;
 
-        const client = clients.find(c => c.id === order.clienteId);
-        let lat = order.latitude || (client as any)?.latitude;
-        let lng = order.longitude || (client as any)?.longitude;
+        const client = clients.find(c => String(c.id) === String(order.clienteId));
+        let lat = order.latitude ? Number(order.latitude) : (client as any)?.latitude ? Number((client as any).latitude) : 0;
+        let lng = order.longitude ? Number(order.longitude) : (client as any)?.longitude ? Number((client as any).longitude) : 0;
 
         // Si no tiene coordenadas válidas, resolver con geocodificación precisa y sugerencia de calle
         if (!lat || !lng) {
@@ -248,9 +248,9 @@ export function DeliveriesView() {
         }
 
         stopsToOptimize.push({
-          orderId: order.id,
-          latitude: lat,
-          longitude: lng,
+          orderId: String(order.id),
+          latitude: Number(lat),
+          longitude: Number(lng),
           numero: order.numero,
           customerName: client?.razonSocial || client?.nombre || order.customerName || 'Cliente',
           formattedAddress: order.formattedAddress || order.originalAddress || client?.direccion || 'Sin dirección',
@@ -368,9 +368,9 @@ export function DeliveriesView() {
 
       // Renderizar TODOS los pedidos filtrados en el mapa
       filteredEligibleOrders.forEach((o, idx) => {
-        const client = clients.find(c => c.id === o.clienteId);
-        let lat = o.latitude || (client as any)?.latitude;
-        let lng = o.longitude || (client as any)?.longitude;
+        const client = clients.find(c => String(c.id) === String(o.clienteId));
+        let lat = o.latitude ? Number(o.latitude) : (client as any)?.latitude ? Number((client as any).latitude) : 0;
+        let lng = o.longitude ? Number(o.longitude) : (client as any)?.longitude ? Number((client as any).longitude) : 0;
 
         if (!lat || !lng) {
           const address = o.formattedAddress || o.originalAddress || client?.direccion || '';
@@ -385,18 +385,18 @@ export function DeliveriesView() {
         }
 
         const isSelected = selectedOrderIds.includes(String(o.id));
-        const matchedStop = optimizedPlan?.orderedStops?.find((s: any) => s.orderId === o.id);
+        const matchedStop = optimizedPlan?.orderedStops?.find((s: any) => String(s.orderId) === String(o.id));
 
         let iconHtml = '';
         if (isSelected && matchedStop) {
           iconHtml = `
-            <div style="background: #10b981; color: white; width: 28px; height: 28px; border-radius: 14px; font-weight: bold; font-size: 12px; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(0,0,0,0.3); border: 2px solid white; cursor: pointer;">
+            <div style="background: #10b981; color: white; width: 28px; height: 28px; border-radius: 14px; font-weight: bold; font-size: 12px; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(0,0,0,0.3); border: 2px solid white; cursor: pointer; pointer-events: auto;">
               #${matchedStop.stopOrder}
             </div>
           `;
         } else {
           iconHtml = `
-            <div style="background: #64748b; color: white; padding: 2px 6px; border-radius: 10px; font-weight: 600; font-size: 10px; display: flex; align-items: center; gap: 2px; box-shadow: 0 2px 4px rgba(0,0,0,0.2); border: 1.5px solid white; opacity: 0.85; cursor: pointer; white-space: nowrap;">
+            <div style="background: #64748b; color: white; padding: 3px 8px; border-radius: 10px; font-weight: 600; font-size: 10px; display: flex; align-items: center; gap: 2px; box-shadow: 0 2px 4px rgba(0,0,0,0.2); border: 1.5px solid white; opacity: 0.9; cursor: pointer; white-space: nowrap; pointer-events: auto;">
               📦 #${o.numero}
             </div>
           `;
@@ -405,8 +405,8 @@ export function DeliveriesView() {
         const customIcon = L.divIcon({
           html: iconHtml,
           className: 'order-leaflet-marker',
-          iconSize: [30, 30],
-          iconAnchor: [15, 15],
+          iconSize: isSelected && matchedStop ? [32, 32] : [110, 26],
+          iconAnchor: isSelected && matchedStop ? [16, 16] : [55, 13],
         });
 
         const marker = L.marker([lat, lng], { icon: customIcon })
