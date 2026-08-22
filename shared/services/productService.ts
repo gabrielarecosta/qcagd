@@ -39,9 +39,12 @@ export interface ProductQueryOptions {
   pageSize?: number;
   search?: string;
   categoria?: string;
-  sortBy?: 'relevante' | 'precio-bajo' | 'precio-alto' | 'mas-vendido';
+  sortBy?: string;
+  sortOrder?: 'asc' | 'desc';
   isPublic?: boolean;
   branchId?: string | number;
+  photoFilter?: 'all' | 'no-photo';
+  activeStatusFilter?: 'all' | 'active' | 'inactive';
 }
 
 export const productService = {
@@ -76,27 +79,47 @@ export const productService = {
           : '*',
         { count: 'exact' }
       )
-      .is('deleted_at', null)
-      .eq('activo', true);
+      .is('deleted_at', null);
+
+    // Solo filtrar por activo=true si es público o si el filtro indica únicamente activos
+    if (isPublic || options.activeStatusFilter === 'active') {
+      query = query.eq('activo', true);
+    } else if (options.activeStatusFilter === 'inactive') {
+      query = query.or('activo.is.null,activo.eq.false');
+    }
+
+    // Filtro por productos sin foto (para vista Admin)
+    if (options.photoFilter === 'no-photo') {
+      query = query.or('imagen.is.null,imagen.eq.');
+    }
 
     // 1. Filtrar por categoría
-    if (options.categoria && options.categoria !== 'todos') {
+    if (options.categoria && options.categoria !== 'todos' && options.categoria !== 'all') {
       query = query.eq('categoria', options.categoria);
     }
 
-    // 2. Búsqueda por texto (nombre, código, descripción)
+    // 2. Búsqueda por texto (nombre, código, descripción, presentación)
     if (options.search && options.search.trim()) {
       const q = options.search.trim();
-      query = query.or(`nombre.ilike.%${q}%,codigo.ilike.%${q}%,descripcion.ilike.%${q}%`);
+      query = query.or(`nombre.ilike.%${q}%,codigo.ilike.%${q}%,descripcion.ilike.%${q}%,presentacion.ilike.%${q}%`);
     }
 
     // 3. Ordenamiento del lado de Supabase
+    const asc = options.sortOrder !== 'desc';
     if (options.sortBy === 'precio-bajo') {
       query = query.order('precio', { ascending: true });
     } else if (options.sortBy === 'precio-alto') {
       query = query.order('precio', { ascending: false });
     } else if (options.sortBy === 'mas-vendido') {
       query = query.order('id', { ascending: true });
+    } else if (options.sortBy === 'code') {
+      query = query.order('codigo', { ascending: asc });
+    } else if (options.sortBy === 'price') {
+      query = query.order('precio', { ascending: asc });
+    } else if (options.sortBy === 'category') {
+      query = query.order('categoria', { ascending: asc });
+    } else if (options.sortBy === 'name') {
+      query = query.order('nombre', { ascending: asc });
     } else {
       query = query
         .order('destacado', { ascending: false })

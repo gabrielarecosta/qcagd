@@ -4,6 +4,7 @@ import type { Product, ProductCategory } from '@shared/types/product';
 import { formatPrice } from '@shared/utils/formatCurrency';
 import * as XLSX from 'xlsx';
 import { supabase } from '@shared/services/supabaseClient';
+import { productService } from '@shared/services/productService';
 
 interface CategoryItem {
   value: ProductCategory;
@@ -29,10 +30,6 @@ export function ProductsView({
     fetchProductsOnly
   } = useAdminStore();
 
-  React.useEffect(() => {
-    fetchProductsOnly();
-  }, []);
-
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [photoFilter, setPhotoFilter] = useState<'all' | 'no-photo'>(initialFilter);
@@ -41,6 +38,42 @@ export function ProductsView({
   const [sortBy, setSortBy] = useState<'name' | 'category' | 'price' | 'stock' | 'code'>('name');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [currentPage, setCurrentPage] = useState(1);
+
+  const [paginatedProducts, setPaginatedProducts] = useState<(Product & { stock: number; stockMinimo: number })[]>([]);
+  const [totalProductsCount, setTotalProductsCount] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [isLoadingProducts, setIsLoadingProducts] = useState(false);
+
+  const itemsPerPage = 30;
+
+  const loadPaginatedProducts = async () => {
+    setIsLoadingProducts(true);
+    try {
+      const res = await productService.getPaginated({
+        page: currentPage,
+        pageSize: itemsPerPage,
+        search: search,
+        categoria: selectedCategory,
+        photoFilter: photoFilter,
+        activeStatusFilter: activeStatusFilter,
+        sortBy: sortBy,
+        sortOrder: sortOrder,
+        isPublic: false,
+      });
+
+      setPaginatedProducts(res.data);
+      setTotalProductsCount(res.total);
+      setTotalPages(res.totalPages || 1);
+    } catch (err) {
+      console.error('Error cargando artículos paginados:', err);
+    } finally {
+      setIsLoadingProducts(false);
+    }
+  };
+
+  React.useEffect(() => {
+    loadPaginatedProducts();
+  }, [currentPage, search, selectedCategory, photoFilter, activeStatusFilter, sortBy, sortOrder]);
 
   React.useEffect(() => {
     setPhotoFilter(initialFilter);
@@ -124,64 +157,6 @@ export function ProductsView({
       };
     }
   };
-
-  // Filtrado, búsqueda y ordenación de productos
-  const filteredProducts = useMemo(() => {
-    const list = products.filter(p => {
-      const query = search.toLowerCase();
-      const matchesSearch = 
-        p.nombre.toLowerCase().includes(query) ||
-        p.codigo.toLowerCase().includes(query) ||
-        (p.presentacion || '').toLowerCase().includes(query);
-
-      const matchesCategory = 
-        selectedCategory === 'all' || p.categoria === selectedCategory;
-
-      const matchesPhoto = 
-        photoFilter === 'all' || !p.imagen || p.imagen.trim() === '';
-
-      const matchesActiveStatus =
-        activeStatusFilter === 'all' ? true :
-        activeStatusFilter === 'active' ? (p.activo !== false) :
-        (p.activo === false);
-
-      const stockInfo = getProductStockInfo(p.id, activeBranchId);
-      const matchesStock =
-        stockFilter === 'all' ? true :
-        stockFilter === 'with-stock' ? (stockInfo.stock > 0 && !stockInfo.isLowStock) :
-        stockFilter === 'critico' ? stockInfo.isLowStock :
-        (stockInfo.stock <= 0);
-
-      return matchesSearch && matchesCategory && matchesPhoto && matchesActiveStatus && matchesStock;
-    });
-
-    // Ordenamiento
-    return list.sort((a, b) => {
-      let comp = 0;
-      if (sortBy === 'name') {
-        comp = a.nombre.localeCompare(b.nombre);
-      } else if (sortBy === 'category') {
-        comp = a.categoria.localeCompare(b.categoria);
-      } else if (sortBy === 'price') {
-        comp = (a.precio || 0) - (b.precio || 0);
-      } else if (sortBy === 'stock') {
-        const stockA = getProductStockInfo(a.id, activeBranchId).stock;
-        const stockB = getProductStockInfo(b.id, activeBranchId).stock;
-        comp = stockA - stockB;
-      } else if (sortBy === 'code') {
-        comp = a.codigo.localeCompare(b.codigo);
-      }
-
-      return sortOrder === 'asc' ? comp : -comp;
-    });
-  }, [products, search, selectedCategory, photoFilter, activeStatusFilter, stockFilter, sortBy, sortOrder, activeBranchId, stocks]);
-
-  // Paginación
-  const totalPages = Math.ceil(filteredProducts.length / itemsPerPage);
-  const paginatedProducts = useMemo(() => {
-    const start = (currentPage - 1) * itemsPerPage;
-    return filteredProducts.slice(start, start + itemsPerPage);
-  }, [filteredProducts, currentPage]);
 
   const handlePageChange = (page: number) => {
     if (page >= 1 && page <= totalPages) {
@@ -643,55 +618,56 @@ export function ProductsView({
               </tr>
             </thead>
             <tbody>
-              {paginatedProducts.map(p => {
-                const stockInfo = getProductStockInfo(p.id, activeBranchId);
-                return (
-                  <tr key={p.id}>
-                    <td style={{ width: '40px' }}>
-                      <input 
-                        type="checkbox" 
-                        checked={selectedProductIds.includes(p.id)} 
-                        onChange={() => toggleSelectProduct(p.id)} 
-                      />
-                    </td>
-                    <td style={{ fontFamily: 'monospace', fontWeight: 'bold' }}>{p.codigo}</td>
-                    <td style={{ fontWeight: '500' }}>{p.nombre}</td>
-                    <td><span className="badge badge-neutral" style={{ textTransform: 'capitalize' }}>{p.categoria}</span></td>
-                    <td>{p.presentacion || '-'}</td>
-                    <td style={{ fontWeight: '600' }}>{formatPrice(p.precio)}</td>
-                    <td>
-                      <span className={`badge ${stockInfo.isLowStock ? 'badge-error' : 'badge-success'}`}>
-                        {stockInfo.stock} {p.unidad}
-                      </span>
-                      {stockInfo.isLowStock && (
-                        <div style={{ fontSize: '11px', color: 'var(--error-color)', marginTop: '2px' }}>
-                          ⚠️ Stock Crítico
-                        </div>
-                      )}
-                    </td>
-                    <td>
-                      <span style={{ fontSize: '16px' }}>{p.destacado ? '⭐ Sí' : '❌'}</span>
-                    </td>
-                    <td className="text-right">
-                      <button className="btn btn-secondary" onClick={() => handleOpenEdit(p)} style={{ padding: '6px 12px', fontSize: '12px' }}>
-                        ✏️ Editar / Stock
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-              {products.length === 0 ? (
+              {isLoadingProducts ? (
                 <tr>
-                  <td colSpan={8} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-disabled)' }}>
-                    Todavía no hay productos cargados. ¡Importá un archivo Excel para comenzar!
+                  <td colSpan={9} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-secondary)' }}>
+                    ⏳ Cargando productos desde Supabase...
                   </td>
                 </tr>
-              ) : paginatedProducts.length === 0 && (
+              ) : totalProductsCount === 0 ? (
                 <tr>
-                  <td colSpan={8} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-disabled)' }}>
+                  <td colSpan={9} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-disabled)' }}>
                     No se encontraron productos con los filtros aplicados.
                   </td>
                 </tr>
+              ) : (
+                paginatedProducts.map(p => {
+                  const stockInfo = getProductStockInfo(p.id, activeBranchId);
+                  return (
+                    <tr key={p.id}>
+                      <td style={{ width: '40px' }}>
+                        <input 
+                          type="checkbox" 
+                          checked={selectedProductIds.includes(p.id)} 
+                          onChange={() => toggleSelectProduct(p.id)} 
+                        />
+                      </td>
+                      <td style={{ fontFamily: 'monospace', fontWeight: 'bold' }}>{p.codigo}</td>
+                      <td style={{ fontWeight: '500' }}>{p.nombre}</td>
+                      <td><span className="badge badge-neutral" style={{ textTransform: 'capitalize' }}>{p.categoria}</span></td>
+                      <td>{p.presentacion || '-'}</td>
+                      <td style={{ fontWeight: '600' }}>{formatPrice(p.precio)}</td>
+                      <td>
+                        <span className={`badge ${stockInfo.isLowStock ? 'badge-error' : 'badge-success'}`}>
+                          {stockInfo.stock} {p.unidad}
+                        </span>
+                        {stockInfo.isLowStock && (
+                          <div style={{ fontSize: '11px', color: 'var(--error-color)', marginTop: '2px' }}>
+                            ⚠️ Stock Crítico
+                          </div>
+                        )}
+                      </td>
+                      <td>
+                        <span style={{ fontSize: '16px' }}>{p.destacado ? '⭐ Sí' : '❌'}</span>
+                      </td>
+                      <td className="text-right">
+                        <button className="btn btn-secondary" onClick={() => handleOpenEdit(p)} style={{ padding: '6px 12px', fontSize: '12px' }}>
+                          ✏️ Editar / Stock
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
@@ -701,9 +677,17 @@ export function ProductsView({
         {totalPages > 1 && (
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px', borderTop: '1px solid var(--border-color)' }}>
             <span style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>
-              Página {currentPage} de {totalPages}
+              Mostrando {((currentPage - 1) * itemsPerPage) + 1} - {Math.min(currentPage * itemsPerPage, totalProductsCount)} de {totalProductsCount.toLocaleString('es-AR')} productos (Página {currentPage} de {totalPages})
             </span>
             <div style={{ display: 'flex', gap: '8px' }}>
+              <button 
+                className="btn btn-secondary" 
+                disabled={currentPage === 1}
+                onClick={() => handlePageChange(1)}
+                style={{ padding: '6px 12px' }}
+              >
+                ⏮️ Primera
+              </button>
               <button 
                 className="btn btn-secondary" 
                 disabled={currentPage === 1}
@@ -719,6 +703,14 @@ export function ProductsView({
                 style={{ padding: '6px 12px' }}
               >
                 Siguiente ▶️
+              </button>
+              <button 
+                className="btn btn-secondary" 
+                disabled={currentPage === totalPages}
+                onClick={() => handlePageChange(totalPages)}
+                style={{ padding: '6px 12px' }}
+              >
+                ⏭️ Última
               </button>
             </div>
           </div>
