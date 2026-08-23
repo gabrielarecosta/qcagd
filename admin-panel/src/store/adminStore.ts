@@ -217,7 +217,7 @@ export const useAdminStore = create<AdminStore>((set, get) => ({
       const products = await productService.getAll();
       const stocks: ProductStock[] = products.map(p => ({
         productId: p.id,
-        branchId: p.branchId || 1,
+        branchId: (p as any).branchId || (p as any).branch_id || 1,
         stock: Number(p.stock || 0),
         stockMinimo: Number(p.stockMinimo || 5),
         disponible: Number(p.stock || 0) > 0
