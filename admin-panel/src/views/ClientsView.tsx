@@ -226,9 +226,27 @@ export function ClientsView({ initialSection = 'directorio' }: ClientsViewProps)
     return b ? b.nombre : 'Sin sucursal';
   };
 
+  const isRealClient = (c: Customer) => {
+    if (c.tipoCliente === 'sucursal') return false;
+    if (c.email) {
+      const lowerEmail = c.email.toLowerCase().trim();
+      if (
+        lowerEmail === 'admin@quimicadeheza.com' ||
+        lowerEmail === 'ventas@quimicadeheza.com' ||
+        lowerEmail === 'deposito@quimicadeheza.com' ||
+        lowerEmail === 'repartidor@quimicadeheza.com'
+      ) {
+        return false;
+      }
+    }
+    return true;
+  };
+
   // Filtrado, Ordenamiento y Paginación de Clientes
   const filteredAndSortedClients = useMemo(() => {
     const filtered = clients.filter(c => {
+      if (!isRealClient(c)) return false;
+
       const q = search.toLowerCase();
       const matchesSearch = 
         !q ||
@@ -361,6 +379,7 @@ export function ClientsView({ initialSection = 'directorio' }: ClientsViewProps)
 
   const ctaCteFilteredClients = useMemo(() => {
     return clients.filter(c => {
+      if (!isRealClient(c)) return false;
       const globalBranchFilter = activeBranchId === 'all' || String(c.branchId) === String(activeBranchId);
       if (!globalBranchFilter) return false;
 
@@ -376,9 +395,9 @@ export function ClientsView({ initialSection = 'directorio' }: ClientsViewProps)
       if (ctaCteTab === 'minoristas') {
         return c.tipoCliente === 'minorista' || c.tipoCliente === 'consumidor_final';
       } else if (ctaCteTab === 'mayoristas') {
-        return c.tipoCliente === 'mayorista' || c.tipoCliente === 'sucursal';
+        return c.tipoCliente === 'mayorista';
       } else if (ctaCteTab === 'pendientes') {
-        const faltaMayorista = (c.tipoCliente === 'mayorista' || c.tipoCliente === 'sucursal') && !c.mayoristaAutorizado;
+        const faltaMayorista = (c.tipoCliente === 'mayorista') && !c.mayoristaAutorizado;
         const faltaCtaCte = !c.ctaCteAutorizada;
         return faltaMayorista || faltaCtaCte;
       }
@@ -393,17 +412,18 @@ export function ClientsView({ initialSection = 'directorio' }: ClientsViewProps)
     let pendientesAutorizacionCount = 0;
 
     clients.forEach(c => {
+      if (!isRealClient(c)) return;
       const globalBranchFilter = activeBranchId === 'all' || String(c.branchId) === String(activeBranchId);
       if (!globalBranchFilter) return;
 
       const { totalDeuda } = getClientCtaCteDetails(c);
-      if (c.tipoCliente === 'mayorista' || c.tipoCliente === 'sucursal') {
+      if (c.tipoCliente === 'mayorista') {
         deudaMayoristas += totalDeuda;
       } else {
         deudaMinoristas += totalDeuda;
       }
 
-      const faltaMayorista = (c.tipoCliente === 'mayorista' || c.tipoCliente === 'sucursal') && !c.mayoristaAutorizado;
+      const faltaMayorista = (c.tipoCliente === 'mayorista') && !c.mayoristaAutorizado;
       const faltaCtaCte = !c.ctaCteAutorizada;
       if (faltaMayorista || faltaCtaCte) {
         pendientesAutorizacionCount++;
@@ -533,7 +553,6 @@ export function ClientsView({ initialSection = 'directorio' }: ClientsViewProps)
                   <option value="all">Todos los segmentos</option>
                   <option value="minorista">Minorista</option>
                   <option value="mayorista">Mayorista</option>
-                  <option value="sucursal">Sucursal / Empresa</option>
                 </select>
               </div>
 
@@ -1095,7 +1114,6 @@ export function ClientsView({ initialSection = 'directorio' }: ClientsViewProps)
                     >
                       <option value="minorista">Minorista (Consumidor Final)</option>
                       <option value="mayorista">Mayorista (Precios diferenciados)</option>
-                      <option value="sucursal">Sucursal / Empresa</option>
                     </select>
                   </div>
                   <div className="form-group">
@@ -1425,7 +1443,6 @@ export function ClientsView({ initialSection = 'directorio' }: ClientsViewProps)
                     >
                       <option value="minorista">Minorista (Consumidor Final)</option>
                       <option value="mayorista">Mayorista (Precios diferenciados)</option>
-                      <option value="sucursal">Sucursal / Empresa</option>
                     </select>
                   </div>
                 </div>
