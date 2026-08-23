@@ -5,7 +5,7 @@ import { useOrderStore } from '../store/orderStore';
 import { useNotificationStore } from '../store/useNotificationStore';
 
 export function useClientRealtimeNotifications() {
-  const currentClient = useAuthStore((s) => s.currentClient);
+  const currentClient = useAuthStore((s) => s.clientData);
   const clienteId = currentClient?.id;
   const notifiedOrderIdsRef = useRef<Set<string>>(new Set());
 
@@ -32,7 +32,7 @@ export function useClientRealtimeNotifications() {
             notifiedOrderIdsRef.current.add(newOrder.id);
 
             // Actualizar store local de pedidos
-            useOrderStore.getState().fetchOrders(clienteId);
+            useOrderStore.getState().fetchOrders(String(clienteId));
 
             // Disparar Popup / Toast interactivo
             useNotificationStore.getState().showToast({
@@ -41,7 +41,7 @@ export function useClientRealtimeNotifications() {
               duration: 8000,
             });
           } else if (newOrder.estado === 'entregado') {
-            useOrderStore.getState().fetchOrders(clienteId);
+            useOrderStore.getState().fetchOrders(String(clienteId));
             useNotificationStore.getState().showToast({
               message: `✅ ¡Pedido entregado!\nTu compra #${newOrder.numero || ''} fue entregada exitosamente. ¡Gracias por confiar en Química General Deheza!`,
               type: 'success',

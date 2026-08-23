@@ -153,7 +153,7 @@ BEGIN
     raw_app_meta_data, raw_user_meta_data, created_at, updated_at
   ) VALUES (
     repartidor_id, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 
-    'repartidor@quimicadeheza.com', crypt('repartidor123', gen_salt('bf', 10)), NOW(), 
+    'repartidor@quimicadeheza.com', crypt('ivanrepartidor123', gen_salt('bf', 10)), NOW(), 
     '{"provider": "email", "providers": ["email"]}'::jsonb, 
     '{"nombre": "Repartidor Oficial", "rol": "repartidor"}'::jsonb, NOW(), NOW()
   ) ON CONFLICT (id) DO UPDATE SET encrypted_password = EXCLUDED.encrypted_password;
