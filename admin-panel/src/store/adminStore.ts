@@ -215,19 +215,13 @@ export const useAdminStore = create<AdminStore>((set, get) => ({
   fetchProductsOnly: async () => {
     try {
       const products = await productService.getAll();
-      let stocks: ProductStock[] = [];
-      try {
-        const { data: invData } = await supabase.from('inventory').select('*');
-        if (invData) {
-          stocks = invData.map(s => ({
-            productId: s.product_id,
-            branchId: s.branch_id,
-            stock: Number(s.stock),
-            stockMinimo: Number(s.stock_minimo),
-            disponible: Number(s.stock) > 0
-          }));
-        }
-      } catch (_) {}
+      const stocks: ProductStock[] = products.map(p => ({
+        productId: p.id,
+        branchId: p.branchId || 1,
+        stock: Number(p.stock || 0),
+        stockMinimo: Number(p.stockMinimo || 5),
+        disponible: Number(p.stock || 0) > 0
+      }));
       set({ products, stocks });
     } catch (e) {
       console.error('Error fetching products:', e);

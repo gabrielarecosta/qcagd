@@ -211,7 +211,12 @@ function App() {
       setCurrentUser(effectiveUser);
     }
 
-    if (!effectiveUser) {
+    if (!effectiveUser || effectiveUser.rol !== 'admin') {
+      if (effectiveUser && effectiveUser.rol !== 'admin') {
+        setCurrentUser(null);
+        localStorage.removeItem('qca_admin_user');
+        supabase.auth.signOut();
+      }
       useAdminStore.setState({ isLoading: false });
       return;
     }

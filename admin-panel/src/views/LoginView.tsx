@@ -52,10 +52,19 @@ export function LoginView() {
             id: authData.user.id,
             nombre: authData.user.user_metadata?.nombre || targetEmail.split('@')[0],
             email: authData.user.email || targetEmail,
-            rol: authData.user.user_metadata?.rol || 'admin',
+            rol: authData.user.user_metadata?.rol || 'cliente',
             activo: true,
           };
         }
+
+        // Restricción: Solo usuarios con perfil/rol 'admin' pueden ingresar al Panel Admin
+        if (profile.rol !== 'admin') {
+          await supabase.auth.signOut();
+          setError('Acceso denegado. Este panel es exclusivo para usuarios con rol de Administrador.');
+          setIsLoading(false);
+          return;
+        }
+
         setCurrentUser(profile);
         setIsLoading(false);
         return;

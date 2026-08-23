@@ -108,7 +108,7 @@ BEGIN
     raw_app_meta_data, raw_user_meta_data, created_at, updated_at
   ) VALUES (
     admin_id, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 
-    'admin@quimicadeheza.com', crypt('admin123', gen_salt('bf')), NOW(), 
+    'admin@quimicadeheza.com', crypt('admin123', gen_salt('bf', 10)), NOW(), 
     '{"provider": "email", "providers": ["email"]}'::jsonb, 
     '{"nombre": "Administrador General", "rol": "admin"}'::jsonb, NOW(), NOW()
   ) ON CONFLICT (id) DO UPDATE SET encrypted_password = EXCLUDED.encrypted_password;
@@ -123,7 +123,7 @@ BEGIN
     raw_app_meta_data, raw_user_meta_data, created_at, updated_at
   ) VALUES (
     ventas_id, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 
-    'ventas@quimicadeheza.com', crypt('ventas123', gen_salt('bf')), NOW(), 
+    'ventas@quimicadeheza.com', crypt('ventas123', gen_salt('bf', 10)), NOW(), 
     '{"provider": "email", "providers": ["email"]}'::jsonb, 
     '{"nombre": "Vendedor Central", "rol": "ventas"}'::jsonb, NOW(), NOW()
   ) ON CONFLICT (id) DO UPDATE SET encrypted_password = EXCLUDED.encrypted_password;
@@ -138,7 +138,7 @@ BEGIN
     raw_app_meta_data, raw_user_meta_data, created_at, updated_at
   ) VALUES (
     deposito_id, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 
-    'deposito@quimicadeheza.com', crypt('deposito123', gen_salt('bf')), NOW(), 
+    'deposito@quimicadeheza.com', crypt('deposito123', gen_salt('bf', 10)), NOW(), 
     '{"provider": "email", "providers": ["email"]}'::jsonb, 
     '{"nombre": "Encargado Depósito", "rol": "deposito"}'::jsonb, NOW(), NOW()
   ) ON CONFLICT (id) DO UPDATE SET encrypted_password = EXCLUDED.encrypted_password;
@@ -153,7 +153,7 @@ BEGIN
     raw_app_meta_data, raw_user_meta_data, created_at, updated_at
   ) VALUES (
     repartidor_id, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 
-    'repartidor@quimicadeheza.com', crypt('repartidor123', gen_salt('bf')), NOW(), 
+    'repartidor@quimicadeheza.com', crypt('repartidor123', gen_salt('bf', 10)), NOW(), 
     '{"provider": "email", "providers": ["email"]}'::jsonb, 
     '{"nombre": "Repartidor Oficial", "rol": "repartidor"}'::jsonb, NOW(), NOW()
   ) ON CONFLICT (id) DO UPDATE SET encrypted_password = EXCLUDED.encrypted_password;
@@ -165,6 +165,23 @@ BEGIN
   INSERT INTO public.drivers (id, vehiculo_info, activo)
   VALUES (repartidor_id, 'Camioneta Deheza (AF123JK)', TRUE)
   ON CONFLICT (id) DO UPDATE SET vehiculo_info = EXCLUDED.vehiculo_info;
+
+  -- 5.5 Sincronizar auth.identities para evitar errores 500 (unexpected_failure) en GoTrue token endpoint
+  INSERT INTO auth.identities (
+    id, user_id, identity_data, provider, provider_id, last_sign_in_at, created_at, updated_at
+  )
+  SELECT
+    u.id,
+    u.id,
+    jsonb_build_object('sub', u.id::text, 'email', u.email, 'email_verified', true),
+    'email',
+    u.id::text,
+    NOW(),
+    NOW(),
+    NOW()
+  FROM auth.users u
+  LEFT JOIN auth.identities i ON u.id = i.user_id AND i.provider = 'email'
+  WHERE i.id IS NULL;
 END $$;
 
 -- 6. Políticas RLS permisivas en la tabla profiles

@@ -240,7 +240,7 @@ export const productService = {
 
       const { data: chunk, error: stockErr } = await supabase
         .from('inventory')
-        .select('*')
+        .select('product_id, stock, stock_minimo')
         .eq('branch_id', targetBranch)
         .range(fromRange, toRange);
 
