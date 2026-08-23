@@ -15,6 +15,7 @@ export function DashboardView({ onNavigate, onFilterProductsNoPhoto }: Dashboard
   const { 
     activeBranchId, 
     orders, 
+    clients,
     updateOrderStatus,
     fetchOrdersOnly,
   } = useAdminStore();
