@@ -53,8 +53,8 @@ export function OrdersView() {
   // Filtrado de pedidos
   const filteredOrders = useMemo(() => {
     return orders.filter(o => {
-      const client = clients.find(c => c.id === o.clienteId);
-      const clientName = client ? (client.nombre || client.razonSocial || '') : '';
+      const client = clients.find(c => String(c.id) === String(o.clienteId) || (c.userId && String(c.userId) === String(o.clienteId)));
+      const clientName = o.customerName || (client ? (client.razonSocial || client.nombre || '') : '');
       const query = search.toLowerCase();
 
       const matchesSearch = 
@@ -70,11 +70,11 @@ export function OrdersView() {
   }, [orders, clients, search, activeBranchId, selectedStatus, selectedPaymentStatus]);
 
   const getClientInfo = (clienteId: string | number, order?: Order) => {
-    const c = clients.find(item => String(item.id) === String(clienteId));
+    const c = clients.find(item => String(item.id) === String(clienteId) || (item.userId && String(item.userId) === String(clienteId)));
     return {
-      name: order?.customerName || (c ? (c.razonSocial || c.nombre) : 'Desconocido'),
+      name: order?.customerName || (c ? (c.razonSocial || c.nombre) : 'Cliente Desconocido'),
       cuit: c ? c.cuit : '',
-      tel: c ? c.telefono : '',
+      tel: order?.customerPhone || (c ? c.telefono : ''),
       dir: order?.originalAddress || (c ? c.direccion : 'Sin dirección')
     };
   };

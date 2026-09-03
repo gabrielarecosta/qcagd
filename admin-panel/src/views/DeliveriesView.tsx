@@ -212,7 +212,7 @@ export function DeliveriesView() {
         const order = orders.find(o => String(o.id) === String(orderId));
         if (!order) continue;
 
-        const client = clients.find(c => String(c.id) === String(order.clienteId));
+        const client = clients.find(c => String(c.id) === String(order.clienteId) || (c.userId && String(c.userId) === String(order.clienteId)));
         const rawLat = order.latitude ?? (client as any)?.latitude;
         const rawLng = order.longitude ?? (client as any)?.longitude;
         let lat = rawLat && !isNaN(Number(rawLat)) ? Number(rawLat) : 0;
@@ -374,7 +374,7 @@ export function DeliveriesView() {
 
       // Renderizar TODOS los pedidos filtrados en el mapa
       filteredEligibleOrders.forEach((o, idx) => {
-        const client = clients.find(c => String(c.id) === String(o.clienteId));
+        const client = clients.find(c => String(c.id) === String(o.clienteId) || (c.userId && String(c.userId) === String(o.clienteId)));
         const rawLat = o.latitude ?? (client as any)?.latitude;
         const rawLng = o.longitude ?? (client as any)?.longitude;
         let lat = rawLat && !isNaN(Number(rawLat)) ? Number(rawLat) : 0;
@@ -541,7 +541,7 @@ export function DeliveriesView() {
 
       stopsData = (optimizedPlan.orderedStops || []).map((s: any) => {
         const ord = orders.find(o => o.id === s.orderId);
-        const cli = clients.find(c => c.id === ord?.clienteId);
+        const cli = clients.find(c => String(c.id) === String(ord?.clienteId) || (c.userId && String(c.userId) === String(ord?.clienteId)));
         return {
           orderNumber: ord?.numero || s.numero || '-',
           customerName: cli?.razonSocial || cli?.nombre || ord?.customerName || s.customerName || 'Cliente',
@@ -567,7 +567,7 @@ export function DeliveriesView() {
       stopsData = stopsList.map((stop: any, idx: number) => {
         const orderId = (d.pedidosIds || [])[idx];
         const ord = orders.find(o => o.id === orderId);
-        const cli = clients.find(c => c.id === ord?.clienteId);
+        const cli = clients.find(c => String(c.id) === String(ord?.clienteId) || (c.userId && String(c.userId) === String(ord?.clienteId)));
         return {
           orderNumber: ord?.numero || `#${idx + 1}`,
           customerName: stop.clienteNombre || cli?.razonSocial || 'Cliente',
@@ -725,7 +725,7 @@ export function DeliveriesView() {
     // Create stops from selected orders in optimal sequence
     const stops: DeliveryStop[] = sequencedOrderIds.map((oId: string) => {
       const order = orders.find(o => o.id === oId);
-      const client = clients.find(c => c.id === order?.clienteId);
+      const client = clients.find(c => String(c.id) === String(order?.clienteId) || (c.userId && String(c.userId) === String(order?.clienteId)));
       return {
         clienteId: client?.id || '',
         clienteNombre: client?.razonSocial || client?.nombre || order?.customerName || 'Desconocido',
@@ -774,7 +774,7 @@ export function DeliveriesView() {
 
     for (const oId of orderIds) {
       const order = orders.find(o => o.id === oId);
-      const client = clients.find(c => c.id === order?.clienteId);
+      const client = clients.find(c => String(c.id) === String(order?.clienteId) || (c.userId && String(c.userId) === String(order?.clienteId)));
       const orderNumber = order?.numero || 'S/N';
       const clientName = client?.razonSocial || client?.nombre || order?.customerName || 'Cliente';
 
@@ -1260,7 +1260,7 @@ export function DeliveriesView() {
                           </thead>
                           <tbody>
                             {filteredEligibleOrders.map(o => {
-                              const client = clients.find(c => c.id === o.clienteId);
+                              const client = clients.find(c => String(c.id) === String(o.clienteId) || (c.userId && String(c.userId) === String(o.clienteId)));
                               const isSelected = selectedOrderIds.includes(String(o.id));
                               const matchedStop = optimizedPlan?.orderedStops?.find((s: any) => s.orderId === o.id);
 

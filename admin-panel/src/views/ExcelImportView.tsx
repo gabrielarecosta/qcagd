@@ -4,6 +4,7 @@ import { useAdminStore } from '../store/adminStore';
 import { validateExcelHeaders } from '@shared/utils/excelValidator';
 import { analyzeImportRows, StagedRow } from '@shared/utils/conflictDetector';
 import { formatPrice } from '@shared/utils/formatCurrency';
+import { processLogService, ProcessExecution } from '@shared/services/processLogService';
 
 type Step = 'upload' | 'preview' | 'processing' | 'summary';
 
@@ -41,6 +42,22 @@ export function ExcelImportView() {
   const [loadingHistory, setLoadingHistory] = useState(true);
   const [showHistoryTable, setShowHistoryTable] = useState(false);
 
+  // Historial de ejecuciones de procesos por sucursal
+  const [processLogs, setProcessLogs] = useState<ProcessExecution[]>([]);
+  const [loadingProcessLogs, setLoadingProcessLogs] = useState(false);
+
+  const loadProcessLogs = async () => {
+    setLoadingProcessLogs(true);
+    try {
+      const logs = await processLogService.getByBranch(selectedBranchId);
+      setProcessLogs(logs);
+    } catch (e) {
+      console.warn('Error cargando ejecuciones de procesos:', e);
+    } finally {
+      setLoadingProcessLogs(false);
+    }
+  };
+
   const loadHistory = async () => {
     setLoadingHistory(true);
     try {
@@ -55,7 +72,8 @@ export function ExcelImportView() {
 
   useEffect(() => {
     loadHistory();
-  }, []);
+    loadProcessLogs();
+  }, [selectedBranchId]);
 
   const lastSuccessfulSync = useMemo(() => {
     return history.find(h => {
@@ -156,8 +174,8 @@ export function ExcelImportView() {
           return;
         }
 
-        // Analizar filas (excluyendo el encabezado en fila 0)
-        const parsedRows = analyzeImportRows(rawRows.slice(1), productsWithStock);
+        // Analizar filas (excluyendo el encabezado en fila 0) pasando el encabezado para detección dinámica
+        const parsedRows = analyzeImportRows(rawRows.slice(1), productsWithStock, headers);
         setStagedRows(parsedRows);
         setStep('preview');
       } catch (err) {
@@ -499,6 +517,96 @@ export function ExcelImportView() {
                   </table>
                 </div>
               )}
+
+              {/* HISTORIAL DE PROCESOS POR SUCURSAL */}
+              <div style={{ marginTop: '24px', paddingTop: '20px', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                  <h3 className="card-title" style={{ fontSize: '15px', fontWeight: 700, color: '#38BDF8', margin: 0 }}>
+                    ⚡ Historial de Ejecución de Procesos por Sucursal
+                  </h3>
+                  <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                    <select
+                      value={selectedBranchId}
+                      onChange={e => setSelectedBranchId(e.target.value)}
+                      style={{
+                        padding: '6px 12px',
+                        fontSize: '12px',
+                        borderRadius: '8px',
+                        background: '#0F172A',
+                        color: '#FFF',
+                        border: '1px solid rgba(255,255,255,0.2)'
+                      }}
+                    >
+                      {branches.map(b => (
+                        <option key={b.id} value={b.id}>🏢 {b.nombre}</option>
+                      ))}
+                    </select>
+                    <button
+                      className="btn btn-sm btn-outline"
+                      onClick={loadProcessLogs}
+                      disabled={loadingProcessLogs}
+                      style={{ fontSize: '12px' }}
+                    >
+                      {loadingProcessLogs ? 'Cargando...' : '🔄 Actualizar'}
+                    </button>
+                  </div>
+                </div>
+
+                {processLogs.length === 0 ? (
+                  <p style={{ fontSize: '12.5px', color: 'var(--text-disabled)', textAlign: 'center', padding: '16px', background: 'rgba(15,23,42,0.4)', borderRadius: '10px' }}>
+                    No hay registros de ejecuciones de procesos para esta sucursal.
+                  </p>
+                ) : (
+                  <div style={{ overflowX: 'auto' }}>
+                    <table className="table" style={{ width: '100%', fontSize: '12.5px' }}>
+                      <thead>
+                        <tr>
+                          <th>Nombre del Proceso</th>
+                          <th>Fecha y Hora</th>
+                          <th>Usuario</th>
+                          <th>Estado</th>
+                          <th>Detalles de Ejecución</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {processLogs.map((log) => {
+                          const dateStr = new Date(log.fechaInicio || log.createdAt).toLocaleString('es-AR', {
+                            day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
+                          });
+                          const isOk = log.estado === 'completado';
+                          const isProc = log.estado === 'procesando';
+
+                          return (
+                            <tr key={log.id}>
+                              <td style={{ fontWeight: 700, color: '#F8FAFC' }}>
+                                ⚙️ {log.nombreProceso}
+                              </td>
+                              <td style={{ whiteSpace: 'nowrap', color: 'var(--text-secondary)' }}>
+                                {dateStr} hs
+                              </td>
+                              <td style={{ color: 'var(--text-secondary)' }}>
+                                {log.usuario}
+                              </td>
+                              <td>
+                                <span className={`badge ${isOk ? 'badge-success' : isProc ? 'badge-primary' : 'badge-danger'}`}>
+                                  {isOk ? '✓ COMPLETADO' : isProc ? '⏳ PROCESANDO' : '❌ ERROR'}
+                                </span>
+                              </td>
+                              <td style={{ fontSize: '11.5px', color: '#94A3B8' }}>
+                                {log.detalles ? (
+                                  typeof log.detalles === 'object' 
+                                    ? Object.entries(log.detalles).map(([k, v]) => `${k.replace('_', ' ')}: ${v}`).join(' | ')
+                                    : String(log.detalles)
+                                ) : '-'}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>

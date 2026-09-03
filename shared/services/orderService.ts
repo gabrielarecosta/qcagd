@@ -20,50 +20,57 @@ const mapOrderItem = (i: any): OrderItem => ({
   subtotal: Number(i.subtotal),
 });
 
-const mapOrder = (o: any, items: any[] = []): Order => ({
-  id: o.id,
-  numero: o.numero,
-  clienteId: o.cliente_id,
-  branchId: o.branch_id,
-  fecha: o.fecha,
-  items: items.map(mapOrderItem),
-  total: Number(o.total),
-  estado: o.estado as OrderStatus,
-  observaciones: o.observaciones || undefined,
-  observacionesCliente: o.observaciones_cliente || undefined,
-  repartidorId: o.repartidor_id || undefined,
-  estimatedDelivery: o.estimated_delivery_date || undefined,
-  estimatedDeliveryShift: o.estimated_delivery_shift || undefined,
-  paymentMethod: o.payment_method as PaymentMethod,
-  paymentStatus: o.payment_status as PaymentStatus,
-  abonaCon: o.abona_con ? Number(o.abona_con) : undefined,
-  cambioEstimado: o.cambio_estimado ? Number(o.cambio_estimado) : undefined,
-  deliveryDate: o.delivery_date || undefined,
-  deliveryStartTime: o.delivery_start_time || undefined,
-  deliveryEndTime: o.delivery_end_time || undefined,
-  deliveryTimeSlotId: o.delivery_time_slot_id || undefined,
-  deliveryMethod: o.delivery_method || undefined,
-  takenById: o.taken_by_id || undefined,
-  takenAt: o.taken_at || undefined,
-  deliveredAt: o.delivered_at || undefined,
-  originalAddress: o.original_address || undefined,
-  formattedAddress: o.formatted_address || undefined,
-  street: o.street || undefined,
-  streetNumber: o.street_number || undefined,
-  city: o.city || 'General Deheza',
-  province: o.province || 'Córdoba',
-  latitude: o.latitude ? Number(o.latitude) : undefined,
-  longitude: o.longitude ? Number(o.longitude) : undefined,
-  addressReference: o.address_reference || undefined,
-  locationVerified: o.location_verified || false,
-  locationStatus: o.location_status || (o.latitude && o.longitude ? 'geocoded' : 'pending'),
-  customerName: o.customer_name || o.customers?.nombre || (o.customers ? (o.customers.razon_social || o.customers.nombre) : undefined),
-  customerPhone: o.customer_phone || o.customers?.telefono || o.customers?.whatsapp || undefined,
-  outOfStockPreference: o.out_of_stock_preference || undefined,
-  mpPreferenceId: o.mp_preference_id || undefined,
-  mpInitPoint: o.mp_init_point || undefined,
-  mpPreferenceExpiresAt: o.mp_preference_expires_at || undefined,
-});
+const mapOrder = (o: any, items: any[] = [], customerObj?: any): Order => {
+  const cust = customerObj || o.customers || {};
+  const resolvedName = o.customer_name || cust.razon_social || cust.nombre || undefined;
+  const resolvedPhone = o.customer_phone || cust.telefono || cust.whatsapp || undefined;
+  const resolvedAddress = o.original_address || cust.direccion || undefined;
+
+  return {
+    id: o.id,
+    numero: o.numero,
+    clienteId: o.cliente_id,
+    branchId: o.branch_id,
+    fecha: o.fecha,
+    items: items.map(mapOrderItem),
+    total: Number(o.total),
+    estado: o.estado as OrderStatus,
+    observaciones: o.observaciones || undefined,
+    observacionesCliente: o.observaciones_cliente || undefined,
+    repartidorId: o.repartidor_id || undefined,
+    estimatedDelivery: o.estimated_delivery_date || undefined,
+    estimatedDeliveryShift: o.estimated_delivery_shift || undefined,
+    paymentMethod: o.payment_method as PaymentMethod,
+    paymentStatus: o.payment_status as PaymentStatus,
+    abonaCon: o.abona_con ? Number(o.abona_con) : undefined,
+    cambioEstimado: o.cambio_estimado ? Number(o.cambio_estimado) : undefined,
+    deliveryDate: o.delivery_date || undefined,
+    deliveryStartTime: o.delivery_start_time || undefined,
+    deliveryEndTime: o.delivery_end_time || undefined,
+    deliveryTimeSlotId: o.delivery_time_slot_id || undefined,
+    deliveryMethod: o.delivery_method || undefined,
+    takenById: o.taken_by_id || undefined,
+    takenAt: o.taken_at || undefined,
+    deliveredAt: o.delivered_at || undefined,
+    originalAddress: resolvedAddress,
+    formattedAddress: o.formatted_address || resolvedAddress,
+    street: o.street || undefined,
+    streetNumber: o.street_number || undefined,
+    city: o.city || 'General Deheza',
+    province: o.province || 'Córdoba',
+    latitude: o.latitude ? Number(o.latitude) : undefined,
+    longitude: o.longitude ? Number(o.longitude) : undefined,
+    addressReference: o.address_reference || undefined,
+    locationVerified: o.location_verified || false,
+    locationStatus: o.location_status || (o.latitude && o.longitude ? 'geocoded' : 'pending'),
+    customerName: resolvedName,
+    customerPhone: resolvedPhone,
+    outOfStockPreference: o.out_of_stock_preference || undefined,
+    mpPreferenceId: o.mp_preference_id || undefined,
+    mpInitPoint: o.mp_init_point || undefined,
+    mpPreferenceExpiresAt: o.mp_preference_expires_at || undefined,
+  };
+};
 
 import { parseBranchId } from '../utils/branchUtils';
 
@@ -79,6 +86,20 @@ export const orderService = {
 
     if (!ordersData || ordersData.length === 0) return [];
 
+    // Cargar mapa completo de clientes por ID numérico y por UUID user_id
+    const custMap = new Map<string, any>();
+    try {
+      const { data: custsData } = await supabase.from('customers').select('*').is('deleted_at', null);
+      if (custsData) {
+        custsData.forEach((c: any) => {
+          if (c.id) custMap.set(String(c.id), c);
+          if (c.user_id) custMap.set(String(c.user_id), c);
+        });
+      }
+    } catch (e) {
+      console.warn('Advertencia cargando clientes:', e);
+    }
+
     const orderIds = ordersData.map((o: any) => o.id);
     const { data: itemsData, error: itemsErr } = await supabase
       .from('order_items')
@@ -89,7 +110,8 @@ export const orderService = {
 
     return ordersData.map((o: any) => {
       const items = (itemsData || []).filter((item: any) => item.order_id === o.id);
-      return mapOrder(o, items);
+      const custObj = custMap.get(String(o.cliente_id));
+      return mapOrder(o, items, custObj);
     });
   },
 
@@ -104,13 +126,25 @@ export const orderService = {
     if (orderErr) throw orderErr;
     if (!o) return undefined;
 
+    let custObj: any = undefined;
+    if (o.cliente_id) {
+      try {
+        const { data: cData } = await supabase
+          .from('customers')
+          .select('*')
+          .or(`id.eq.${o.cliente_id},user_id.eq.${o.cliente_id}`)
+          .maybeSingle();
+        custObj = cData;
+      } catch (_) {}
+    }
+
     const { data: itemsData, error: itemsErr } = await supabase
       .from('order_items')
       .select('*')
       .eq('order_id', id);
 
     if (itemsErr) throw itemsErr;
-    return mapOrder(o, itemsData || []);
+    return mapOrder(o, itemsData || [], custObj);
   },
 
   updateStatus: async (id: string, status: OrderStatus, notes?: string, userMail?: string): Promise<Order> => {

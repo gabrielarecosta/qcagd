@@ -866,8 +866,8 @@ export function DashboardView({ onNavigate, onFilterProductsNoPhoto }: Dashboard
                   </thead>
                   <tbody>
                     {recentOrders.map(o => {
-                      const client = clients.find(c => String(c.id) === String(o.clienteId));
-                      const clientName = client?.nombre || o.customerName || (o as any).cliente_nombre || 'Cliente Desconocido';
+                      const client = clients.find(c => String(c.id) === String(o.clienteId) || (c.userId && String(c.userId) === String(o.clienteId)));
+                      const clientName = o.customerName || client?.razonSocial || client?.nombre || (o as any).cliente_nombre || 'Cliente Desconocido';
                       const paymentLabel = o.paymentMethod === 'efectivo' ? 'Efectivo' : 
                                            o.paymentMethod === 'mercado_pago' ? 'M. Pago' : 
                                            o.paymentMethod === 'transferencia' ? 'Transf.' : 'Cta. Cte.';

@@ -52,17 +52,21 @@ export function normalizeText(t: any): string {
  * Analiza filas de Excel crudas y genera filas de staging (StagedRow) detectando
  * coincidencias, cambios de códigos y conflictos.
  */
+import { findHeaderIndexes, HeaderIndexes } from './excelValidator';
+
 export function analyzeImportRows(
-  rawRows: any[][], // filas del Excel leídas como arrays indexados
-  existingProducts: (Product & { stock?: number })[]
+  rawRows: any[][], // filas de datos del Excel (excluyendo encabezado)
+  existingProducts: (Product & { stock?: number })[],
+  headerRow?: any[] // fila de encabezados si está disponible
 ): StagedRow[] {
   const stagedRows: StagedRow[] = [];
+  const indexes: HeaderIndexes = headerRow ? findHeaderIndexes(headerRow) : { codeIdx: 0, descIdx: 2, brandIdx: 3, priceIdx: 5, stockIdx: 6 };
 
   // 1. Agrupar filas del Excel por descripción normalizada para detectar duplicados en el propio archivo
   const excelDescCounts: Record<string, number> = {};
   rawRows.forEach((row) => {
-    if (row.length < 3) return;
-    const desc = row[2];
+    if (!row || row.length === 0) return;
+    const desc = row[indexes.descIdx];
     if (desc) {
       const normDesc = normalizeText(desc);
       excelDescCounts[normDesc] = (excelDescCounts[normDesc] || 0) + 1;
@@ -73,7 +77,7 @@ export function analyzeImportRows(
   const lastIndexByCode = new Map<string, number>();
   rawRows.forEach((row, index) => {
     if (row && row.length > 0) {
-      const code = normalizeCode(row[0]);
+      const code = normalizeCode(row[indexes.codeIdx]);
       if (code) {
         lastIndexByCode.set(code, index);
       }
@@ -85,11 +89,11 @@ export function analyzeImportRows(
     const filaNumero = index + 2; // Fila 1 es el encabezado
     if (!row || row.length === 0) return;
 
-    const rawCode = row[0];
-    const rawDesc = row[2];
-    const rawBrand = row[3];
-    const rawPrice = row[5];
-    const rawStock = row[6];
+    const rawCode = row[indexes.codeIdx];
+    const rawDesc = row[indexes.descIdx];
+    const rawBrand = indexes.brandIdx >= 0 ? row[indexes.brandIdx] : '';
+    const rawPrice = indexes.priceIdx >= 0 ? row[indexes.priceIdx] : 0;
+    const rawStock = indexes.stockIdx >= 0 ? row[indexes.stockIdx] : 0;
 
     // Ignorar filas totalmente vacías (ej. al final de la planilla)
     if ((rawCode === undefined || rawCode === null || String(rawCode).trim() === '') &&

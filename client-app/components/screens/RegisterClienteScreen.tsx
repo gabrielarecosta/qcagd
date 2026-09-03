@@ -19,6 +19,7 @@ import MaterialCommunityIcons from '../icons/MaterialCommunityIcons';
 import { useEntrance } from '../../hooks/useEntrance';
 import { clientService } from '@shared/services/clientService';
 import { branchService } from '@shared/services/branchService';
+import { localidadService, Localidad } from '@shared/services/localidadService';
 import { Branch } from '@shared/types/branch';
 import { supabase } from '@shared/services/supabaseClient';
 
@@ -99,6 +100,10 @@ export function RegisterClienteScreen({ onBack }: RegisterClienteScreenProps) {
   const [selectedBranchId, setSelectedBranchId] = useState<string | number>(1);
   const [availableBranches, setAvailableBranches] = useState<Branch[]>([]);
 
+  // Campos Localidad
+  const [selectedLocalidad, setSelectedLocalidad] = useState('');
+  const [allowedLocalidades, setAllowedLocalidades] = useState<Localidad[]>([]);
+
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -108,18 +113,23 @@ export function RegisterClienteScreen({ onBack }: RegisterClienteScreenProps) {
   const buttonAnim = useEntrance({ delay: 380, duration: 400 });
 
   useEffect(() => {
-    const loadBranches = async () => {
+    const loadBranchesAndLocalidades = async () => {
       try {
         const list = await branchService.getAll();
         if (list && list.length > 0) {
           setAvailableBranches(list);
           setSelectedBranchId(list[0].id);
         }
+        const locs = await localidadService.getActiveAllowed();
+        setAllowedLocalidades(locs);
+        if (locs.length > 0) {
+          setSelectedLocalidad(locs[0].nombre);
+        }
       } catch (err) {
-        console.warn('Error cargando sucursales para registro:', err);
+        console.warn('Error cargando datos para registro:', err);
       }
     };
-    loadBranches();
+    loadBranchesAndLocalidades();
   }, []);
 
   const handleRegister = async () => {
@@ -133,6 +143,7 @@ export function RegisterClienteScreen({ onBack }: RegisterClienteScreenProps) {
     const passwordFinal = isSucursal ? branchPassword : regPassword;
     const cuitFinal = isSucursal ? branchCuit.trim() : regCuit.trim();
     const branchAsignada = isSucursal ? selectedBranchId : 1;
+    const localidadFinal = selectedLocalidad.trim();
 
     if (isSucursal) {
       if (!branchName.trim() || !branchContact.trim() || !branchPhone.trim()) {
@@ -144,6 +155,20 @@ export function RegisterClienteScreen({ onBack }: RegisterClienteScreenProps) {
         setError('Por favor completá los campos obligatorios: Nombre y Teléfono.');
         return;
       }
+    }
+
+    if (!localidadFinal) {
+      setError('Por favor seleccioná tu Localidad / Ciudad de reparto.');
+      return;
+    }
+
+    const isLocAllowed = allowedLocalidades.some(
+      l => l.nombre.trim().toLowerCase() === localidadFinal.toLowerCase()
+    );
+
+    if (allowedLocalidades.length > 0 && !isLocAllowed) {
+      setError(`Lo sentimos, actualmente no contamos con reparto ni venta habilitada en "${localidadFinal}". Podés consultar con soporte para coordinar retiro en sucursal.`);
+      return;
     }
 
     if (!emailFinal || !emailFinal.includes('@')) {
@@ -174,6 +199,7 @@ export function RegisterClienteScreen({ onBack }: RegisterClienteScreenProps) {
             telefono: telefonoFinal,
             rol: 'cliente',
             tipo_cliente: isSucursal ? 'sucursal' : 'minorista',
+            localidad: localidadFinal,
           },
         },
       });
@@ -198,10 +224,11 @@ export function RegisterClienteScreen({ onBack }: RegisterClienteScreenProps) {
         whatsapp: telefonoFinal,
         email: emailFinal,
         direccion: '',
+        localidad: localidadFinal,
         branchId: branchAsignada,
         tipoCliente: isSucursal ? 'sucursal' : 'minorista',
         activo: true,
-        observaciones: isSucursal ? `Sucursal registrada - Responsable: ${contactoFinal}` : 'Registro particular desde App',
+        observaciones: isSucursal ? `Sucursal registrada - Responsable: ${contactoFinal} - Localidad: ${localidadFinal}` : `Registro App - Localidad: ${localidadFinal}`,
       });
 
       // 3. Loguear directamente al usuario con sus nuevos datos de sesión
@@ -302,6 +329,46 @@ export function RegisterClienteScreen({ onBack }: RegisterClienteScreenProps) {
         {/* ── Formulario Consumidor Final ── */}
         {accountType === 'consumidor_final' && (
           <View style={{ width: '100%' }}>
+            {/* Selector de Localidad Habilitada */}
+            <View style={styles.branchSelectContainer}>
+              <Text style={styles.fieldLabel}>Localidad / Ciudad de Reparto *:</Text>
+              {allowedLocalidades.length > 0 ? (
+                <View style={styles.branchPillsRow}>
+                  {allowedLocalidades.map((loc) => (
+                    <TouchableOpacity
+                      key={loc.id}
+                      style={[
+                        styles.branchPill,
+                        selectedLocalidad.trim().toLowerCase() === loc.nombre.trim().toLowerCase() && styles.branchPillActive,
+                      ]}
+                      onPress={() => {
+                        setError(null);
+                        setSelectedLocalidad(loc.nombre);
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      <Text
+                        style={[
+                          styles.branchPillText,
+                          selectedLocalidad.trim().toLowerCase() === loc.nombre.trim().toLowerCase() && styles.branchPillTextActive,
+                        ]}
+                      >
+                        📍 {loc.nombre}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              ) : (
+                <AnimatedInput
+                  placeholder="Localidad / Ciudad de Reparto *"
+                  value={selectedLocalidad}
+                  onChangeText={setSelectedLocalidad}
+                  autoCapitalize="words"
+                  delay={120}
+                />
+              )}
+            </View>
+
             <AnimatedInput
               placeholder="Nombre Completo *"
               value={regName}

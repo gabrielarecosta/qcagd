@@ -10,6 +10,7 @@ export interface Customer {
   whatsapp?: string;
   email?: string;
   direccion: string;
+  localidad?: string;
   branchId: string | number; // Sucursal habitual asignada
   tipoCliente: ClientType;
   activo: boolean;

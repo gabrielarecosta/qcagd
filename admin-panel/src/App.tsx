@@ -255,8 +255,8 @@ function App() {
     const query = searchQuery.toLowerCase();
 
     const matchingOrders = orders.filter(o => {
-      const client = clients.find(c => c.id === o.clienteId);
-      const clientName = client ? client.nombre.toLowerCase() : '';
+      const client = clients.find(c => String(c.id) === String(o.clienteId) || (c.userId && String(c.userId) === String(o.clienteId)));
+      const clientName = o.customerName ? o.customerName.toLowerCase() : (client ? (client.razonSocial || client.nombre).toLowerCase() : '');
       return o.numero.toLowerCase().includes(query) || clientName.includes(query);
     }).slice(0, 3);
 
@@ -320,9 +320,9 @@ function App() {
     { id: 'clients', label: 'Directorio Clientes', group: 'Catálogo & Clientes' },
     { id: 'ctaCte', label: '💳 Cta. Cte. (Módulo Extra)', group: 'Catálogo & Clientes' },
     
+    { id: 'clientConfig', label: 'Categorías & App', group: 'Catálogo & Clientes' },
     { id: 'branches', label: 'Multi-Sucursal (Módulo Extra)', group: 'Configuración' },
     { id: 'paymentConfig', label: 'Medios de Pago & CBU', group: 'Configuración' },
-    { id: 'clientConfig', label: 'Configuración App', group: 'Configuración' },
     { id: 'users', label: 'Roles Complejos (Módulo Extra)', group: 'Configuración' },
     { id: 'reports', label: 'Reportes Avanzados (Módulo Extra)', group: 'Configuración' },
   ] as const;
