@@ -91,16 +91,21 @@ export default function RootLayout() {
     if (Platform.OS !== 'web' || typeof document === 'undefined') return;
     document.title = 'Tienda QGD';
 
-    const setFavicon = (href: string) => {
-      let link = document.querySelector<HTMLLinkElement>('link[rel~="icon"]');
-      if (!link) {
-        link = document.createElement('link');
-        link.rel = 'icon';
-        document.head.appendChild(link);
-      }
-      link.href = href;
+    const ensureAppleTouchIcon = (href: string) => {
+      const rels = ['apple-touch-icon', 'apple-touch-icon-precomposed'];
+      rels.forEach((rel) => {
+        let link = document.querySelector<HTMLLinkElement>(`link[rel="${rel}"]`);
+        if (!link) {
+          link = document.createElement('link');
+          link.rel = rel;
+          document.head.appendChild(link);
+        }
+        link.href = href;
+      });
     };
+
     setFavicon('/logo2.png');
+    ensureAppleTouchIcon('/logo2.png');
 
     const ensureMeta = (name: string, content: string) => {
       let meta = document.querySelector<HTMLMetaElement>(`meta[name="${name}"]`);

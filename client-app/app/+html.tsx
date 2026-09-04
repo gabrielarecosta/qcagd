@@ -17,10 +17,55 @@ export default function Root({ children }: PropsWithChildren) {
         <meta name="apple-touch-fullscreen" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="apple-mobile-web-app-title" content="Tienda QGD" />
-        <link rel="apple-touch-icon" href="/icon-192.png" />
-        <link rel="apple-touch-icon" sizes="152x152" href="/icon-192.png" />
-        <link rel="apple-touch-icon" sizes="180x180" href="/icon-192.png" />
-        <link rel="apple-touch-icon" sizes="167x167" href="/icon-192.png" />
+        {/* Apple Touch Icons */}
+        <link rel="apple-touch-icon" href="/logo2.png" />
+        <link rel="apple-touch-icon-precomposed" href="/logo2.png" />
+        <link rel="apple-touch-icon" sizes="180x180" href="/logo2.png" />
+        <link rel="apple-touch-icon" sizes="192x192" href="/icon-192.png" />
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+        {/* Native Mobile App Look & Feel Reset */}
+        <style>{`
+          html, body, #root {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow-x: hidden;
+            background-color: #F8FAFC;
+            -webkit-tap-highlight-color: transparent;
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            user-select: none;
+            touch-action: manipulation;
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+          }
+
+          input, textarea, [contenteditable="true"] {
+            -webkit-user-select: text !important;
+            user-select: text !important;
+          }
+
+          body, div, scroll-view {
+            -webkit-overflow-scrolling: touch;
+          }
+
+          img {
+            -webkit-user-drag: none;
+            user-drag: none;
+          }
+
+          ::-webkit-scrollbar {
+            width: 4px;
+            height: 4px;
+          }
+          ::-webkit-scrollbar-track {
+            background: transparent;
+          }
+          ::-webkit-scrollbar-thumb {
+            background: rgba(148, 163, 184, 0.4);
+            border-radius: 4px;
+          }
+        `}</style>
       </head>
       <body>{children}</body>
     </html>
