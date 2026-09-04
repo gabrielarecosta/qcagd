@@ -1,10 +1,10 @@
 {
   "expo": {
-    "name": "QUIMICA GENERAL DEHEZA",
+    "name": "Tienda QGD",
     "slug": "quimicaapp",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/logo2.png",
     "userInterfaceStyle": "light",
     "scheme": "quimicaapp",
     "ios": {
@@ -15,7 +15,7 @@
       "package": "com.quimica.app",
       "adaptiveIcon": {
         "backgroundColor": "#1A56DB",
-        "foregroundImage": "./assets/adaptive-icon.png"
+        "foregroundImage": "./assets/logo2.png"
       },
       "predictiveBackGestureEnabled": false
     },

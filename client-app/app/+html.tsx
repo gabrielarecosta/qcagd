@@ -11,8 +11,10 @@ export default function Root({ children }: PropsWithChildren) {
         <meta name="theme-color" content="#1A56DB" />
         <meta name="description" content="Sistema de Distribución y Gestión de Química General Deheza" />
 
-        {/* iOS / Apple PWA Meta Tags */}
+        {/* iOS / Apple PWA Meta Tags - FULLSCREEN STANDALONE */}
         <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="apple-touch-fullscreen" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="apple-mobile-web-app-title" content="Tienda QGD" />
         <link rel="apple-touch-icon" href="/icon-192.png" />

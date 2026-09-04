@@ -86,10 +86,11 @@ export default function RootLayout() {
     });
   }, []);
 
-  // Título y favicon para web
+  // Título y meta tags PWA para web (iOS Standalone sin barra)
   useEffect(() => {
-    if (Platform.OS !== 'web') return;
-    document.title = 'QUIMICA GENERAL DEHEZA';
+    if (Platform.OS !== 'web' || typeof document === 'undefined') return;
+    document.title = 'Tienda QGD';
+
     const setFavicon = (href: string) => {
       let link = document.querySelector<HTMLLinkElement>('link[rel~="icon"]');
       if (!link) {
@@ -100,6 +101,22 @@ export default function RootLayout() {
       link.href = href;
     };
     setFavicon('/logo2.png');
+
+    const ensureMeta = (name: string, content: string) => {
+      let meta = document.querySelector<HTMLMetaElement>(`meta[name="${name}"]`);
+      if (!meta) {
+        meta = document.createElement('meta');
+        meta.name = name;
+        document.head.appendChild(meta);
+      }
+      meta.content = content;
+    };
+
+    ensureMeta('apple-mobile-web-app-capable', 'yes');
+    ensureMeta('mobile-web-app-capable', 'yes');
+    ensureMeta('apple-touch-fullscreen', 'yes');
+    ensureMeta('apple-mobile-web-app-status-bar-style', 'black-translucent');
+    ensureMeta('apple-mobile-web-app-title', 'Tienda QGD');
   }, []);
 
   if (!fontsLoaded && !fontError) {
