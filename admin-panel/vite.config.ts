@@ -11,8 +11,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'icons.svg'],
       manifest: {
-        name: 'Química General Deheza - CRM',
-        short_name: 'Química CRM',
+        name: 'ADMIN QGD',
+        short_name: 'ADMIN QGD',
         description: 'Panel de Administración y CRM de Química General Deheza',
         theme_color: '#1A56DB',
         background_color: '#ffffff',

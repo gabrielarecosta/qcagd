@@ -207,10 +207,48 @@ export function ProductsView({
 
 
     const stockMap: Record<string, { stock: number; stockMinimo: number }> = {};
-    branches.forEach(b => {
-      stockMap[b.id] = { stock: 10, stockMinimo: 5 };
-    });
     setFormStocks(stockMap);
+  };
+
+  const handleUploadProductImage = async (file: File) => {
+    if (!file) return;
+    setIsUploading(true);
+    try {
+      const prodId = editingProduct ? editingProduct.id : `prod_${Date.now()}`;
+      const ext = file.name.split('.').pop() || 'jpg';
+      const path = `products/${prodId}_${Date.now()}.${ext}`;
+
+      let { error: upErr } = await supabase.storage
+        .from('app-assets')
+        .upload(path, file, { upsert: true, contentType: file.type || 'image/jpeg' });
+
+      if (upErr && (upErr.message?.toLowerCase().includes('bucket not found') || (upErr as any).statusCode === '404')) {
+        try {
+          await supabase.storage.createBucket('app-assets', { public: true });
+          const retryRes = await supabase.storage
+            .from('app-assets')
+            .upload(path, file, { upsert: true, contentType: file.type || 'image/jpeg' });
+          upErr = retryRes.error;
+        } catch (_) {}
+      }
+
+      if (upErr) {
+        if (upErr.message?.toLowerCase().includes('bucket not found')) {
+          throw new Error('El bucket "app-assets" no existe en Supabase Storage. Ejecute la migración SQL 10 en Supabase.');
+        }
+        throw upErr;
+      }
+
+      const { data: urlData } = supabase.storage
+        .from('app-assets')
+        .getPublicUrl(path);
+
+      setFormProduct(prev => ({ ...prev, imagen: urlData.publicUrl }));
+    } catch (err: any) {
+      alert('Error al subir imagen a Supabase: ' + (err.message || String(err)));
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   const handleSaveEdit = (e: React.FormEvent) => {
@@ -851,75 +889,82 @@ export function ProductsView({
                     </button>
                   </div>
 
-                  {/* Upload via Storage */}
+                  {/* Upload via Storage or Camera */}
                   {imageTab === 'upload' && (
-                    <label
-                      htmlFor="prod-image-file"
-                      style={{
-                        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                        border: '2px dashed #475569', borderRadius: '8px', padding: '16px',
-                        cursor: isUploading ? 'not-allowed' : 'pointer',
-                        background: '#0f172a', transition: 'border-color 0.15s',
-                        gap: '6px', minHeight: '80px', color: '#94a3b8', fontSize: '12px'
-                      }}
-                    >
-                      <input
-                        id="prod-image-file"
-                        type="file"
-                        accept="image/*"
-                        style={{ display: 'none' }}
-                        disabled={isUploading}
-                        onChange={async (e) => {
-                          const file = e.target.files?.[0];
-                          if (!file || !editingProduct) return;
-                          setIsUploading(true);
-                          try {
-                            const ext = file.name.split('.').pop();
-                            const path = `products/${editingProduct.id}_${Date.now()}.${ext}`;
-                            
-                            let { error: upErr } = await supabase.storage
-                              .from('app-assets')
-                              .upload(path, file, { upsert: true, contentType: file.type });
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                        <label
+                          style={{
+                            flex: 1,
+                            minWidth: '140px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '6px',
+                            padding: '10px 14px',
+                            backgroundColor: '#059669',
+                            color: '#ffffff',
+                            borderRadius: '8px',
+                            fontWeight: '700',
+                            fontSize: '12px',
+                            cursor: isUploading ? 'not-allowed' : 'pointer',
+                            textAlign: 'center',
+                            boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                          }}
+                        >
+                          <span>📷 Tomar Foto</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            capture="environment"
+                            style={{ display: 'none' }}
+                            disabled={isUploading}
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) handleUploadProductImage(file);
+                            }}
+                          />
+                        </label>
 
-                            if (upErr && (upErr.message?.toLowerCase().includes('bucket not found') || (upErr as any).statusCode === '404')) {
-                              // Intentar crear el bucket si no existe
-                              try {
-                                await supabase.storage.createBucket('app-assets', { public: true });
-                                const retryRes = await supabase.storage
-                                  .from('app-assets')
-                                  .upload(path, file, { upsert: true, contentType: file.type });
-                                upErr = retryRes.error;
-                              } catch (_) {}
-                            }
+                        <label
+                          style={{
+                            flex: 1,
+                            minWidth: '140px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '6px',
+                            padding: '10px 14px',
+                            backgroundColor: '#1D4ED8',
+                            color: '#ffffff',
+                            borderRadius: '8px',
+                            fontWeight: '700',
+                            fontSize: '12px',
+                            cursor: isUploading ? 'not-allowed' : 'pointer',
+                            textAlign: 'center',
+                            boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                          }}
+                        >
+                          <span>🖼️ Elegir de Galería</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            style={{ display: 'none' }}
+                            disabled={isUploading}
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) handleUploadProductImage(file);
+                            }}
+                          />
+                        </label>
+                      </div>
 
-                            if (upErr) {
-                              if (upErr.message?.toLowerCase().includes('bucket not found')) {
-                                throw new Error('El bucket "app-assets" no existe en Supabase Storage. Ejecute la migración SQL 10 en su panel de Supabase.');
-                              }
-                              throw upErr;
-                            }
-
-                            const { data: urlData } = supabase.storage
-                              .from('app-assets')
-                              .getPublicUrl(path);
-
-                            setFormProduct(prev => ({ ...prev, imagen: urlData.publicUrl }));
-                          } catch (err: any) {
-                            alert('Error al subir imagen: ' + (err.message || String(err)));
-                          } finally {
-                            setIsUploading(false);
-                          }
-                        }}
-                      />
-                      {isUploading ? (
-                        <span>⏳ Subiendo imagen a Supabase...</span>
-                      ) : (
-                        <>
-                          <span>🖼️ Arrastrá o hacé clic para elegir foto</span>
-                          <span style={{ fontSize: '10px', color: '#64748b' }}>Recomendado: 400x400px (cuadrado)</span>
-                        </>
+                      {isUploading && (
+                        <div style={{ fontSize: '12px', color: '#38BDF8', textAlign: 'center', padding: '6px', fontWeight: '700' }}>
+                          ⏳ Subiendo imagen a Supabase Storage...
+                        </div>
                       )}
-                    </label>
+                    </div>
                   )}
 
                   {/* URL Input */}
@@ -1221,8 +1266,94 @@ export function ProductsView({
                   })}
                 </div>
 
-              </div>
-              <div className="modal-footer">
+                {/* Imagen en Crear Producto */}
+                <div className="form-group" style={{ marginBottom: '20px', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '16px' }}>
+                  <label className="form-label" style={{ color: '#38bdf8', fontSize: '13px', fontWeight: '700', marginBottom: '8px', display: 'block' }}>📸 Imagen del Producto (Opcional)</label>
+                  
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '10px' }}>
+                    <label
+                      style={{
+                        flex: 1,
+                        minWidth: '140px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '6px',
+                        padding: '10px 14px',
+                        backgroundColor: '#059669',
+                        color: '#ffffff',
+                        borderRadius: '8px',
+                        fontWeight: '700',
+                        fontSize: '12px',
+                        cursor: isUploading ? 'not-allowed' : 'pointer',
+                        textAlign: 'center'
+                      }}
+                    >
+                      <span>📷 Tomar Foto</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        style={{ display: 'none' }}
+                        disabled={isUploading}
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleUploadProductImage(file);
+                        }}
+                      />
+                    </label>
+
+                    <label
+                      style={{
+                        flex: 1,
+                        minWidth: '140px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '6px',
+                        padding: '10px 14px',
+                        backgroundColor: '#1D4ED8',
+                        color: '#ffffff',
+                        borderRadius: '8px',
+                        fontWeight: '700',
+                        fontSize: '12px',
+                        cursor: isUploading ? 'not-allowed' : 'pointer',
+                        textAlign: 'center'
+                      }}
+                    >
+                      <span>🖼️ Elegir de Galería</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        style={{ display: 'none' }}
+                        disabled={isUploading}
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleUploadProductImage(file);
+                        }}
+                      />
+                    </label>
+                  </div>
+
+                  {isUploading && (
+                    <div style={{ fontSize: '12px', color: '#38BDF8', textAlign: 'center', padding: '6px', fontWeight: '700' }}>
+                      ⏳ Subiendo imagen a Supabase Storage...
+                    </div>
+                  )}
+
+                  {formProduct.imagen && (
+                    <div style={{ marginTop: '10px', border: '1px solid #334155', borderRadius: '8px', overflow: 'hidden', position: 'relative', height: '120px' }}>
+                      <img src={formProduct.imagen} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'contain', background: '#0f172a' }} />
+                      <button
+                        type="button"
+                        onClick={() => setFormProduct({ ...formProduct, imagen: '' })}
+                        style={{ position: 'absolute', top: '8px', right: '8px', background: 'rgba(220,38,38,0.85)', color: '#fff', border: 'none', borderRadius: '50%', width: '22px', height: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  )}
+                </div>
                 <button type="button" className="btn btn-secondary" onClick={() => setIsCreating(false)}>Cancelar</button>
                 <button type="submit" className="btn btn-primary">Crear Producto</button>
               </div>

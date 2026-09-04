@@ -335,7 +335,7 @@ export const PwaInstallBanner: React.FC = () => {
               resizeMode="contain"
             />
 
-            <Text style={styles.modalTitle}>Instalar Química General Deheza</Text>
+            <Text style={styles.modalTitle}>Instalar Tienda QGD</Text>
 
             <View style={styles.modalBrowserBadge}>
               <MaterialCommunityIcons name="cellphone-link" size={16} color="#1A56DB" />

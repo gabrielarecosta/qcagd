@@ -17,6 +17,7 @@ import { ClientConfigView } from './views/ClientConfigView';
 import { UsersView } from './views/UsersView';
 import { ReportsView } from './views/ReportsView';
 import { LoginView } from './views/LoginView';
+import { AdminPwaInstallBanner, triggerAdminPwaInstallModal } from './components/AdminPwaInstallBanner';
 
 
 type TabType = 
@@ -736,7 +737,28 @@ function App() {
           </div>
 
           {/* User notifications and profile triggers */}
-          <div className="header-actions" style={{ position: 'relative' }}>
+          <div className="header-actions" style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => triggerAdminPwaInstallModal()}
+              style={{
+                padding: '7px 14px',
+                borderRadius: '9999px',
+                fontSize: '12.5px',
+                fontWeight: 600,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px',
+                borderColor: '#38bdf8',
+                backgroundColor: '#f0f9ff',
+                color: '#0284c7',
+                cursor: 'pointer'
+              }}
+            >
+              📲 Instalar CRM
+            </button>
+
             <button 
               className="btn btn-secondary" 
               style={{ 
@@ -837,6 +859,8 @@ function App() {
           {renderActiveView()}
         </main>
       </div>
+
+      <AdminPwaInstallBanner />
     </div>
   );
 }
