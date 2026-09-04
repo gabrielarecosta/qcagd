@@ -1333,11 +1333,12 @@ input, textarea, [contenteditable="true"] {
   position: fixed;
   inset: 0;
   background-color: rgba(15, 23, 42, 0.6);
-  backdrop-filter: blur(2px);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
   z-index: 998;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 0.3s ease;
+  transition: opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .sidebar-backdrop.active {
@@ -1383,7 +1384,7 @@ input, textarea, [contenteditable="true"] {
 }
 
 /* Envoltorio de tablas con scroll suave en touch */
-.table-responsive {
+.table-responsive, .table-container {
   width: 100%;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
@@ -1391,11 +1392,11 @@ input, textarea, [contenteditable="true"] {
   border-radius: var(--border-radius-sm);
 }
 
-.table-responsive table {
-  min-width: 650px;
+.table-responsive table, .table-container table, .admin-table {
+  min-width: 600px;
 }
 
-/* Media Query para Tablets y Móviles (<= 992px) */
+/* Media Query para Tablets y Pantallas Medianas (<= 992px) */
 @media (max-width: 992px) {
   .mobile-only {
     display: flex !important;
@@ -1405,6 +1406,11 @@ input, textarea, [contenteditable="true"] {
     display: none !important;
   }
 
+  /* Content area padding */
+  .content-body {
+    padding: 20px 18px !important;
+  }
+
   /* Sidebar pasa a ser Drawer Off-Canvas */
   .sidebar {
     position: fixed !important;
@@ -1412,10 +1418,12 @@ input, textarea, [contenteditable="true"] {
     left: 0 !important;
     bottom: 0 !important;
     height: 100vh !important;
+    height: 100dvh !important;
     width: 290px !important;
+    max-width: 85vw !important;
     z-index: 999 !important;
     transform: translateX(-100%) !important;
-    box-shadow: 4px 0 30px rgba(0, 0, 0, 0.3) !important;
+    box-shadow: 4px 0 30px rgba(0, 0, 0, 0.35) !important;
     transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
   }
 
@@ -1447,15 +1455,25 @@ input, textarea, [contenteditable="true"] {
     grid-template-columns: 1fr !important;
     gap: 16px !important;
   }
+
+  .kpis-grid-premium, .kpis-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 14px !important;
+  }
 }
 
 /* Media Query para Teléfonos Móviles (<= 640px) */
 @media (max-width: 640px) {
+  .content-body {
+    padding: 12px 14px !important;
+  }
+
   .top-header {
     flex-wrap: wrap !important;
-    gap: 10px !important;
+    gap: 8px !important;
     height: auto !important;
     padding: 10px 12px !important;
+    padding-top: max(10px, env(safe-area-inset-top, 0px)) !important;
   }
 
   .header-title-section {
@@ -1465,16 +1483,33 @@ input, textarea, [contenteditable="true"] {
 
   .sucursal-select-container {
     width: 100% !important;
+    flex-wrap: wrap !important;
+    gap: 6px !important;
   }
 
   .sucursal-select {
-    width: 100% !important;
+    flex: 1 !important;
     font-size: 12px !important;
+  }
+
+  .header-actions {
+    width: 100% !important;
+    justify-content: space-between !important;
+    gap: 6px !important;
+    margin-top: 4px !important;
+  }
+
+  .header-actions button {
+    flex: 1 !important;
+    justify-content: center !important;
+    padding: 6px 10px !important;
+    font-size: 11.5px !important;
   }
 
   .global-search-container {
     width: 100% !important;
-    order: 3 !important;
+    order: 10 !important;
+    margin-top: 4px !important;
   }
 
   .global-search-input:focus {
@@ -1486,10 +1521,54 @@ input, textarea, [contenteditable="true"] {
     max-width: calc(100vw - 24px) !important;
   }
 
-  /* Grid de métricas / KPI en 1 o 2 columnas en mobile */
-  .kpi-grid {
-    grid-template-columns: 1fr !important;
-    gap: 12px !important;
+  /* Grid de métricas / KPI en 2 columnas compactas en mobile */
+  .kpis-grid-premium, .kpis-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 10px !important;
+    margin-bottom: 20px !important;
+  }
+
+  .kpi-card-premium, .kpi-card {
+    padding: 14px 12px !important;
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 8px !important;
+  }
+
+  .kpi-icon-container {
+    width: 36px !important;
+    height: 36px !important;
+    align-self: flex-end !important;
+    margin-top: -30px !important;
+  }
+
+  .kpi-value-premium, .kpi-value {
+    font-size: 20px !important;
+    margin: 4px 0 2px !important;
+  }
+
+  .kpi-title {
+    font-size: 11px !important;
+  }
+
+  .kpi-sub-trend, .kpi-sub {
+    font-size: 10.5px !important;
+  }
+
+  /* Filas de acciones rápidas con scroll horizontal suave */
+  .quick-actions-row {
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    padding: 12px !important;
+    gap: 8px !important;
+    margin-bottom: 20px !important;
+  }
+
+  .quick-action-btn {
+    flex-shrink: 0 !important;
+    font-size: 12px !important;
+    padding: 8px 12px !important;
   }
 
   .page-header {
@@ -1498,12 +1577,22 @@ input, textarea, [contenteditable="true"] {
     gap: 12px !important;
   }
 
+  .page-title {
+    font-size: 22px !important;
+  }
+
+  .page-desc {
+    font-size: 13px !important;
+    margin-bottom: 16px !important;
+  }
+
   .page-actions {
     width: 100% !important;
     flex-wrap: wrap !important;
+    gap: 8px !important;
   }
 
-  .page-actions button, .page-actions a {
+  .page-actions button, .page-actions a, .page-actions div {
     width: 100% !important;
     justify-content: center !important;
   }
@@ -1520,19 +1609,64 @@ input, textarea, [contenteditable="true"] {
     width: 100% !important;
   }
 
-  /* Modales en teléfonos */
-  .modal-dialog, .modal-content {
-    width: 95vw !important;
-    max-width: 95vw !important;
-    max-height: 92vh !important;
-    margin: 12px auto !important;
+  /* Card headers en móvil */
+  .card-header {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 12px !important;
     padding: 16px !important;
   }
 
-  /* Form controls en móvil */
-  .form-row {
+  .card-body {
+    padding: 16px 14px !important;
+  }
+
+  /* Modales / Bottom Sheet en teléfonos */
+  .modal-overlay {
+    padding: 0 !important;
+    align-items: flex-end !important;
+  }
+
+  .modal-dialog, .modal-content {
+    width: 100vw !important;
+    max-width: 100vw !important;
+    max-height: 90vh !important;
+    max-height: 90dvh !important;
+    margin: 0 !important;
+    border-radius: 20px 20px 0 0 !important;
+    padding: 16px !important;
+    padding-bottom: max(20px, env(safe-area-inset-bottom, 0px)) !important;
+    box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.4) !important;
+  }
+
+  .modal-header {
+    padding: 14px 16px !important;
+  }
+
+  .modal-body {
+    padding: 16px 12px !important;
+  }
+
+  .modal-footer {
+    padding: 14px 16px !important;
     flex-direction: column !important;
+    gap: 8px !important;
+  }
+
+  .modal-footer button {
+    width: 100% !important;
+  }
+
+  /* Form grids en móvil */
+  .form-grid, .form-row, .grid-2-col, .grid-3-col {
+    grid-template-columns: 1fr !important;
     gap: 12px !important;
+  }
+
+  /* Adaptación de tablas y celdas */
+  .admin-table th, .admin-table td {
+    padding: 10px 12px !important;
+    font-size: 13px !important;
   }
 }
 
