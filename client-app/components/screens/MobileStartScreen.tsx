@@ -395,6 +395,32 @@ export function MobileStartScreen() {
           </View>
         </View>
 
+        {/* SECCIÓN DE CATEGORÍAS CON FOTOS */}
+        <View style={styles.categoriesPhotoSection}>
+          <Text style={styles.categoriesPhotoTitle}>Explorá nuestros rubros principales</Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.categoriesPhotoScroll}
+          >
+            {CAROUSEL_IMAGES.map((item, idx) => (
+              <TouchableOpacity
+                key={idx}
+                style={[styles.categoryPhotoCard, carouselIndex === idx && styles.categoryPhotoCardActive]}
+                onPress={() => {
+                  setCarouselIndex(idx);
+                  scrollRef.current?.scrollTo({ x: idx * heroWidth, animated: true });
+                }}
+                activeOpacity={0.85}
+              >
+                <Image source={item.image} style={styles.categoryPhotoImg} resizeMode="cover" />
+                <View style={styles.categoryPhotoOverlay} />
+                <Text style={styles.categoryPhotoTitle} numberOfLines={1}>{item.title}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+
         {/* SECCIÓN DE IDENTIDAD */}
         <View style={styles.identityWrapper}>
           <Text style={styles.identityHeading}>
@@ -1313,5 +1339,57 @@ const styles = StyleSheet.create({
   strengthBar: {
     height: '100%',
     borderRadius: 3,
+  },
+  categoriesPhotoSection: {
+    marginVertical: Spacing.md,
+    paddingHorizontal: Spacing.md,
+  },
+  categoriesPhotoTitle: {
+    fontSize: FontSize.md,
+    fontWeight: FontWeight.bold,
+    color: Colors.textPrimary,
+    marginBottom: Spacing.xs,
+  },
+  categoriesPhotoScroll: {
+    gap: Spacing.sm,
+    paddingRight: Spacing.md,
+  },
+  categoryPhotoCard: {
+    width: 140,
+    height: 85,
+    borderRadius: Radius.lg,
+    overflow: 'hidden',
+    position: 'relative',
+    borderWidth: 2,
+    borderColor: 'transparent',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  categoryPhotoCardActive: {
+    borderColor: Colors.primary,
+  },
+  categoryPhotoImg: {
+    width: '100%',
+    height: '100%',
+    position: 'absolute',
+  },
+  categoryPhotoOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(15, 23, 42, 0.45)',
+  },
+  categoryPhotoTitle: {
+    position: 'absolute',
+    bottom: 8,
+    left: 8,
+    right: 8,
+    color: '#FFFFFF',
+    fontSize: FontSize.xs,
+    fontWeight: FontWeight.bold,
+    textShadowColor: 'rgba(0,0,0,0.8)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
 } as any);

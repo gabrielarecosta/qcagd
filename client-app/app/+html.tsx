@@ -25,11 +25,15 @@ export default function Root({ children }: PropsWithChildren) {
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
         {/* Native Mobile App Look & Feel Reset */}
         <style>{`
-          html, body, #root {
+          html, body, #root, #root > div {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
             margin: 0;
             padding: 0;
             width: 100%;
             height: 100%;
+            min-height: 100vh;
             overflow-x: hidden;
             background-color: #F8FAFC;
             -webkit-tap-highlight-color: transparent;

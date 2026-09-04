@@ -5,6 +5,7 @@ import { StatusBar } from 'expo-status-bar';
 import { NotificationContainer } from '../components/NotificationContainer';
 import { ConfirmationModal } from '../components/ConfirmationModal';
 import { PwaInstallBanner } from '../components/PwaInstallBanner';
+import { QrInstallModal } from '../components/QrInstallModal';
 import { useNotificationStore } from '../store/useNotificationStore';
 import { useAuthStore } from '../store/authStore';
 import { useClientRealtimeNotifications } from '../hooks/useClientRealtimeNotifications';
@@ -91,6 +92,16 @@ export default function RootLayout() {
     if (Platform.OS !== 'web' || typeof document === 'undefined') return;
     document.title = 'Tienda QGD';
 
+    const setFavicon = (href: string) => {
+      let link = document.querySelector<HTMLLinkElement>("link[rel*='icon']");
+      if (!link) {
+        link = document.createElement('link');
+        link.rel = 'shortcut icon';
+        document.head.appendChild(link);
+      }
+      link.href = href;
+    };
+
     const ensureAppleTouchIcon = (href: string) => {
       const rels = ['apple-touch-icon', 'apple-touch-icon-precomposed'];
       rels.forEach((rel) => {
@@ -124,7 +135,7 @@ export default function RootLayout() {
     ensureMeta('apple-mobile-web-app-title', 'Tienda QGD');
   }, []);
 
-  if (!fontsLoaded && !fontError) {
+  if (!fontsLoaded && !fontError && Platform.OS !== 'web') {
     return null;
   }
   return (
@@ -137,6 +148,7 @@ export default function RootLayout() {
       <NotificationContainer />
       <ConfirmationModal />
       <PwaInstallBanner />
+      <QrInstallModal />
     </>
   );
 }

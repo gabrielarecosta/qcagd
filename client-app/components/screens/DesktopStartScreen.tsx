@@ -846,27 +846,29 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
 
-  // COLUMN 1: LEFT CAROUSEL (62% width)
+  // COLUMN 1: LEFT CAROUSEL (60% width)
   leftColumn: {
-    width: '62%',
+    width: '60%',
     position: 'relative',
     overflow: 'hidden',
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'space-between',
+    padding: 32,
   },
   carouselContainer: {
-    ...StyleSheet.absoluteFill,
+    ...StyleSheet.absoluteFillObject,
   },
   carouselBgImage: {
     width: '100%',
     height: '100%',
   },
   carouselOverlay: {
-    ...StyleSheet.absoluteFill,
+    ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(6, 47, 103, 0.45)', // Capa superpuesta azul oscuro translúcido
   },
   topBadge: {
-    position: 'absolute',
-    top: 28,
-    left: 28,
+    alignSelf: 'flex-start',
     backgroundColor: '#0878E8', // Azul brillante
     flexDirection: 'row',
     alignItems: 'center',
@@ -885,18 +887,17 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   carouselContent: {
-    position: 'absolute',
-    left: 45,
-    bottom: 220,
-    right: 45,
+    marginTop: 'auto',
+    marginBottom: 20,
     zIndex: 5,
+    maxWidth: 620,
   },
   carouselTitle: {
     color: '#FFFFFF',
-    fontSize: 38,
+    fontSize: 36,
     fontWeight: FontWeight.extrabold,
-    lineHeight: 46,
-    marginBottom: 16,
+    lineHeight: 44,
+    marginBottom: 12,
   },
   carouselTitleItalic: {
     fontStyle: 'italic',
@@ -904,11 +905,11 @@ const styles = StyleSheet.create({
     color: '#FFD700', // Gold highlighting for emphasis
   },
   carouselSub: {
-    color: 'rgba(255, 255, 255, 0.9)',
-    fontSize: 16,
-    lineHeight: 24,
-    marginBottom: 20,
-    maxWidth: 500,
+    color: 'rgba(255, 255, 255, 0.92)',
+    fontSize: 15,
+    lineHeight: 22,
+    marginBottom: 16,
+    maxWidth: 520,
   },
   infoRow: {
     flexDirection: 'row',
@@ -916,7 +917,7 @@ const styles = StyleSheet.create({
   },
   infoRowText: {
     color: '#E2E8F0',
-    fontSize: 14,
+    fontSize: 13.5,
     fontWeight: FontWeight.semibold,
   },
 
@@ -926,27 +927,26 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: 'rgba(15, 23, 42, 0.35)',
+    backgroundColor: 'rgba(15, 23, 42, 0.45)',
     justifyContent: 'center',
     alignItems: 'center',
-    top: '42%',
+    top: '45%',
     zIndex: 10,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.15)',
+    borderColor: 'rgba(255,255,255,0.2)',
   },
   arrowLeft: {
-    left: 20,
+    left: 16,
   },
   arrowRight: {
-    right: 20,
+    right: 16,
   },
 
   // Dots
   dotsContainer: {
-    position: 'absolute',
     flexDirection: 'row',
-    alignSelf: 'center',
-    bottom: 175,
+    alignSelf: 'flex-start',
+    marginBottom: 16,
     zIndex: 10,
     gap: 8,
   },
@@ -963,14 +963,10 @@ const styles = StyleSheet.create({
 
   // Bottom click previews row
   thumbnailsContainer: {
-    position: 'absolute',
-    bottom: 24,
-    left: 24,
-    right: 24,
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    width: '100%',
     zIndex: 10,
-    gap: 12,
+    gap: 10,
   },
   thumbCard: {
     flex: 1,
@@ -982,22 +978,23 @@ const styles = StyleSheet.create({
     borderColor: 'transparent',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    elevation: 3,
   },
   thumbCardActive: {
     borderColor: '#075BC7', // Borde azul cuando está activa
   },
   thumbImage: {
     width: '100%',
-    height: 50,
+    height: 64,
     borderRadius: 8,
     marginBottom: 4,
   },
   thumbLabel: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: FontWeight.bold,
-    color: '#667085',
+    color: '#475569',
     textAlign: 'center',
     width: '100%',
   },

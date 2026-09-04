@@ -33,6 +33,17 @@ import { AppFooter } from '../../components/AppFooter';
 
 const QUICK_CATEGORIES: ProductCategory[] = ['limpieza', 'quimicos', 'perfumeria', 'descartables', 'piscina', 'industrial', 'hogar', 'institucional'];
 
+const DEFAULT_CATEGORY_IMAGES: Record<string, any> = {
+  limpieza: require('../../assets/2.jpg'),
+  quimicos: require('../../assets/1.webp'),
+  perfumeria: require('../../assets/2.jpg'),
+  descartables: require('../../assets/4.webp'),
+  piscina: require('../../assets/3.jpeg'),
+  industrial: require('../../assets/3.jpeg'),
+  hogar: require('../../assets/banner.png'),
+  institucional: require('../../assets/1.webp'),
+};
+
 const OFFER_CARD_COLORS = [
   '#0d5c66', // Deep Teal
   '#5c061c', // Wine Red
@@ -318,10 +329,11 @@ export default function HomeScreen() {
 
         {/* === CATEGORÍAS === */}
         <Animated.View style={[styles.section, categoriesAnim.animatedStyle]}>
-          <Text style={styles.sectionTitle}>Categorías principales</Text>
+          <Text style={styles.sectionTitle}>Nuestra Tienda & Categorías</Text>
           <View style={[styles.categoriesList, isDesktop && styles.categoriesListDesktop]}>
-            {displayedCategories.map((cat, i) => {
+            {displayedCategories.map((cat) => {
               const bannerUrl = categoryBanners[cat] || '';
+              const imageSource = bannerUrl ? { uri: bannerUrl } : (DEFAULT_CATEGORY_IMAGES[cat] || require('../../assets/banner.png'));
               return (
                 <TouchableOpacity
                   key={cat}
@@ -329,15 +341,11 @@ export default function HomeScreen() {
                   onPress={() => handleCategoryPress(cat)}
                   activeOpacity={0.82}
                 >
-                  {bannerUrl ? (
-                    <Image
-                      source={{ uri: bannerUrl }}
-                      style={styles.categoryBannerBg}
-                      resizeMode="cover"
-                    />
-                  ) : (
-                    <View style={[styles.categoryBannerBg, { backgroundColor: '#F1F5F9' }]} />
-                  )}
+                  <Image
+                    source={imageSource}
+                    style={styles.categoryBannerBg}
+                    resizeMode="cover"
+                  />
                   <View style={styles.categoryBannerOverlay} />
                   <View style={[styles.categoryBannerContent, isDesktop && styles.categoryBannerContentDesktop]}>
                     <View style={styles.categoryBannerIconBg}>
@@ -1001,10 +1009,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 16,
+    width: '100%',
   },
   categoryBannerCardDesktop: {
-    width: '23%', // 4 squares fit per row
-    height: 140,
+    flexBasis: '22%',
+    flexGrow: 1,
+    minWidth: 210,
+    height: 150,
+    borderRadius: Radius.xl,
   },
   categoryBannerContentDesktop: {
     flexDirection: 'column',
