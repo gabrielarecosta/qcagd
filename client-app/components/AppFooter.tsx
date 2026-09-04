@@ -16,6 +16,7 @@ import { companySettingsService, CompanySettings } from '@shared/services/compan
 import { FaqsModal } from './legal/FaqsModal';
 import { TermsModal } from './legal/TermsModal';
 import { ArrepentimientoModal } from './legal/ArrepentimientoModal';
+import { triggerPwaInstallModal } from './PwaInstallBanner';
 
 export function AppFooter() {
   const { width } = useWindowDimensions();
@@ -70,6 +71,15 @@ export function AppFooter() {
         {/* Columna 2: Enlaces Rápidos & Ayuda */}
         <View style={[styles.col, isDesktop && styles.colDesktopLinks]}>
           <Text style={styles.colTitle}>Centro de Ayuda</Text>
+          {Platform.OS === 'web' && (
+            <TouchableOpacity style={styles.linkRow} onPress={() => triggerPwaInstallModal()} activeOpacity={0.7}>
+              <MaterialCommunityIcons name="cellphone-arrow-down" size={16} color="#38BDF8" />
+              <Text style={[styles.linkText, { color: '#38BDF8', fontWeight: 'bold' }]}>
+                Instalar App Móvil en tu Celular
+              </Text>
+            </TouchableOpacity>
+          )}
+
           <TouchableOpacity style={styles.linkRow} onPress={() => setShowFaqs(true)} activeOpacity={0.7}>
             <MaterialCommunityIcons name="help-circle-outline" size={16} color={Colors.primary} />
             <Text style={styles.linkText}>Preguntas Frecuentes (FAQs)</Text>

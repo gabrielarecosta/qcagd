@@ -27,6 +27,7 @@ import { OrderDetailModal } from '../OrderDetailModal';
 import { AppFooter } from '../AppFooter';
 import { suggestDehezaStreets, StreetSuggestion } from '@shared/utils/dehezaStreets';
 import { geocodeAddress } from '@shared/utils/geo';
+import { triggerPwaInstallModal } from '../PwaInstallBanner';
 
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
@@ -485,6 +486,42 @@ export function ClienteAccountScreen() {
         <InfoRow label="Email" value={clientData.email || '-'} />
         <InfoRow label="Tipo de Cliente" value={clientData.tipoCliente === 'mayorista' ? 'Mayorista' : clientData.tipoCliente === 'sucursal' ? 'Sucursal' : 'Consumidor Final'} />
       </View>
+
+      {/* Instalar App Móvil */}
+      {Platform.OS === 'web' && (
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>App Móvil de Química General Deheza</Text>
+          <Text style={styles.cardDesc}>
+            Accedé a tus pedidos y catálogo de forma instantánea instalando la app en tu pantalla de inicio en tu celular (iPhone o Android).
+          </Text>
+          <TouchableOpacity
+            style={{
+              backgroundColor: '#eff6ff',
+              borderRadius: 12,
+              paddingVertical: 12,
+              paddingHorizontal: 14,
+              borderWidth: 1,
+              borderColor: '#bfdbfe',
+              marginTop: 10,
+              flexDirection: 'row',
+              alignItems: 'center',
+            }}
+            onPress={() => triggerPwaInstallModal()}
+            activeOpacity={0.8}
+          >
+            <Text style={{ fontSize: 22, marginRight: 12 }}>📲</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 14, fontWeight: '700', color: Colors.primary }}>
+                Instalar App en tu Dispositivo
+              </Text>
+              <Text style={{ fontSize: 11.5, color: Colors.textSecondary, marginTop: 2 }}>
+                Instalá en 1-click o mira la guía rápida para tu navegador (Chrome, Safari, Firefox, WhatsApp)
+              </Text>
+            </View>
+            <Text style={{ fontSize: 18, color: Colors.primary, fontWeight: 'bold', marginLeft: 8 }}>›</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* Direcciones de Entrega */}
       <View style={styles.card}>
