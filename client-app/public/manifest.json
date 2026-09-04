@@ -1,7 +1,16 @@
 {
-  "short_name": "Química General Deheza",
-  "name": "Química General Deheza - Gestión y Distribución",
-  "description": "Sistema de distribución de artículos de limpieza e industriales de Química General Deheza.",
+  "id": "/",
+  "scope": "/",
+  "start_url": "/",
+  "name": "Química General Deheza",
+  "short_name": "QGD App",
+  "description": "Sistema de distribución y pedidos de Química General Deheza.",
+  "lang": "es",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#1A56DB",
+  "background_color": "#ffffff",
+  "categories": ["business", "shopping", "utilities"],
   "icons": [
     {
       "src": "/favicon.png",
@@ -12,18 +21,26 @@
       "src": "/icon-192.png",
       "type": "image/png",
       "sizes": "192x192",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-192-maskable.png",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "maskable"
     },
     {
       "src": "/icon-512.png",
       "type": "image/png",
       "sizes": "512x512",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512-maskable.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "maskable"
     }
-  ],
-  "start_url": "/",
-  "display": "standalone",
-  "theme_color": "#1A56DB",
-  "background_color": "#ffffff",
-  "orientation": "portrait"
+  ]
 }
+

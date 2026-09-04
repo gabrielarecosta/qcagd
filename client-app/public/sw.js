@@ -1,11 +1,14 @@
-const CACHE_NAME = 'quimica-app-cache-v1';
+const CACHE_NAME = 'quimica-app-cache-v2';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
   '/manifest.json',
   '/favicon.png',
   '/icon-192.png',
-  '/icon-512.png'
+  '/icon-192-maskable.png',
+  '/icon-512.png',
+  '/icon-512-maskable.png',
+  '/offline.html'
 ];
 
 // Install Event
@@ -59,7 +62,7 @@ self.addEventListener('fetch', (event) => {
       // Network Fallback
       return fetch(event.request).then((networkResponse) => {
         // Cache images, assets and pages dynamically
-        const isAsset = event.request.url.match(/\.(png|jpg|jpeg|gif|svg|webp|woff|woff2|css)$/);
+        const isAsset = event.request.url.match(/\.(png|jpg|jpeg|gif|svg|webp|woff|woff2|css|js)$/);
         if (networkResponse.status === 200 && (isAsset || event.request.mode === 'navigate')) {
           const responseToCache = networkResponse.clone();
           caches.open(CACHE_NAME).then((cache) => {
@@ -69,12 +72,15 @@ self.addEventListener('fetch', (event) => {
         return networkResponse;
       }).catch((error) => {
         console.log('[Service Worker] Fetch failed, returning offline fallback:', error);
-        // For HTML navigation requests, we could return a generic offline page if cached
+        // For HTML navigation requests, return offline.html if available
         if (event.request.mode === 'navigate') {
-          return caches.match('/');
+          return caches.match('/offline.html').then((offlineResponse) => {
+            return offlineResponse || caches.match('/');
+          });
         }
         throw error;
       });
     })
   );
 });
+

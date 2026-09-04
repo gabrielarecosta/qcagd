@@ -4,6 +4,7 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { NotificationContainer } from '../components/NotificationContainer';
 import { ConfirmationModal } from '../components/ConfirmationModal';
+import { PwaInstallBanner } from '../components/PwaInstallBanner';
 import { useNotificationStore } from '../store/useNotificationStore';
 import { useAuthStore } from '../store/authStore';
 import { useClientRealtimeNotifications } from '../hooks/useClientRealtimeNotifications';
@@ -57,12 +58,12 @@ export default function RootLayout() {
       }
     };
   }, [isLoggedIn, logout, setSessionExpired]);
+
   useEffect(() => {
     if (Platform.OS !== 'web' || !('serviceWorker' in navigator)) return;
 
-    // 1. Registrar Service Worker y monitorear actualizaciones
+    // Registrar Service Worker y monitorear actualizaciones
     navigator.serviceWorker.register('/sw.js').then((registration) => {
-      // Monitorear si hay actualizaciones listas en segundo plano
       registration.addEventListener('updatefound', () => {
         const newWorker = registration.installing;
         if (!newWorker) return;
@@ -83,41 +84,12 @@ export default function RootLayout() {
     }).catch((err) => {
       console.warn('⚠️ Error al registrar PWA Service Worker:', err);
     });
-
-    // 2. Controlar instalación de la PWA
-    let deferredPrompt: any = null;
-    const handleBeforeInstall = (e: any) => {
-      e.preventDefault();
-      deferredPrompt = e;
-
-      useNotificationStore.getState().showToast({
-        message: '¡Instalá la App en tu pantalla de inicio!',
-        type: 'success',
-        actionLabel: 'Instalar',
-        onAction: () => {
-          if (deferredPrompt) {
-            deferredPrompt.prompt();
-            deferredPrompt.userChoice.then((choice: any) => {
-              if (choice.outcome === 'accepted') {
-                console.log('App PWA instalada con éxito.');
-              }
-              deferredPrompt = null;
-            });
-          }
-        }
-      });
-    };
-
-    window.addEventListener('beforeinstallprompt', handleBeforeInstall);
-    return () => {
-      window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
-    };
   }, []);
+
   // Título y favicon para web
   useEffect(() => {
     if (Platform.OS !== 'web') return;
     document.title = 'QUIMICA GENERAL DEHEZA';
-    // Favicon
     const setFavicon = (href: string) => {
       let link = document.querySelector<HTMLLinkElement>('link[rel~="icon"]');
       if (!link) {
@@ -142,8 +114,10 @@ export default function RootLayout() {
       </Stack>
       <NotificationContainer />
       <ConfirmationModal />
+      <PwaInstallBanner />
     </>
   );
 }
+
 
 
