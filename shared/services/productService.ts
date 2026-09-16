@@ -1414,24 +1414,29 @@ export const productService = {
     }
   },
 
-  getMatchingProductsForPriceUpdate: async (options: Omit<BulkPriceUpdateOptions, 'auditInfo' | 'valor'>): Promise<any[]> => {
+  getMatchingProductsForPriceUpdate: async (options: Partial<BulkPriceUpdateOptions>): Promise<any[]> => {
     let query = supabase
       .from('products')
       .select('id, codigo, nombre, categoria, marca, precio, precio_mayorista')
       .is('deleted_at', null)
       .eq('activo', true);
 
-    if (options.categoria && options.categoria !== 'todos' && options.categoria !== 'all') {
-      query = query.eq('categoria', options.categoria);
+    const category = options.categoria || options.category;
+    const marca = options.marca || options.brand;
+    const codigoDesde = options.codigoDesde || options.codeFrom;
+    const codigoHasta = options.codigoHasta || options.codeTo;
+
+    if (category && category !== 'todos' && category !== 'all') {
+      query = query.eq('categoria', category);
     }
-    if (options.marca && options.marca !== 'todas' && options.marca !== 'all') {
-      query = query.eq('marca', options.marca);
+    if (marca && marca !== 'todas' && marca !== 'all') {
+      query = query.eq('marca', marca);
     }
-    if (options.codigoDesde && options.codigoDesde.trim()) {
-      query = query.gte('codigo', options.codigoDesde.trim().toUpperCase());
+    if (codigoDesde && codigoDesde.trim()) {
+      query = query.gte('codigo', codigoDesde.trim().toUpperCase());
     }
-    if (options.codigoHasta && options.codigoHasta.trim()) {
-      query = query.lte('codigo', options.codigoHasta.trim().toUpperCase());
+    if (codigoHasta && codigoHasta.trim()) {
+      query = query.lte('codigo', codigoHasta.trim().toUpperCase());
     }
 
     const { data, error } = await query;
@@ -1457,54 +1462,59 @@ export const productService = {
     }
 
     const nowIso = new Date().toISOString();
-    const userEmail = options.auditInfo?.userEmail || 'admin@quimicadeheza.com';
+    const userEmail = options.auditInfo?.userEmail || options.userEmail || 'admin@quimicadeheza.com';
     const userId = options.auditInfo?.userId || 'admin';
     const roleId = options.auditInfo?.roleId || 'admin';
     const branchId = options.auditInfo?.branchId ? Number(options.auditInfo.branchId) : (options.branchId && options.branchId !== 'all' ? Number(options.branchId) : 1);
 
-    const applyRounding = (val: number, rule: string): number => {
+    const applyRounding = (val: number, rule: any): number => {
       if (val < 0) val = 0;
-      switch (rule) {
-        case '1.00':
-          return Math.round(val);
-        case '0.10':
-          return Math.round(val * 10) / 10;
-        case '5.00':
-          return Math.round(val / 5) * 5;
-        case '10.00':
-          return Math.round(val / 10) * 10;
-        case '100.00':
-          return Math.round(val / 100) * 100;
-        case 'sin_redondeo':
-        default:
-          return Math.round(val * 100) / 100;
-      }
+      const numRule = typeof rule === 'number' ? rule : parseFloat(String(rule));
+      if (numRule === 1) return Math.round(val);
+      if (numRule === 0.1) return Math.round(val * 10) / 10;
+      if (numRule === 5) return Math.round(val / 5) * 5;
+      if (numRule === 10) return Math.round(val / 10) * 10;
+      if (numRule === 100) return Math.round(val / 100) * 100;
+      if (rule === '1.00') return Math.round(val);
+      if (rule === '0.10') return Math.round(val * 10) / 10;
+      if (rule === '5.00') return Math.round(val / 5) * 5;
+      if (rule === '10.00') return Math.round(val / 10) * 10;
+      if (rule === '100.00') return Math.round(val / 100) * 100;
+      return Math.round(val * 100) / 100;
     };
 
-    const targetCol = options.listaAfectada === 'precio_mayorista' ? 'precio_mayorista' : 'precio';
-    const baseCol = options.listaBase === 'precio_mayorista' ? 'precio_mayorista' : 'precio';
+    const targetList = options.listaAfectada || options.targetList || 'precio_venta';
+    const baseList = options.listaBase || options.baseList || 'misma_lista';
+    const modoCalculo = options.modoCalculo || options.adjustmentMode || 'porcentaje';
+    const valor = options.valor ?? options.value ?? 0;
+    const redondeo = options.redondeo ?? options.rounding ?? 'sin_redondeo';
+    const categoria = options.categoria || options.category;
+    const marca = options.marca || options.brand;
+
+    const targetCol = targetList === 'precio_mayorista' ? 'precio_mayorista' : 'precio';
+    const baseCol = baseList === 'precio_mayorista' ? 'precio_mayorista' : 'precio';
 
     const updatesBatch: any[] = [];
     const priceLogsBatch: any[] = [];
 
     const criterioText = [
-      options.categoria && options.categoria !== 'todos' ? `Rubro: ${options.categoria}` : null,
-      options.marca && options.marca !== 'todas' ? `Marca: ${options.marca}` : null,
-      `Ajuste: ${options.valor > 0 ? '+' : ''}${options.valor}${options.modoCalculo === 'porcentaje' ? '%' : '$'}`,
-      `Redondeo: ${options.redondeo}`
+      categoria && categoria !== 'todos' && categoria !== 'all' ? `Rubro: ${categoria}` : null,
+      marca && marca !== 'todas' && marca !== 'all' ? `Marca: ${marca}` : null,
+      `Ajuste: ${valor > 0 ? '+' : ''}${valor}${modoCalculo === 'porcentaje' ? '%' : '$'}`,
+      `Redondeo: ${redondeo}`
     ].filter(Boolean).join(' | ');
 
     for (const p of matchingProducts) {
       const currentPrice = Number(p[baseCol] || p.precio || 0);
       let calculatedPrice = currentPrice;
 
-      if (options.modoCalculo === 'porcentaje') {
-        calculatedPrice = currentPrice * (1 + (options.valor / 100));
+      if (modoCalculo === 'porcentaje') {
+        calculatedPrice = currentPrice * (1 + (valor / 100));
       } else {
-        calculatedPrice = currentPrice + options.valor;
+        calculatedPrice = currentPrice + valor;
       }
 
-      const newPrice = applyRounding(calculatedPrice, options.redondeo);
+      const newPrice = applyRounding(calculatedPrice, redondeo);
 
       updatesBatch.push({
         id: p.id,
@@ -1561,8 +1571,8 @@ export const productService = {
           productos_actualizados: updatesBatch.length,
           criterio: criterioText,
           lista_afectada: targetCol,
-          modo: options.modoCalculo,
-          valor: options.valor,
+          modo: modoCalculo,
+          valor: valor,
         },
         fecha_inicio: nowIso,
         fecha_fin: new Date().toISOString(),
@@ -1575,17 +1585,29 @@ export const productService = {
 
 export interface BulkPriceUpdateOptions {
   marca?: string;
+  brand?: string;
   categoria?: string;
+  category?: string;
   proveedor?: string;
+  supplier?: string;
   codigoDesde?: string;
+  codeFrom?: string;
   codigoHasta?: string;
-  variacionTipo: 'costo' | 'precio_venta';
-  listaAfectada: 'precio' | 'precio_mayorista';
-  listaBase: 'precio' | 'precio_mayorista';
-  modoCalculo: 'porcentaje' | 'monto';
-  valor: number;
-  redondeo: 'sin_redondeo' | '1.00' | '0.10' | '5.00' | '10.00' | '100.00';
+  codeTo?: string;
+  variacionTipo?: 'costo' | 'precio_venta';
+  variationType?: 'costo' | 'precio_venta';
+  listaAfectada?: 'precio' | 'precio_venta' | 'precio_mayorista';
+  targetList?: 'precio' | 'precio_venta' | 'precio_mayorista';
+  listaBase?: 'misma_lista' | 'precio' | 'precio_venta' | 'precio_mayorista';
+  baseList?: 'misma_lista' | 'precio' | 'precio_venta' | 'precio_mayorista';
+  modoCalculo?: 'porcentaje' | 'monto';
+  adjustmentMode?: 'porcentaje' | 'monto';
+  valor?: number;
+  value?: number;
+  redondeo?: 'sin_redondeo' | '1.00' | '0.10' | '5.00' | '10.00' | '100.00' | number;
+  rounding?: 'sin_redondeo' | '1.00' | '0.10' | '5.00' | '10.00' | '100.00' | number;
   branchId?: string | number;
+  userEmail?: string;
   auditInfo?: {
     userId?: string;
     roleId?: string;

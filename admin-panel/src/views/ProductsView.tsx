@@ -67,7 +67,7 @@ export function ProductsView({
     const fetchPreview = async () => {
       setIsLoadingPreview(true);
       try {
-        const count = await productService.getMatchingProductsForPriceUpdate({
+        const prods = await productService.getMatchingProductsForPriceUpdate({
           brand: bulkBrand,
           category: bulkCategory,
           supplier: bulkProveedor,
@@ -81,7 +81,7 @@ export function ProductsView({
           rounding: bulkRedondeo,
           branchId: bulkSucursalId,
         });
-        if (isMounted) setMatchingCount(count);
+        if (isMounted) setMatchingCount(Array.isArray(prods) ? prods.length : 0);
       } catch (err) {
         console.error('Error fetching preview matching products:', err);
       } finally {
