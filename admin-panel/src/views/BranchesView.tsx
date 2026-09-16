@@ -445,6 +445,15 @@ export function BranchesView() {
                 <button type="button" className="btn btn-secondary" onClick={handleCloseModal}>
                   Cancelar
                 </button>
+                <button type="submit" className="btn btn-primary">
+                  💾 Guardar Sucursal
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Modal para Crear Nueva Sucursal */}
       {isCreatingBranch && (
         <div className="modal-overlay">
