@@ -109,17 +109,26 @@ export function DashboardView({ onNavigate, onFilterProductsNoPhoto }: Dashboard
 
   const loadLatestImport = async () => {
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('imports')
         .select('*')
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+        .order('created_at', { ascending: false });
+
+      if (activeBranchId !== 'all') {
+        const bId = Number(activeBranchId);
+        query = query.or(`branch_id.eq.${bId},sucursal_id.eq.${bId}`);
+      }
+
+      const { data, error } = await query.limit(1).maybeSingle();
 
       if (!error && data) {
         setLatestImport(data);
+      } else {
+        setLatestImport(null);
       }
-    } catch (_) {}
+    } catch (_) {
+      setLatestImport(null);
+    }
   };
 
   useEffect(() => {
@@ -157,6 +166,7 @@ export function DashboardView({ onNavigate, onFilterProductsNoPhoto }: Dashboard
 
   useEffect(() => {
     fetchDashboardDbMetrics();
+    loadLatestImport();
   }, [activeBranchId]);
 
   const [dateFilter, setDateFilter] = useState<'hoy' | 'ayer' | '7dias' | 'mes' | 'personalizado'>('7dias');
@@ -186,7 +196,7 @@ export function DashboardView({ onNavigate, onFilterProductsNoPhoto }: Dashboard
   const filteredOrders = useMemo(() => {
     let list = orders;
     if (activeBranchId !== 'all') {
-      list = list.filter(o => o.branchId === activeBranchId);
+      list = list.filter(o => String(o.branchId) === String(activeBranchId));
     }
 
     const today = new Date(baseToday.getFullYear(), baseToday.getMonth(), baseToday.getDate());

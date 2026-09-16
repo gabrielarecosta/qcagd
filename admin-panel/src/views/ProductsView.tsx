@@ -112,6 +112,7 @@ export function ProductsView({
   ]);
 
   const handleOpenBulkPriceModal = async () => {
+    setBulkSucursalId(activeBranchId);
     setShowBulkPriceModal(true);
     try {
       const brands = await productService.getDistinctBrands();
@@ -1974,18 +1975,25 @@ export function ProductsView({
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#475569', marginBottom: '4px' }}>Sucursal para Auditoría:</label>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: '#0f172a', marginBottom: '4px' }}>
+                    🏢 Aplicar a Sucursal / Auditoría:
+                  </label>
                   <select 
                     className="form-select" 
                     value={String(bulkSucursalId)} 
                     onChange={e => setBulkSucursalId(e.target.value)}
-                    style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+                    style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontWeight: '600' }}
                   >
-                    <option value="all">Todas las sucursales</option>
+                    <option value="all">🌐 TODAS las sucursales (Actualización Global)</option>
                     {branches.map(b => (
-                      <option key={b.id} value={b.id}>{b.nombre}</option>
+                      <option key={b.id} value={b.id}>🏢 Solo {b.nombre} (ID: {b.id})</option>
                     ))}
                   </select>
+                  <span style={{ fontSize: '11px', color: '#64748b', display: 'block', marginTop: '4px' }}>
+                    {bulkSucursalId === 'all' 
+                      ? 'Se registrará el impacto de precios para todas las sucursales.'
+                      : `Se registrará la auditoría y ejecución de precios específicamente para la sucursal seleccionada.`}
+                  </span>
                 </div>
               </div>
 
