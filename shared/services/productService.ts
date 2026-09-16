@@ -1412,5 +1412,184 @@ export const productService = {
         .eq('id', id);
       if (fallbackErr) throw fallbackErr;
     }
+  },
+
+  getMatchingProductsForPriceUpdate: async (options: Omit<BulkPriceUpdateOptions, 'auditInfo' | 'valor'>): Promise<any[]> => {
+    let query = supabase
+      .from('products')
+      .select('id, codigo, nombre, categoria, marca, precio, precio_mayorista')
+      .is('deleted_at', null)
+      .eq('activo', true);
+
+    if (options.categoria && options.categoria !== 'todos' && options.categoria !== 'all') {
+      query = query.eq('categoria', options.categoria);
+    }
+    if (options.marca && options.marca !== 'todas' && options.marca !== 'all') {
+      query = query.eq('marca', options.marca);
+    }
+    if (options.codigoDesde && options.codigoDesde.trim()) {
+      query = query.gte('codigo', options.codigoDesde.trim().toUpperCase());
+    }
+    if (options.codigoHasta && options.codigoHasta.trim()) {
+      query = query.lte('codigo', options.codigoHasta.trim().toUpperCase());
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+    return data || [];
+  },
+
+  getDistinctBrands: async (): Promise<string[]> => {
+    const { data, error } = await supabase
+      .from('products')
+      .select('marca')
+      .not('marca', 'is', null)
+      .neq('marca', '');
+    if (error) return [];
+    const brands = Array.from(new Set((data || []).map((p: any) => p.marca).filter(Boolean)));
+    return (brands as string[]).sort();
+  },
+
+  bulkUpdatePrices: async (options: BulkPriceUpdateOptions): Promise<{ updatedCount: number }> => {
+    const matchingProducts = await productService.getMatchingProductsForPriceUpdate(options);
+    if (matchingProducts.length === 0) {
+      return { updatedCount: 0 };
+    }
+
+    const nowIso = new Date().toISOString();
+    const userEmail = options.auditInfo?.userEmail || 'admin@quimicadeheza.com';
+    const userId = options.auditInfo?.userId || 'admin';
+    const roleId = options.auditInfo?.roleId || 'admin';
+    const branchId = options.auditInfo?.branchId ? Number(options.auditInfo.branchId) : (options.branchId && options.branchId !== 'all' ? Number(options.branchId) : 1);
+
+    const applyRounding = (val: number, rule: string): number => {
+      if (val < 0) val = 0;
+      switch (rule) {
+        case '1.00':
+          return Math.round(val);
+        case '0.10':
+          return Math.round(val * 10) / 10;
+        case '5.00':
+          return Math.round(val / 5) * 5;
+        case '10.00':
+          return Math.round(val / 10) * 10;
+        case '100.00':
+          return Math.round(val / 100) * 100;
+        case 'sin_redondeo':
+        default:
+          return Math.round(val * 100) / 100;
+      }
+    };
+
+    const targetCol = options.listaAfectada === 'precio_mayorista' ? 'precio_mayorista' : 'precio';
+    const baseCol = options.listaBase === 'precio_mayorista' ? 'precio_mayorista' : 'precio';
+
+    const updatesBatch: any[] = [];
+    const priceLogsBatch: any[] = [];
+
+    const criterioText = [
+      options.categoria && options.categoria !== 'todos' ? `Rubro: ${options.categoria}` : null,
+      options.marca && options.marca !== 'todas' ? `Marca: ${options.marca}` : null,
+      `Ajuste: ${options.valor > 0 ? '+' : ''}${options.valor}${options.modoCalculo === 'porcentaje' ? '%' : '$'}`,
+      `Redondeo: ${options.redondeo}`
+    ].filter(Boolean).join(' | ');
+
+    for (const p of matchingProducts) {
+      const currentPrice = Number(p[baseCol] || p.precio || 0);
+      let calculatedPrice = currentPrice;
+
+      if (options.modoCalculo === 'porcentaje') {
+        calculatedPrice = currentPrice * (1 + (options.valor / 100));
+      } else {
+        calculatedPrice = currentPrice + options.valor;
+      }
+
+      const newPrice = applyRounding(calculatedPrice, options.redondeo);
+
+      updatesBatch.push({
+        id: p.id,
+        [targetCol]: newPrice,
+        updated_at: nowIso,
+        updated_by_user_id: userId,
+        updated_by_role_id: roleId,
+        updated_by_branch_id: branchId,
+      });
+
+      priceLogsBatch.push({
+        product_id: p.id,
+        precio_anterior: currentPrice,
+        precio_nuevo: newPrice,
+        cambio_tipo: 'masivo',
+        criterio: criterioText,
+        usuario_responsable: userEmail,
+        created_at: nowIso,
+      });
+    }
+
+    const chunkSize = 50;
+    for (let i = 0; i < updatesBatch.length; i += chunkSize) {
+      const chunk = updatesBatch.slice(i, i + chunkSize);
+      const logChunk = priceLogsBatch.slice(i, i + chunkSize);
+
+      for (const item of chunk) {
+        await supabase
+          .from('products')
+          .update({
+            [targetCol]: item[targetCol],
+            updated_at: item.updated_at,
+            updated_by_user_id: item.updated_by_user_id,
+            updated_by_role_id: item.updated_by_role_id,
+            updated_by_branch_id: item.updated_by_branch_id,
+          })
+          .eq('id', item.id);
+      }
+
+      try {
+        await supabase.from('product_prices').insert(logChunk);
+      } catch (logErr) {
+        console.warn('Error guardando en product_prices:', logErr);
+      }
+    }
+
+    try {
+      await supabase.from('process_executions').insert({
+        nombre_proceso: 'Actualización Masiva de Precios',
+        branch_id: branchId,
+        usuario: userEmail,
+        estado: 'completado',
+        detalles: {
+          productos_actualizados: updatesBatch.length,
+          criterio: criterioText,
+          lista_afectada: targetCol,
+          modo: options.modoCalculo,
+          valor: options.valor,
+        },
+        fecha_inicio: nowIso,
+        fecha_fin: new Date().toISOString(),
+      });
+    } catch (_) {}
+
+    return { updatedCount: updatesBatch.length };
   }
 };
+
+export interface BulkPriceUpdateOptions {
+  marca?: string;
+  categoria?: string;
+  proveedor?: string;
+  codigoDesde?: string;
+  codigoHasta?: string;
+  variacionTipo: 'costo' | 'precio_venta';
+  listaAfectada: 'precio' | 'precio_mayorista';
+  listaBase: 'precio' | 'precio_mayorista';
+  modoCalculo: 'porcentaje' | 'monto';
+  valor: number;
+  redondeo: 'sin_redondeo' | '1.00' | '0.10' | '5.00' | '10.00' | '100.00';
+  branchId?: string | number;
+  auditInfo?: {
+    userId?: string;
+    roleId?: string;
+    branchId?: string | number;
+    userEmail?: string;
+  };
+}

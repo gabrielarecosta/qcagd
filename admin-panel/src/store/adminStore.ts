@@ -24,7 +24,8 @@ import {
   paymentService,
   notificationService,
   routeService,
-  supabase
+  supabase,
+  BulkPriceUpdateOptions
 } from '@shared/services';
 
 interface AdminStore {
@@ -84,6 +85,7 @@ interface AdminStore {
   insertStagingRows: (importId: string | number, rows: any[]) => Promise<void>;
   updateStagingRow: (rowId: string | number, updates: { estado: string; datos: any }) => Promise<void>;
   confirmImport: (importId: string | number, branchId: string | number) => Promise<any>;
+  bulkUpdatePrices: (options: BulkPriceUpdateOptions) => Promise<{ updatedCount: number }>;
   
   // Clientes
   updateClient: (id: string | number, updates: Partial<Customer>) => Promise<void>;
@@ -640,6 +642,12 @@ export const useAdminStore = create<AdminStore>((set, get) => ({
     const userEmail = get().currentUser?.email || '';
     const result = await productService.confirmImport(String(importId), String(branchId), userEmail);
     await get().fetchData(true);
+    return result;
+  },
+
+  bulkUpdatePrices: async (options) => {
+    const result = await productService.bulkUpdatePrices(options);
+    await get().fetchProductsOnly();
     return result;
   },
 

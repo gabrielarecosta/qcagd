@@ -27,7 +27,8 @@ export function ProductsView({
     createProduct, 
     updateBranchStock,
     createSuperOffer,
-    fetchProductsOnly
+    fetchProductsOnly,
+    bulkUpdatePrices
   } = useAdminStore();
 
   const [search, setSearch] = useState('');
@@ -38,6 +39,131 @@ export function ProductsView({
   const [sortBy, setSortBy] = useState<'name' | 'category' | 'price' | 'stock' | 'code'>('name');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [currentPage, setCurrentPage] = useState(1);
+
+  // State for Bulk Price Update Modal
+  const [showBulkPriceModal, setShowBulkPriceModal] = useState(false);
+  const [brandsList, setBrandsList] = useState<string[]>([]);
+  const [bulkBrand, setBulkBrand] = useState('all');
+  const [bulkCategory, setBulkCategory] = useState('all');
+  const [bulkProveedor, setBulkProveedor] = useState('all');
+  const [bulkCodigoDesde, setBulkCodigoDesde] = useState('');
+  const [bulkCodigoHasta, setBulkCodigoHasta] = useState('');
+  const [bulkVariacionTipo, setBulkVariacionTipo] = useState<'costo' | 'precio_venta'>('precio_venta');
+  const [bulkListaAfectada, setBulkListaAfectada] = useState<'precio_venta' | 'precio_mayorista'>('precio_venta');
+  const [bulkListaBase, setBulkListaBase] = useState<'misma_lista' | 'precio_venta' | 'precio_mayorista'>('misma_lista');
+  const [bulkModo, setBulkModo] = useState<'porcentaje' | 'monto'>('porcentaje');
+  const [bulkValor, setBulkValor] = useState<string>('10');
+  const [bulkRedondeo, setBulkRedondeo] = useState<number>(1);
+  const [bulkSucursalId, setBulkSucursalId] = useState<string | number | 'all'>('all');
+  const [matchingCount, setMatchingCount] = useState<number | null>(null);
+  const [isLoadingPreview, setIsLoadingPreview] = useState(false);
+  const [isSubmittingBulk, setIsSubmittingBulk] = useState(false);
+
+  // Auto-fetch preview count when modal filters change
+  React.useEffect(() => {
+    if (!showBulkPriceModal) return;
+
+    let isMounted = true;
+    const fetchPreview = async () => {
+      setIsLoadingPreview(true);
+      try {
+        const count = await productService.getMatchingProductsForPriceUpdate({
+          brand: bulkBrand,
+          category: bulkCategory,
+          supplier: bulkProveedor,
+          codeFrom: bulkCodigoDesde,
+          codeTo: bulkCodigoHasta,
+          variationType: bulkVariacionTipo,
+          targetList: bulkListaAfectada,
+          baseList: bulkListaBase,
+          adjustmentMode: bulkModo,
+          value: parseFloat(bulkValor) || 0,
+          rounding: bulkRedondeo,
+          branchId: bulkSucursalId,
+        });
+        if (isMounted) setMatchingCount(count);
+      } catch (err) {
+        console.error('Error fetching preview matching products:', err);
+      } finally {
+        if (isMounted) setIsLoadingPreview(false);
+      }
+    };
+
+    const timer = setTimeout(fetchPreview, 350);
+    return () => {
+      isMounted = false;
+      clearTimeout(timer);
+    };
+  }, [
+    showBulkPriceModal,
+    bulkBrand,
+    bulkCategory,
+    bulkProveedor,
+    bulkCodigoDesde,
+    bulkCodigoHasta,
+    bulkVariacionTipo,
+    bulkListaAfectada,
+    bulkListaBase,
+    bulkModo,
+    bulkValor,
+    bulkRedondeo,
+    bulkSucursalId
+  ]);
+
+  const handleOpenBulkPriceModal = async () => {
+    setShowBulkPriceModal(true);
+    try {
+      const brands = await productService.getDistinctBrands();
+      setBrandsList(brands);
+    } catch (e) {
+      console.error('Error loading brands:', e);
+    }
+  };
+
+  const handleExecuteBulkUpdate = async () => {
+    const val = parseFloat(bulkValor);
+    if (isNaN(val) || val === 0) {
+      alert('Por favor ingrese un valor de variación válido (distinto de 0).');
+      return;
+    }
+
+    if (matchingCount === 0) {
+      alert('No hay productos que coincidan con los filtros seleccionados.');
+      return;
+    }
+
+    const confirmText = `¿Está seguro de aplicar una modificación de ${bulkModo === 'porcentaje' ? `${val}%` : `$${val}`} a ${matchingCount ?? 'los'} producto(s) seleccionados?`;
+    if (!window.confirm(confirmText)) return;
+
+    setIsSubmittingBulk(true);
+    try {
+      const userEmail = useAdminStore.getState().currentUser?.email || '';
+      const res = await bulkUpdatePrices({
+        brand: bulkBrand,
+        category: bulkCategory,
+        supplier: bulkProveedor,
+        codeFrom: bulkCodigoDesde,
+        codeTo: bulkCodigoHasta,
+        variationType: bulkVariacionTipo,
+        targetList: bulkListaAfectada,
+        baseList: bulkListaBase,
+        adjustmentMode: bulkModo,
+        value: val,
+        rounding: bulkRedondeo,
+        branchId: bulkSucursalId,
+        userEmail: userEmail,
+      });
+
+      alert(`✅ Se actualizaron correctamente ${res.updatedCount} productos.`);
+      setShowBulkPriceModal(false);
+      loadPaginatedProducts();
+    } catch (err: any) {
+      console.error('Error al actualizar precios masivamente:', err);
+      alert('Ocurrió un error al actualizar los precios: ' + (err.message || String(err)));
+    } finally {
+      setIsSubmittingBulk(false);
+    }
+  };
 
   const [paginatedProducts, setPaginatedProducts] = useState<(Product & { stock: number; stockMinimo: number })[]>([]);
   const [totalProductsCount, setTotalProductsCount] = useState(0);
@@ -501,6 +627,13 @@ export function ProductsView({
             style={{ background: '#7c3aed', color: '#fff', border: 'none', display: 'flex', alignItems: 'center', gap: '6px' }}
           >
             {isRecategorizing ? '⏳ Recategorizando...' : '🔄 Recategorizar automáticamente'}
+          </button>
+          <button
+            className="btn btn-secondary"
+            onClick={handleOpenBulkPriceModal}
+            style={{ background: '#059669', color: '#fff', border: 'none', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: '600' }}
+          >
+            💲 Modificación Masiva de Precios
           </button>
           <button className="btn btn-primary" onClick={handleOpenCreate}>
             ➕ Nuevo Producto
@@ -1557,6 +1690,279 @@ export function ProductsView({
                 {isRecategorizing ? 'Procesando...' : 'Cerrar'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal Actualización Masiva de Precios ── */}
+      {showBulkPriceModal && (
+        <div className="modal-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
+          <div className="modal-content" style={{ background: '#ffffff', borderRadius: '12px', width: '100%', maxWidth: '680px', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)', border: '1px solid #e2e8f0', color: '#0f172a' }}>
+            
+            {/* Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 24px', borderBottom: '1px solid #e2e8f0', background: '#f8fafc' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <span style={{ fontSize: '24px' }}>💲</span>
+                <div>
+                  <h2 style={{ margin: 0, fontSize: '18px', fontWeight: '700', color: '#0f172a' }}>Actualización Masiva de Precios</h2>
+                  <p style={{ margin: 0, fontSize: '13px', color: '#64748b' }}>Modifique precios por porcentaje o monto fijo a un lote de productos</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setShowBulkPriceModal(false)}
+                style={{ background: 'transparent', border: 'none', fontSize: '20px', cursor: 'pointer', color: '#94a3b8' }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              
+              {/* Sección 1: Criterios de Selección */}
+              <fieldset style={{ border: '1px solid #cbd5e1', borderRadius: '8px', padding: '16px', background: '#f8fafc', margin: 0 }}>
+                <legend style={{ fontWeight: '600', fontSize: '14px', color: '#1e293b', padding: '0 8px' }}>🔍 Criterios de Selección de Artículos</legend>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  
+                  {/* Marca */}
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#475569', marginBottom: '4px' }}>Marca:</label>
+                    <select 
+                      className="form-select" 
+                      value={bulkBrand} 
+                      onChange={e => setBulkBrand(e.target.value)}
+                      style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+                    >
+                      <option value="all">-- Todas las Marcas --</option>
+                      {brandsList.map(b => (
+                        <option key={b} value={b}>{b}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Rubro / Categoría */}
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#475569', marginBottom: '4px' }}>Rubro / Categoría:</label>
+                    <select 
+                      className="form-select" 
+                      value={bulkCategory} 
+                      onChange={e => setBulkCategory(e.target.value)}
+                      style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+                    >
+                      <option value="all">-- Todos los Rubros --</option>
+                      {categories.map(c => (
+                        <option key={c.value} value={c.value}>{c.label}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Proveedor */}
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#475569', marginBottom: '4px' }}>Proveedor:</label>
+                    <input 
+                      type="text" 
+                      className="form-input"
+                      placeholder="Todos o nombre proveedor..." 
+                      value={bulkProveedor === 'all' ? '' : bulkProveedor} 
+                      onChange={e => setBulkProveedor(e.target.value ? e.target.value : 'all')}
+                      style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+                    />
+                  </div>
+
+                  {/* Rango de Códigos */}
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#475569', marginBottom: '4px' }}>Rango de Código:</label>
+                    <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                      <input 
+                        type="text" 
+                        placeholder="Desde" 
+                        value={bulkCodigoDesde} 
+                        onChange={e => setBulkCodigoDesde(e.target.value)}
+                        style={{ width: '50%', padding: '8px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px' }}
+                      />
+                      <span style={{ fontSize: '12px', color: '#64748b' }}>a</span>
+                      <input 
+                        type="text" 
+                        placeholder="Hasta" 
+                        value={bulkCodigoHasta} 
+                        onChange={e => setBulkCodigoHasta(e.target.value)}
+                        style={{ width: '50%', padding: '8px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px' }}
+                      />
+                    </div>
+                  </div>
+
+                </div>
+              </fieldset>
+
+              {/* Sección 2: Variación del */}
+              <fieldset style={{ border: '1px solid #cbd5e1', borderRadius: '8px', padding: '12px 16px', background: '#fff', margin: 0 }}>
+                <legend style={{ fontWeight: '600', fontSize: '14px', color: '#1e293b', padding: '0 8px' }}>Variación del:</legend>
+                <div style={{ display: 'flex', gap: '24px', alignItems: 'center' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'not-allowed', opacity: 0.55, fontSize: '14px' }}>
+                    <input type="radio" name="variacion_del" disabled checked={bulkVariacionTipo === 'costo'} onChange={() => {}} />
+                    <span>Costo <span style={{ fontSize: '11px', color: '#dc2626' }}>(Deshabilitado temporalmente)</span></span>
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: '600', fontSize: '14px', color: '#0f172a' }}>
+                    <input type="radio" name="variacion_del" checked={bulkVariacionTipo === 'precio_venta'} onChange={() => setBulkVariacionTipo('precio_venta')} />
+                    <span>Precio Venta</span>
+                  </label>
+                </div>
+              </fieldset>
+
+              {/* Sección 3: Fórmula y Valores */}
+              <fieldset style={{ border: '1px solid #cbd5e1', borderRadius: '8px', padding: '16px', background: '#f8fafc', margin: 0 }}>
+                <legend style={{ fontWeight: '600', fontSize: '14px', color: '#1e293b', padding: '0 8px' }}>⚙️ Fórmula de Actualización</legend>
+                
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px' }}>
+                  {/* Lista Afectada */}
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#475569', marginBottom: '4px' }}>Lista Afectada (a modificar):</label>
+                    <select 
+                      className="form-select" 
+                      value={bulkListaAfectada} 
+                      onChange={e => setBulkListaAfectada(e.target.value as any)}
+                      style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+                    >
+                      <option value="precio_venta">Precio Venta (General)</option>
+                      <option value="precio_mayorista">Lista Mayorista</option>
+                      <option value="minorista" disabled>Lista Minorista (No habilitado)</option>
+                      <option value="tarjeta" disabled>Lista Tarjeta (No habilitado)</option>
+                    </select>
+                  </div>
+
+                  {/* Lista Base */}
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#475569', marginBottom: '4px' }}>Lista Base (sobre la que se calcula):</label>
+                    <select 
+                      className="form-select" 
+                      value={bulkListaBase} 
+                      onChange={e => setBulkListaBase(e.target.value as any)}
+                      style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+                    >
+                      <option value="misma_lista">Misma Lista (Precio Actual)</option>
+                      <option value="precio_venta">Precio Venta General</option>
+                      <option value="precio_mayorista">Lista Mayorista</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', alignItems: 'center' }}>
+                  {/* Modo de Ajuste */}
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#475569', marginBottom: '6px' }}>Modo de Ajuste:</label>
+                    <div style={{ display: 'flex', gap: '16px' }}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '14px' }}>
+                        <input type="radio" name="modo_ajuste" checked={bulkModo === 'porcentaje'} onChange={() => setBulkModo('porcentaje')} />
+                        <span>Porcentaje (%)</span>
+                      </label>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '14px' }}>
+                        <input type="radio" name="modo_ajuste" checked={bulkModo === 'monto'} onChange={() => setBulkModo('monto')} />
+                        <span>Monto Fijo ($)</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* Valor */}
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#475569', marginBottom: '4px' }}>
+                      Valor de Variación ({bulkModo === 'porcentaje' ? '%' : '$'}):
+                    </label>
+                    <div style={{ position: 'relative' }}>
+                      <input 
+                        type="number" 
+                        step="any"
+                        placeholder="Ej: 10 para +10% o -5 para descuento" 
+                        value={bulkValor} 
+                        onChange={e => setBulkValor(e.target.value)}
+                        style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontWeight: '700', fontSize: '15px' }}
+                      />
+                    </div>
+                    <span style={{ fontSize: '11px', color: '#64748b' }}>
+                      Valores positivos aumentan, valores negativos reducen (descuento).
+                    </span>
+                  </div>
+                </div>
+              </fieldset>
+
+              {/* Sección 4: Redondeo y Sucursal */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#475569', marginBottom: '4px' }}>Redondeo de Precios:</label>
+                  <select 
+                    className="form-select" 
+                    value={bulkRedondeo} 
+                    onChange={e => setBulkRedondeo(parseFloat(e.target.value))}
+                    style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+                  >
+                    <option value={0}>Sin redondeo (mantener decimales)</option>
+                    <option value={0.10}>A $ 0,10 mas cercano</option>
+                    <option value={1}>A $ 1,00 mas cercano (pesos enteros)</option>
+                    <option value={5}>A $ 5,00 mas cercano</option>
+                    <option value={10}>A $ 10,00 mas cercano</option>
+                    <option value={100}>A $ 100,00 mas cercano</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#475569', marginBottom: '4px' }}>Sucursal para Auditoría:</label>
+                  <select 
+                    className="form-select" 
+                    value={String(bulkSucursalId)} 
+                    onChange={e => setBulkSucursalId(e.target.value)}
+                    style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+                  >
+                    <option value="all">Todas las sucursales</option>
+                    {branches.map(b => (
+                      <option key={b.id} value={b.id}>{b.nombre}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Banner de Previsualización */}
+              <div style={{ background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: '8px', padding: '14px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <span style={{ fontSize: '20px' }}>📊</span>
+                  <div>
+                    <div style={{ fontSize: '14px', fontWeight: '700', color: '#0369a1' }}>
+                      {isLoadingPreview ? (
+                        'Calculando artículos coincidentes...'
+                      ) : (
+                        `Se actualizarán ${matchingCount !== null ? matchingCount.toLocaleString('es-AR') : '...'} artículos`
+                      )}
+                    </div>
+                    <div style={{ fontSize: '12px', color: '#0284c7' }}>
+                      {bulkModo === 'porcentaje' 
+                        ? `Ajuste de ${bulkValor}% en ${bulkListaAfectada === 'precio_venta' ? 'Precio Venta General' : 'Lista Mayorista'}`
+                        : `Ajuste de $${bulkValor} en ${bulkListaAfectada === 'precio_venta' ? 'Precio Venta General' : 'Lista Mayorista'}`
+                      }
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+
+            {/* Footer */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', padding: '16px 24px', borderTop: '1px solid #e2e8f0', background: '#f8fafc' }}>
+              <button 
+                type="button" 
+                className="btn btn-secondary" 
+                onClick={() => setShowBulkPriceModal(false)}
+                disabled={isSubmittingBulk}
+              >
+                Cancelar
+              </button>
+              <button 
+                type="button" 
+                className="btn btn-primary" 
+                onClick={handleExecuteBulkUpdate}
+                disabled={isSubmittingBulk || isLoadingPreview || matchingCount === 0}
+                style={{ background: '#059669', borderColor: '#059669', fontWeight: '700', minWidth: '140px' }}
+              >
+                {isSubmittingBulk ? '⏳ Aplicando...' : '✓ Aceptar y Aplicar'}
+              </button>
+            </div>
+
           </div>
         </div>
       )}
