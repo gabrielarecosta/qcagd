@@ -23,6 +23,7 @@ export function ProductsView({
     stocks, 
     branches, 
     activeBranchId, 
+    setActiveBranchId,
     updateProduct, 
     createProduct, 
     updateBranchStock,
@@ -265,7 +266,15 @@ export function ProductsView({
   ];
 
   // Obtener stock para una sucursal específica o resumen
-  const getProductStockInfo = (productId: string | number, branchId: string | number) => {
+  const getProductStockInfo = (productId: string | number, branchId: string | number, pStock?: number, pStockMin?: number) => {
+    if (typeof pStock === 'number') {
+      const minVal = pStockMin ?? 5;
+      return { 
+        stock: pStock, 
+        isLowStock: pStock <= minVal, 
+        details: [] 
+      };
+    }
     const pIdStr = String(productId);
     const bIdStr = String(branchId);
     if (bIdStr === 'all') {
@@ -641,6 +650,68 @@ export function ProductsView({
         </div>
       </div>
 
+      {/* ── Banner Prominente de Sucursal Activa ── */}
+      <div style={{
+        background: activeBranchId === 'all' 
+          ? 'linear-gradient(90deg, #1e1b4b 0%, #312e81 100%)' 
+          : 'linear-gradient(90deg, #064e3b 0%, #047857 100%)',
+        color: '#ffffff',
+        borderRadius: '12px',
+        padding: '14px 20px',
+        marginBottom: '20px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        gap: '12px',
+        boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+        border: '1px solid rgba(255,255,255,0.1)'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <span style={{ fontSize: '26px' }}>
+            {activeBranchId === 'all' ? '🌐' : '🏢'}
+          </span>
+          <div>
+            <div style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '1px', opacity: 0.85, fontWeight: '700' }}>
+              Sucursal Seleccionada para Catálogo y Stock:
+            </div>
+            <div style={{ fontSize: '18px', fontWeight: '800', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              {activeBranchId === 'all' 
+                ? 'Todas las Sucursales (Consolidado Global)' 
+                : (branches.find(b => String(b.id) === String(activeBranchId))?.nombre || `Sucursal ID: ${activeBranchId}`)}
+              <span style={{ fontSize: '12px', background: 'rgba(255,255,255,0.2)', padding: '2px 10px', borderRadius: '12px', fontWeight: '600' }}>
+                {activeBranchId === 'all' ? 'Consolidado' : `ID: ${activeBranchId}`}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <span style={{ fontSize: '13px', fontWeight: '600', opacity: 0.9 }}>Cambiar sucursal:</span>
+          <select
+            className="form-select"
+            value={String(activeBranchId)}
+            onChange={e => setActiveBranchId(e.target.value)}
+            style={{
+              background: '#ffffff',
+              color: '#0f172a',
+              fontWeight: '700',
+              padding: '8px 14px',
+              borderRadius: '8px',
+              border: 'none',
+              fontSize: '14px',
+              cursor: 'pointer',
+              boxShadow: '0 2px 6px rgba(0,0,0,0.2)'
+            }}
+          >
+            <option value="all">🌐 Todas las sucursales</option>
+            {branches.map(b => (
+              <option key={b.id} value={b.id}>🏢 {b.nombre}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
       {/* Controles de Búsqueda, Filtros y Ordenamiento */}
       <div className="card-wrapper" style={{ marginBottom: '20px', padding: '16px' }}>
         <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
@@ -808,7 +879,7 @@ export function ProductsView({
                 </tr>
               ) : (
                 paginatedProducts.map(p => {
-                  const stockInfo = getProductStockInfo(p.id, activeBranchId);
+                  const stockInfo = getProductStockInfo(p.id, activeBranchId, p.stock, p.stockMinimo);
                   const hasPhoto = !!(p.imagen && p.imagen.trim() !== '');
                   return (
                     <tr key={p.id}>

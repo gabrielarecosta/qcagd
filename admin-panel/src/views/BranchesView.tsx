@@ -4,11 +4,19 @@ import { Branch } from '@shared/types/branch';
 import { formatPrice } from '@shared/utils/formatCurrency';
 import { geocodeAddress } from '@shared/utils/geo';
 import { suggestDehezaStreets } from '@shared/utils/dehezaStreets';
-import { ExtraModuleWrapper } from '../components/ExtraModuleWrapper';
 
 export function BranchesView() {
-  const { branches, updateBranch, orders, users } = useAdminStore();
+  const { branches, updateBranch, createBranch, orders, users } = useAdminStore();
   const [editingBranch, setEditingBranch] = useState<Branch | null>(null);
+  const [isCreatingBranch, setIsCreatingBranch] = useState(false);
+  const [newBranchForm, setNewBranchForm] = useState({
+    nombre: '',
+    direccion: '',
+    telefono: '',
+    whatsapp: '',
+    horarioAtencion: 'Lunes a Viernes 08:00 - 18:00 hs',
+    activo: true,
+  });
   const [isGeocoding, setIsGeocoding] = useState(false);
 
   const branchMapRef = useRef<any>(null);
@@ -19,6 +27,33 @@ export function BranchesView() {
     if (!editingBranch) return;
     await updateBranch(String(editingBranch.id), editingBranch);
     setEditingBranch(null);
+  };
+
+  const handleSaveCreateBranch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newBranchForm.nombre.trim()) return;
+    try {
+      await createBranch({
+        nombre: newBranchForm.nombre.trim(),
+        direccion: newBranchForm.direccion.trim() || 'General Deheza',
+        telefono: newBranchForm.telefono.trim() || '-',
+        whatsapp: newBranchForm.whatsapp.trim() || '-',
+        horarioAtencion: newBranchForm.horarioAtencion.trim() || '08:00 a 18:00 hs',
+        activo: true,
+      });
+      setIsCreatingBranch(false);
+      setNewBranchForm({
+        nombre: '',
+        direccion: '',
+        telefono: '',
+        whatsapp: '',
+        horarioAtencion: 'Lunes a Viernes 08:00 - 18:00 hs',
+        activo: true,
+      });
+      alert('✅ Sucursal creada exitosamente!');
+    } catch (err: any) {
+      alert('Error al crear la sucursal: ' + (err.message || String(err)));
+    }
   };
 
   // Autobúsqueda de coordenadas al presionar "Ubicar en Mapa"
@@ -178,20 +213,57 @@ export function BranchesView() {
 
   return (
     <div className="view-container">
-      <div style={{ marginBottom: '24px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-          <h1 className="page-title" style={{ margin: 0 }}>Gestión de Sucursales y Casa Central</h1>
-          <span style={{ backgroundColor: '#ef4444', color: '#ffffff', fontSize: '11px', fontWeight: 800, padding: '3px 8px', borderRadius: '6px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-            📌 MÓDULO ADICIONAL OPCIONAL (COTIZA APARTE)
-          </span>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+            <h1 className="page-title" style={{ margin: 0 }}>Gestión de Sucursales y Casa Central</h1>
+            <span style={{ backgroundColor: '#059669', color: '#ffffff', fontSize: '11px', fontWeight: 800, padding: '3px 10px', borderRadius: '12px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              ✓ MÓDULO MULTI-SUCURSAL HABILITADO
+            </span>
+          </div>
+          <p className="page-desc" style={{ marginTop: '4px' }}>Administrar los puntos de venta, depósitos de la empresa, ubicaciones y datos de contacto</p>
         </div>
-        <p className="page-desc" style={{ marginTop: '4px' }}>Administrar la ubicación de Casa Central / Depósito, datos de contacto y coordenadas geográficas</p>
+        <button 
+          className="btn btn-primary"
+          onClick={() => setIsCreatingBranch(true)}
+          style={{ background: '#0284c7', borderColor: '#0284c7', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '6px' }}
+        >
+          ➕ Nueva Sucursal
+        </button>
       </div>
 
-      <ExtraModuleWrapper title="Módulo Multi-Sucursal Avanzado" description="La gestión de múltiples sucursales con depósitos, reglas y stocks independientes se encuentra contemplada como módulo adicional opcional.">
-        <div className="card-wrapper">
+      {/* Explicación de Alcance Global vs Alcance por Sucursal */}
+      <div style={{ background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '12px', padding: '16px 20px', marginBottom: '24px' }}>
+        <h3 style={{ margin: '0 0 10px 0', fontSize: '14px', fontWeight: '700', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          💡 Estructura del Sistema: Maestros Generales vs Operaciones por Sucursal
+        </h3>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '14px', fontSize: '13px', color: '#334155' }}>
+          <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '14px' }}>
+            <strong style={{ color: '#0284c7', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px', fontSize: '13.5px' }}>
+              🌐 Generales para Toda la Empresa (Global):
+            </strong>
+            <ul style={{ margin: 0, paddingLeft: '18px', lineHeight: '1.6' }}>
+              <li>Nombres, códigos, categorías y fotos del Catálogo de Productos.</li>
+              <li>Lista de Precios Base (Venta y Mayorista).</li>
+              <li>Configuración de Sucursales y Medios de Pago (este menú).</li>
+            </ul>
+          </div>
+          <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '14px' }}>
+            <strong style={{ color: '#059669', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px', fontSize: '13.5px' }}>
+              🏢 Operaciones Específicas por Sucursal:
+            </strong>
+            <ul style={{ margin: 0, paddingLeft: '18px', lineHeight: '1.6' }}>
+              <li><strong>Stock Físico / Inventario</strong> (independiente por depósito).</li>
+              <li><strong>Pedidos & Facturación</strong> origen de cada sucursal.</li>
+              <li><strong>Hojas de Ruta & Choferes</strong> de reparto asignados por zona.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div className="card-wrapper">
         <div className="card-header">
-          <h2 className="card-title">Listado de Sucursales</h2>
+          <h2 className="card-title">Listado de Sucursales Activas</h2>
         </div>
         <div className="card-body" style={{ padding: 0 }}>
           <div className="table-container">
@@ -242,7 +314,7 @@ export function BranchesView() {
                           onClick={() => setEditingBranch(b)}
                           style={{ padding: '6px 12px', fontSize: '12px' }}
                         >
-                          ✏️ Editar Dirección
+                          ✏️ Editar Sucursal
                         </button>
                       </td>
                     </tr>
@@ -253,7 +325,6 @@ export function BranchesView() {
           </div>
         </div>
       </div>
-      </ExtraModuleWrapper>
 
       {/* Modal para Editar Sucursal / Casa Central */}
       {editingBranch && (
@@ -374,8 +445,80 @@ export function BranchesView() {
                 <button type="button" className="btn btn-secondary" onClick={handleCloseModal}>
                   Cancelar
                 </button>
-                <button type="submit" className="btn btn-primary">
-                  💾 Guardar Casa Central
+      {/* Modal para Crear Nueva Sucursal */}
+      {isCreatingBranch && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: '600px' }}>
+            <div className="modal-header">
+              <h2 className="card-title">➕ Alta de Nueva Sucursal / Depósito</h2>
+              <button type="button" className="btn-close" onClick={() => setIsCreatingBranch(false)}>✕</button>
+            </div>
+            <form onSubmit={handleSaveCreateBranch}>
+              <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div className="form-group">
+                  <label className="form-label">Nombre de la Sucursal *</label>
+                  <input 
+                    type="text" 
+                    className="form-input" 
+                    placeholder="Ej: Sucursal Villa María / Depósito 2"
+                    value={newBranchForm.nombre}
+                    onChange={e => setNewBranchForm({ ...newBranchForm, nombre: e.target.value })}
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Dirección Física *</label>
+                  <input 
+                    type="text" 
+                    className="form-input" 
+                    placeholder="Ej: Av. Buenos Aires 450, General Deheza"
+                    value={newBranchForm.direccion}
+                    onChange={e => setNewBranchForm({ ...newBranchForm, direccion: e.target.value })}
+                    required
+                  />
+                </div>
+
+                <div className="form-grid">
+                  <div className="form-group">
+                    <label className="form-label">Teléfono de Contacto</label>
+                    <input 
+                      type="text" 
+                      className="form-input" 
+                      placeholder="3584123456"
+                      value={newBranchForm.telefono}
+                      onChange={e => setNewBranchForm({ ...newBranchForm, telefono: e.target.value })}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">WhatsApp (sin +)</label>
+                    <input 
+                      type="text" 
+                      className="form-input" 
+                      placeholder="5493584123456"
+                      value={newBranchForm.whatsapp}
+                      onChange={e => setNewBranchForm({ ...newBranchForm, whatsapp: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Horario de Atención</label>
+                  <input 
+                    type="text" 
+                    className="form-input" 
+                    value={newBranchForm.horarioAtencion}
+                    onChange={e => setNewBranchForm({ ...newBranchForm, horarioAtencion: e.target.value })}
+                    required
+                  />
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => setIsCreatingBranch(false)}>
+                  Cancelar
+                </button>
+                <button type="submit" className="btn btn-primary" style={{ background: '#0284c7', borderColor: '#0284c7', fontWeight: '700' }}>
+                  ✓ Crear Sucursal
                 </button>
               </div>
             </form>

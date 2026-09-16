@@ -313,19 +313,19 @@ function App() {
     { id: 'dashboard', label: 'Dashboard', group: 'Operaciones' },
     { id: 'orders', label: 'Monitor Pedidos', group: 'Operaciones' },
     { id: 'deliveries', label: 'Hojas de Ruta', group: 'Operaciones' },
-    { id: 'payments', label: 'Caja Avanzada (Módulo Extra)', group: 'Operaciones' },
+    { id: 'payments', label: 'Caja Avanzada', group: 'Operaciones' },
     
     { id: 'products', label: 'Catálogo Artículos', group: 'Catálogo & Clientes' },
     { id: 'superoffers', label: '🔥 Súper Ofertas', group: 'Catálogo & Clientes' },
     { id: 'excel', label: 'Cargar desde Excel', group: 'Catálogo & Clientes' },
     { id: 'clients', label: 'Directorio Clientes', group: 'Catálogo & Clientes' },
-    { id: 'ctaCte', label: '💳 Cta. Cte. (Módulo Extra)', group: 'Catálogo & Clientes' },
+    { id: 'ctaCte', label: '💳 Cuentas Corrientes', group: 'Catálogo & Clientes' },
     
     { id: 'clientConfig', label: 'Categorías & App', group: 'Catálogo & Clientes' },
-    { id: 'branches', label: 'Multi-Sucursal (Módulo Extra)', group: 'Configuración' },
+    { id: 'branches', label: '🏢 Sucursales & Multi-Sucursal', group: 'Configuración' },
     { id: 'paymentConfig', label: 'Medios de Pago & CBU', group: 'Configuración' },
-    { id: 'users', label: 'Roles Complejos (Módulo Extra)', group: 'Configuración' },
-    { id: 'reports', label: 'Reportes Avanzados (Módulo Extra)', group: 'Configuración' },
+    { id: 'users', label: 'Usuarios & Permisos', group: 'Configuración' },
+    { id: 'reports', label: '📊 Reportes & Estadísticas', group: 'Configuración' },
   ] as const;
 
   // Render the selected view
@@ -567,32 +567,30 @@ function App() {
 
           {/* Header Title Section & Branch filter */}
           <div className="header-title-section">
-            <div className="sucursal-select-container">
-              <span className="sucursal-select-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="4" y="2" width="16" height="20" rx="2" ry="2"/>
-                  <line x1="9" y1="22" x2="9" y2="16"/>
-                  <line x1="15" y1="22" x2="15" y2="16"/>
-                  <path d="M9 16h6"/>
-                </svg>
-                Sucursal:
+            <div className="sucursal-select-container" style={{ display: 'flex', alignItems: 'center', background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)', border: '1px solid #334155', borderRadius: '12px', padding: '4px 12px 4px 10px', boxShadow: '0 2px 6px rgba(0,0,0,0.12)' }}>
+              <span className="sucursal-select-label" style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#38bdf8', fontWeight: 700, fontSize: '13px' }}>
+                <span style={{ fontSize: '16px' }}>📍</span>
+                SUCURSAL:
               </span>
               <select
                 className="sucursal-select"
                 value={activeBranchId}
                 onChange={e => setActiveBranchId(e.target.value)}
                 style={{ 
-                  borderRadius: '9999px', 
-                  padding: '6px 14px', 
-                  fontSize: '13px', 
-                  fontWeight: 600,
-                  backgroundColor: '#f1f5f9',
-                  border: '1px solid #e2e8f0'
+                  borderRadius: '8px', 
+                  padding: '6px 12px', 
+                  fontSize: '13.5px', 
+                  fontWeight: 700,
+                  backgroundColor: '#0284c7',
+                  color: '#ffffff',
+                  border: 'none',
+                  cursor: 'pointer',
+                  marginLeft: '8px'
                 }}
               >
-                <option value="all">Todas</option>
+                <option value="all" style={{ background: '#ffffff', color: '#0f172a' }}>🌐 Todas las Sucursales</option>
                 {branches.map(b => (
-                  <option key={b.id} value={b.id}>{b.nombre}</option>
+                  <option key={b.id} value={b.id} style={{ background: '#ffffff', color: '#0f172a' }}>🏢 {b.nombre}</option>
                 ))}
               </select>
               <button

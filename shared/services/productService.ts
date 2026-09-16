@@ -147,13 +147,13 @@ export const productService = {
     const stocksMap = new Map<string, { stock: number; stockMinimo: number }>();
     if (prodIds.length > 0) {
       try {
-        let invQuery = supabase.from('inventory').select('product_id, branch_id, stock, stock_minimo');
+        let invQuery = supabase.from('inventory').select('product_id, branch_id, stock, stock_minimo').in('product_id', prodIds);
         if (options.branchId && options.branchId !== 'all') {
           const bId = Number(options.branchId);
           if (!isNaN(bId)) invQuery = invQuery.eq('branch_id', bId);
         }
         const { data: invData } = await invQuery;
-        if (invData) {
+        if (invData && invData.length > 0) {
           invData.forEach((s: any) => {
             const pid = String(s.product_id);
             const prev = stocksMap.get(pid) || { stock: 0, stockMinimo: Number(s.stock_minimo) || 5 };
@@ -162,6 +162,24 @@ export const productService = {
               stockMinimo: Number(s.stock_minimo) || 5
             });
           });
+        } else {
+          // Fallback a la tabla stocks si inventory no contiene datos
+          let stQuery = supabase.from('stocks').select('product_id, branch_id, stock, stock_minimo').in('product_id', prodIds);
+          if (options.branchId && options.branchId !== 'all') {
+            const bId = Number(options.branchId);
+            if (!isNaN(bId)) stQuery = stQuery.eq('branch_id', bId);
+          }
+          const { data: stData } = await stQuery;
+          if (stData) {
+            stData.forEach((s: any) => {
+              const pid = String(s.product_id);
+              const prev = stocksMap.get(pid) || { stock: 0, stockMinimo: Number(s.stock_minimo) || 5 };
+              stocksMap.set(pid, {
+                stock: prev.stock + Number(s.stock || 0),
+                stockMinimo: Number(s.stock_minimo) || 5
+              });
+            });
+          }
         }
       } catch (_) {}
     }
