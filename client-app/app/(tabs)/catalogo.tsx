@@ -350,19 +350,24 @@ export default function CatalogoScreen() {
 
             <View style={styles.desktopRightSection}>
               {!isLoggedIn && (
-                <View style={{ flexDirection: 'row', gap: Spacing.sm, marginRight: Spacing.md }}>
-                  <TouchableOpacity
-                    style={styles.headerLoginBtn}
-                    onPress={() => router.push({ pathname: '/(tabs)', params: { tab: 'login' } })}
-                  >
-                    <Text style={styles.headerLoginBtnText}>Iniciar sesión</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.headerRegisterBtn}
-                    onPress={() => router.push({ pathname: '/(tabs)', params: { tab: 'register' } })}
-                  >
-                    <Text style={styles.headerRegisterBtnText}>Registrarme</Text>
-                  </TouchableOpacity>
+                <View style={{ flexDirection: 'column', gap: 4, alignItems: 'flex-end', marginRight: Spacing.md }}>
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: Colors.primary }}>
+                    🔒 Registrate para ver precios
+                  </Text>
+                  <View style={{ flexDirection: 'row', gap: Spacing.sm }}>
+                    <TouchableOpacity
+                      style={styles.headerLoginBtn}
+                      onPress={() => router.push({ pathname: '/(tabs)', params: { tab: 'login' } })}
+                    >
+                      <Text style={styles.headerLoginBtnText}>Iniciar sesión</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.headerRegisterBtn}
+                      onPress={() => router.push({ pathname: '/(tabs)', params: { tab: 'register' } })}
+                    >
+                      <Text style={styles.headerRegisterBtnText}>Registrarme</Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
               )}
               <TouchableOpacity
@@ -421,19 +426,24 @@ export default function CatalogoScreen() {
             </View>
 
             {!isLoggedIn && (
-              <View style={styles.mobileHeaderAuthRow}>
-                <TouchableOpacity
-                  style={[styles.headerLoginBtn, { flex: 1 }]}
-                  onPress={() => router.push({ pathname: '/(tabs)', params: { tab: 'login' } })}
-                >
-                  <Text style={styles.headerLoginBtnText}>Iniciar sesión</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.headerRegisterBtn, { flex: 1 }]}
-                  onPress={() => router.push({ pathname: '/(tabs)', params: { tab: 'register' } })}
-                >
-                  <Text style={styles.headerRegisterBtnText}>Registrarme</Text>
-                </TouchableOpacity>
+              <View style={{ marginTop: 8 }}>
+                <Text style={{ fontSize: 12.5, fontWeight: '700', color: Colors.primary, textAlign: 'center', marginBottom: 6 }}>
+                  🔒 Registrate para ver precios
+                </Text>
+                <View style={styles.mobileHeaderAuthRow}>
+                  <TouchableOpacity
+                    style={[styles.headerLoginBtn, { flex: 1 }]}
+                    onPress={() => router.push({ pathname: '/(tabs)', params: { tab: 'login' } })}
+                  >
+                    <Text style={styles.headerLoginBtnText}>Iniciar sesión</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.headerRegisterBtn, { flex: 1 }]}
+                    onPress={() => router.push({ pathname: '/(tabs)', params: { tab: 'register' } })}
+                  >
+                    <Text style={styles.headerRegisterBtnText}>Registrarme</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             )}
           </View>

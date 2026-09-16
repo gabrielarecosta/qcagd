@@ -465,16 +465,45 @@ export function ClienteAccountScreen() {
   return (
     <ScrollView style={styles.scrollView} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
       {/* Header Perfil */}
-      <View style={styles.header}>
-        <View style={styles.avatar}>
-          <Text style={styles.avatarText}>{initials}</Text>
+      <View style={[styles.header, { justifyContent: 'space-between', alignItems: 'center' }]}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.xl, flex: 1 }}>
+          <View style={styles.avatar}>
+            <Text style={styles.avatarText}>{initials}</Text>
+          </View>
+          <View style={styles.headerInfo}>
+            <Text style={styles.customerName}>{clientData.nombre}</Text>
+            {!!clientData.razonSocial && (
+              <Text style={styles.razonSocial}>{clientData.razonSocial}</Text>
+            )}
+          </View>
         </View>
-        <View style={styles.headerInfo}>
-          <Text style={styles.customerName}>{clientData.nombre}</Text>
-          {!!clientData.razonSocial && (
-            <Text style={styles.razonSocial}>{clientData.razonSocial}</Text>
-          )}
-        </View>
+
+        <TouchableOpacity
+          onPress={() => {
+            customAlert(
+              'Cerrar Sesión',
+              '¿Estás seguro de que deseas cerrar tu sesión de cliente?',
+              [
+                { text: 'Cancelar', style: 'cancel' },
+                { text: 'Cerrar Sesión', style: 'destructive', onPress: () => logout() }
+              ]
+            );
+          }}
+          style={{
+            backgroundColor: '#fee2e2',
+            borderColor: '#fca5a5',
+            borderWidth: 1,
+            paddingVertical: 8,
+            paddingHorizontal: 14,
+            borderRadius: Radius.md,
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 6,
+          }}
+          activeOpacity={0.8}
+        >
+          <Text style={{ color: '#dc2626', fontSize: 13, fontWeight: 'bold' }}>🚪 Salir</Text>
+        </TouchableOpacity>
       </View>
 
       {/* Mis Datos */}

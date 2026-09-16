@@ -46,8 +46,8 @@ export function ProductCard({ product, style, onPress, delay = 0 }: ProductCardP
           {product.imagen ? (
             <Image
               source={{ uri: product.imagen }}
-              style={StyleSheet.absoluteFill}
-              resizeMode="cover"
+              style={styles.productImage}
+              resizeMode="contain"
             />
           ) : (
             <MaterialCommunityIcons name={icon as any} size={44} color={Colors.primary} />
@@ -64,16 +64,22 @@ export function ProductCard({ product, style, onPress, delay = 0 }: ProductCardP
 
         {/* Info del producto */}
         <View style={styles.info}>
-          <Text style={styles.codigo}>{product.codigo}</Text>
-          <Text style={styles.nombre} numberOfLines={2}>
-            {product.nombre}
-          </Text>
-          {product.presentacion && (
-            <Text style={styles.presentacion} numberOfLines={1}>
-              {product.presentacion}
+          <View>
+            <Text style={styles.codigo}>{product.codigo}</Text>
+            <Text style={styles.nombre} numberOfLines={2}>
+              {product.nombre}
             </Text>
-          )}
-          <Text style={styles.unidad}>por {product.unidad}</Text>
+            {product.presentacion ? (
+              <Text style={styles.presentacion} numberOfLines={1}>
+                {product.presentacion}
+              </Text>
+            ) : (
+              <Text style={[styles.presentacion, { opacity: 0 }]} numberOfLines={1}>
+                -
+              </Text>
+            )}
+            <Text style={styles.unidad}>por {product.unidad}</Text>
+          </View>
 
           {/* Footer: precio + controles */}
           <View style={styles.footer}>
@@ -123,8 +129,8 @@ export function ProductCard({ product, style, onPress, delay = 0 }: ProductCardP
                 )}
               </>
             ) : (
-              <View style={styles.publicPriceContainer}>
-                <Text style={styles.publicPriceText}>Registrate para ver precios</Text>
+              <View style={styles.guestCardFooter}>
+                <Text style={styles.guestCardLock}>🔒 Ver precio</Text>
               </View>
             )}
           </View>
@@ -145,6 +151,7 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
     overflow: 'hidden',
     flex: 1,
+    minHeight: 290,
     shadowColor: '#1A56DB',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.07,
@@ -156,28 +163,35 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.16,
     elevation: 5,
   },
-  publicPriceContainer: {
+  guestCardFooter: {
     flex: 1,
-    paddingVertical: Spacing.sm,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#F1F5F9',
     borderRadius: Radius.md,
     borderWidth: 1,
     borderColor: '#E2E8F0',
   },
-  publicPriceText: {
-    fontSize: FontSize.sm - 2,
-    fontWeight: FontWeight.bold,
-    color: Colors.primary,
+  guestCardLock: {
+    fontSize: FontSize.xs,
+    fontWeight: FontWeight.semibold,
+    color: '#64748B',
     textAlign: 'center',
   },
   imageContainer: {
     height: 135,
-    backgroundColor: Colors.primaryLight,
+    backgroundColor: '#F8FAFC',
     justifyContent: 'center',
     alignItems: 'center',
     position: 'relative',
+    overflow: 'hidden',
+    padding: 6,
+  },
+  productImage: {
+    width: '100%',
+    height: '100%',
   },
   imageContainerInCart: {
     backgroundColor: '#DBEAFE',
@@ -188,7 +202,6 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     height: 20,
-    // Gradiente inferior suave simulado con opacidad
     backgroundColor: 'rgba(255,255,255,0.25)',
   },
   cartBadge: {
@@ -216,6 +229,7 @@ const styles = StyleSheet.create({
   info: {
     padding: Spacing.md,
     flex: 1,
+    justifyContent: 'space-between',
   },
   codigo: {
     fontSize: FontSize.xs,

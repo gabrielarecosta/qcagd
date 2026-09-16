@@ -24,6 +24,9 @@ const mapProduct = (d: any, rate: number = 1000, isPublic: boolean = false): Pro
     destacado: d.destacado || false,
     fechaActualizacion: d.updated_at,
     marca: d.marca || undefined,
+    updatedByUserId: d.updated_by_user_id || undefined,
+    updatedByRoleId: d.updated_by_role_id || undefined,
+    updatedByBranchId: d.updated_by_branch_id || undefined,
   };
 };
 
@@ -71,13 +74,16 @@ export const productService = {
 
     const rate = await productService.getLatestExchangeRate();
 
+    const sortAsc = options.sortOrder !== 'desc';
+    const isStockFilterActive = options.stockFilter && options.stockFilter !== 'all';
+
+    const selectCols = isPublic
+      ? 'id, codigo, nombre, categoria, subcategoria, presentacion, unidad, descripcion, imagen, activo, visible_en_app, destacado, created_at, updated_at'
+      : '*';
+
     let query = supabase
       .from('products')
-      .select(
-        isPublic
-          ? 'id, codigo, nombre, categoria, subcategoria, presentacion, unidad, descripcion, imagen, activo, visible_en_app, destacado, created_at, updated_at'
-          : '*'
-      );
+      .select(selectCols, { count: 'exact' });
 
     // 1. Filtro por Estado Activo / Inactivo
     if (isPublic || options.activeStatusFilter === 'active') {
@@ -104,7 +110,31 @@ export const productService = {
       query = query.or(`nombre.ilike.%${q}%,codigo.ilike.%${q}%,descripcion.ilike.%${q}%,presentacion.ilike.%${q}%`);
     }
 
-    const { data: rawProducts, error } = await query;
+    // Si NO hay filtro de stock en memoria, aplicar ordenamiento y paginación directamente en PostgREST (Supabase)
+    if (!isStockFilterActive) {
+      if (options.sortBy === 'price' || options.sortBy === 'precio-bajo') {
+        query = query.order('precio', { ascending: true });
+      } else if (options.sortBy === 'precio-alto') {
+        query = query.order('precio', { ascending: false });
+      } else if (options.sortBy === 'code') {
+        query = query.order('codigo', { ascending: sortAsc });
+      } else if (options.sortBy === 'category') {
+        query = query.order('categoria', { ascending: sortAsc }).order('nombre', { ascending: true });
+      } else if (options.sortBy === 'name') {
+        query = query.order('nombre', { ascending: sortAsc });
+      } else {
+        query = query.order('destacado', { ascending: false }).order('nombre', { ascending: true });
+      }
+
+      const fromIndex = (page - 1) * pageSize;
+      const toIndex = fromIndex + pageSize - 1;
+      query = query.range(fromIndex, toIndex);
+    } else {
+      // Si hay filtro especial de stock en admin, obtenemos todos los registros para evaluar stock en memoria
+      query = query.range(0, 99999);
+    }
+
+    const { data: rawProducts, count: exactTotalCount, error } = await query;
     if (error) {
       console.error('Error cargando productos en getPaginated:', error.message);
       return { data: [], total: 0, page, pageSize, totalPages: 0 };
@@ -145,8 +175,8 @@ export const productService = {
       };
     });
 
-    // 5. Filtro por Nivel de Stock
-    if (options.stockFilter && options.stockFilter !== 'all') {
+    // 5. Filtro por Nivel de Stock (Solo en admin panel si se solicitó)
+    if (isStockFilterActive) {
       if (options.stockFilter === 'with-stock') {
         processed = processed.filter(p => p.stock > 0);
       } else if (options.stockFilter === 'critico') {
@@ -154,37 +184,46 @@ export const productService = {
       } else if (options.stockFilter === 'no-stock') {
         processed = processed.filter(p => p.stock <= 0);
       }
+
+      processed.sort((a, b) => {
+        if (options.sortBy === 'stock') {
+          return sortAsc ? a.stock - b.stock : b.stock - a.stock;
+        } else if (options.sortBy === 'price' || options.sortBy === 'precio-bajo') {
+          return sortAsc ? a.precio - b.precio : b.precio - a.precio;
+        } else if (options.sortBy === 'precio-alto') {
+          return b.precio - a.precio;
+        } else if (options.sortBy === 'code') {
+          return sortAsc ? (a.codigo || '').localeCompare(b.codigo || '') : (b.codigo || '').localeCompare(a.codigo || '');
+        } else if (options.sortBy === 'category') {
+          return sortAsc ? (a.categoria || '').localeCompare(b.categoria || '') : (b.categoria || '').localeCompare(a.categoria || '');
+        } else if (options.sortBy === 'name') {
+          return sortAsc ? (a.nombre || '').localeCompare(b.nombre || '') : (b.nombre || '').localeCompare(a.nombre || '');
+        } else {
+          if (a.destacado !== b.destacado) return a.destacado ? -1 : 1;
+          return (a.nombre || '').localeCompare(b.nombre || '');
+        }
+      });
+
+      const total = processed.length;
+      const totalPages = Math.ceil(total / pageSize) || 1;
+      const fromIndex = (page - 1) * pageSize;
+      const pageData = processed.slice(fromIndex, fromIndex + pageSize);
+
+      return {
+        data: pageData,
+        total,
+        page,
+        pageSize,
+        totalPages
+      };
     }
 
-    // 6. Ordenamiento Multicriterio
-    const sortAsc = options.sortOrder !== 'desc';
-    processed.sort((a, b) => {
-      if (options.sortBy === 'stock') {
-        return sortAsc ? a.stock - b.stock : b.stock - a.stock;
-      } else if (options.sortBy === 'price' || options.sortBy === 'precio-bajo') {
-        return sortAsc ? a.precio - b.precio : b.precio - a.precio;
-      } else if (options.sortBy === 'precio-alto') {
-        return b.precio - a.precio;
-      } else if (options.sortBy === 'code') {
-        return sortAsc ? (a.codigo || '').localeCompare(b.codigo || '') : (b.codigo || '').localeCompare(a.codigo || '');
-      } else if (options.sortBy === 'category') {
-        return sortAsc ? (a.categoria || '').localeCompare(b.categoria || '') : (b.categoria || '').localeCompare(a.categoria || '');
-      } else if (options.sortBy === 'name') {
-        return sortAsc ? (a.nombre || '').localeCompare(b.nombre || '') : (b.nombre || '').localeCompare(a.nombre || '');
-      } else {
-        if (a.destacado !== b.destacado) return a.destacado ? -1 : 1;
-        return (a.nombre || '').localeCompare(b.nombre || '');
-      }
-    });
-
-    // 7. Paginación precisa
-    const total = processed.length;
+    // Paginación directa con conteo exacto de Supabase para más de 6000 productos
+    const total = exactTotalCount ?? processed.length;
     const totalPages = Math.ceil(total / pageSize) || 1;
-    const fromIndex = (page - 1) * pageSize;
-    const pageData = processed.slice(fromIndex, fromIndex + pageSize);
 
     return {
-      data: pageData,
+      data: processed,
       total,
       page,
       pageSize,
@@ -379,6 +418,9 @@ export const productService = {
       dolarizado: updates.dolarizado,
       precio_usd: updates.precio_usd,
       updated_at: new Date().toISOString(),
+      updated_by_user_id: updates.updatedByUserId,
+      updated_by_role_id: updates.updatedByRoleId,
+      updated_by_branch_id: updates.updatedByBranchId ? Number(updates.updatedByBranchId) : undefined,
     };
 
     Object.keys(dbUpdates).forEach(key => dbUpdates[key] === undefined && delete dbUpdates[key]);

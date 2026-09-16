@@ -131,6 +131,9 @@ CREATE TABLE products (
     precio_usd NUMERIC DEFAULT 0.0 NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    updated_by_user_id TEXT,
+    updated_by_role_id TEXT,
+    updated_by_branch_id BIGINT,
     deleted_at TIMESTAMP WITH TIME ZONE,
     deleted_by TEXT
 );

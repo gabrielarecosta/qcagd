@@ -25,6 +25,9 @@ export interface Product {
   destacado?: boolean;
   fechaActualizacion?: string;
   marca?: string;
+  updatedByUserId?: string;
+  updatedByRoleId?: string;
+  updatedByBranchId?: string | number;
 }
 
 export interface ProductStock {

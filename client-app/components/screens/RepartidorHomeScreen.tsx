@@ -354,19 +354,53 @@ export function RepartidorHomeScreen() {
   return (
     <ScrollView style={styles.scrollView} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
       {/* Header Chofer */}
-      <View style={[styles.header, { backgroundColor: '#f0fdf4', borderColor: '#bbf7d0' }]}>
-        <View style={[styles.avatar, { backgroundColor: '#10b981' }]}>
-          <Text style={styles.avatarText}>🚚</Text>
-        </View>
-        <View style={styles.headerInfo}>
-          <Text style={styles.driverName}>{repartidorData.nombre}</Text>
-          <Text style={styles.driverSub}>Chofer / Repartidor Oficial</Text>
-          <View style={[styles.branchBadge, { backgroundColor: '#dcfce7' }]}>
-            <Text style={[styles.branchBadgeText, { color: '#16a34a' }]}>
-              📍 Base: Química General Deheza (Entre Ríos 151)
-            </Text>
+      <View style={[styles.header, { backgroundColor: '#f0fdf4', borderColor: '#bbf7d0', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, paddingRight: 8 }}>
+          <View style={[styles.avatar, { backgroundColor: '#10b981' }]}>
+            <Text style={styles.avatarText}>🚚</Text>
+          </View>
+          <View style={styles.headerInfo}>
+            <Text style={styles.driverName}>{repartidorData.nombre}</Text>
+            <Text style={styles.driverSub}>Chofer / Repartidor Oficial</Text>
+            <View style={[styles.branchBadge, { backgroundColor: '#dcfce7' }]}>
+              <Text style={[styles.branchBadgeText, { color: '#16a34a' }]}>
+                📍 Base: Química General Deheza (Entre Ríos 151)
+              </Text>
+            </View>
           </View>
         </View>
+
+        <TouchableOpacity
+          onPress={() => {
+            customAlert(
+              'Cerrar Sesión',
+              '¿Estás seguro de que deseas cerrar la sesión de repartidor?',
+              [
+                { text: 'Cancelar', style: 'cancel' },
+                { text: 'Cerrar Sesión', style: 'destructive', onPress: () => logout() }
+              ]
+            );
+          }}
+          style={{
+            backgroundColor: '#ef4444',
+            paddingVertical: 8,
+            paddingHorizontal: 12,
+            borderRadius: Radius.md,
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 6,
+            alignSelf: 'flex-start',
+            marginTop: 2,
+            shadowColor: '#ef4444',
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.2,
+            shadowRadius: 4,
+            elevation: 2,
+          }}
+          activeOpacity={0.8}
+        >
+          <Text style={{ color: '#ffffff', fontSize: 12, fontWeight: 'bold' }}>🚪 Cerrar Sesión</Text>
+        </TouchableOpacity>
       </View>
 
       {/* Resumen e Indicadores */}

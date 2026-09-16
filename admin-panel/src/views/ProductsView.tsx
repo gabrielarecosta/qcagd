@@ -92,6 +92,7 @@ export function ProductsView({
   };
 
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [viewingProduct, setViewingProduct] = useState<(Product & { stock: number; stockMinimo: number }) | null>(null);
   const [isCreating, setIsCreating] = useState(false);
 
   // Form State for Editing/Creating
@@ -654,6 +655,7 @@ export function ProductsView({
                 <th style={{ cursor: 'pointer' }} onClick={() => handleSort('stock')}>
                   Stock Activo {sortBy === 'stock' ? (sortOrder === 'asc' ? '▲' : '▼') : ''}
                 </th>
+                <th style={{ width: '70px', textAlign: 'center' }}>Foto</th>
                 <th>Destacado</th>
                 <th className="text-right">Acción</th>
               </tr>
@@ -661,19 +663,20 @@ export function ProductsView({
             <tbody>
               {isLoadingProducts ? (
                 <tr>
-                  <td colSpan={9} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-secondary)' }}>
+                  <td colSpan={10} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-secondary)' }}>
                     ⏳ Cargando productos desde Supabase...
                   </td>
                 </tr>
               ) : totalProductsCount === 0 ? (
                 <tr>
-                  <td colSpan={9} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-disabled)' }}>
+                  <td colSpan={10} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-disabled)' }}>
                     No se encontraron productos con los filtros aplicados.
                   </td>
                 </tr>
               ) : (
                 paginatedProducts.map(p => {
                   const stockInfo = getProductStockInfo(p.id, activeBranchId);
+                  const hasPhoto = !!(p.imagen && p.imagen.trim() !== '');
                   return (
                     <tr key={p.id}>
                       <td style={{ width: '40px' }}>
@@ -698,13 +701,38 @@ export function ProductsView({
                           </div>
                         )}
                       </td>
+                      <td style={{ textAlign: 'center' }}>
+                        {hasPhoto ? (
+                          <span style={{ background: '#059669', color: '#ffffff', padding: '3px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                            🖼️ Sí
+                          </span>
+                        ) : (
+                          <span style={{ background: '#334155', color: '#94a3b8', padding: '3px 8px', borderRadius: '12px', fontSize: '11px', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                            ❌ No
+                          </span>
+                        )}
+                      </td>
                       <td>
                         <span style={{ fontSize: '16px' }}>{p.destacado ? '⭐ Sí' : '❌'}</span>
                       </td>
                       <td className="text-right">
-                        <button className="btn btn-secondary" onClick={() => handleOpenEdit(p)} style={{ padding: '6px 12px', fontSize: '12px' }}>
-                          ✏️ Editar / Stock
-                        </button>
+                        <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
+                          <button 
+                            className="btn btn-secondary" 
+                            onClick={() => setViewingProduct(p)} 
+                            style={{ padding: '6px 10px', fontSize: '12px', background: '#0284c7', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: '600', cursor: 'pointer' }}
+                            title="Ver detalles del producto (solo lectura)"
+                          >
+                            👁️ Ver
+                          </button>
+                          <button 
+                            className="btn btn-secondary" 
+                            onClick={() => handleOpenEdit(p)} 
+                            style={{ padding: '6px 10px', fontSize: '12px' }}
+                          >
+                            ✏️ Editar / Stock
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -1358,6 +1386,114 @@ export function ProductsView({
                 <button type="submit" className="btn btn-primary">Crear Producto</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Visor de Producto (Solo Lectura) */}
+      {viewingProduct && (
+        <div className="modal-overlay" style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(15, 23, 42, 0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
+          <div className="modal-content" style={{ background: '#1e293b', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '16px', padding: '24px', width: '90%', maxWidth: '720px', display: 'flex', flexDirection: 'column', zIndex: 10000, boxShadow: '0 20px 25px -5px rgba(0,0,0,0.5)', color: '#fff' }}>
+            <div className="modal-header" style={{ borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '12px', marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <h2 className="card-title" style={{ color: '#fff', fontSize: '18px', fontWeight: '700', margin: 0 }}>🔍 Detalle de Producto</h2>
+                <span style={{ background: '#0284c7', color: '#fff', fontSize: '11px', fontWeight: '700', padding: '2px 8px', borderRadius: '12px' }}>Solo Lectura</span>
+              </div>
+              <button type="button" className="btn-close" style={{ color: '#94a3b8', background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer' }} onClick={() => setViewingProduct(null)}>✕</button>
+            </div>
+
+            <div className="modal-body" style={{ maxHeight: '70vh', overflowY: 'auto', paddingRight: '6px' }}>
+              
+              {/* Imagen y Datos Principales */}
+              <div style={{ display: 'flex', gap: '20px', marginBottom: '20px', flexWrap: 'wrap' }}>
+                <div style={{ width: '140px', height: '140px', borderRadius: '12px', background: '#0f172a', border: '1px solid #334155', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 }}>
+                  {viewingProduct.imagen ? (
+                    <img src={viewingProduct.imagen} alt={viewingProduct.nombre} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                  ) : (
+                    <div style={{ textAlign: 'center', color: '#64748b', fontSize: '12px' }}>
+                      <span style={{ fontSize: '32px', display: 'block', marginBottom: '4px' }}>📷</span>
+                      Sin foto
+                    </div>
+                  )}
+                </div>
+
+                <div style={{ flex: 1, minWidth: '220px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                    <span style={{ fontFamily: 'monospace', fontWeight: 'bold', background: '#0f172a', padding: '4px 10px', borderRadius: '6px', border: '1px solid #334155', color: '#38bdf8' }}>{viewingProduct.codigo}</span>
+                    <span className="badge badge-neutral" style={{ textTransform: 'capitalize', background: '#334155', color: '#e2e8f0', padding: '4px 10px', borderRadius: '6px' }}>{viewingProduct.categoria}</span>
+                    {viewingProduct.destacado && <span style={{ background: '#fbbf24', color: '#0f172a', fontSize: '11px', fontWeight: 'bold', padding: '2px 8px', borderRadius: '12px' }}>⭐ Destacado</span>}
+                  </div>
+
+                  <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '700', color: '#fff' }}>{viewingProduct.nombre}</h3>
+                  
+                  <div style={{ display: 'flex', gap: '16px', marginTop: '4px', fontSize: '14px', flexWrap: 'wrap' }}>
+                    <div><span style={{ color: '#94a3b8', fontSize: '12px' }}>Precio:</span> <strong style={{ color: '#4ade80', fontSize: '16px' }}>{formatPrice(viewingProduct.precio)}</strong></div>
+                    <div><span style={{ color: '#94a3b8', fontSize: '12px' }}>Presentación:</span> <strong>{viewingProduct.presentacion || '-'}</strong></div>
+                    <div><span style={{ color: '#94a3b8', fontSize: '12px' }}>Unidad:</span> <strong>{viewingProduct.unidad}</strong></div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Descripción */}
+              <div style={{ marginBottom: '20px', background: '#0f172a', padding: '14px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                <h4 style={{ margin: '0 0 6px 0', fontSize: '13px', color: '#38bdf8', fontWeight: '600' }}>📝 Descripción</h4>
+                <p style={{ margin: 0, fontSize: '13px', color: '#cbd5e1', lineHeight: '1.5' }}>
+                  {viewingProduct.descripcion || 'Sin descripción detallada disponible.'}
+                </p>
+              </div>
+
+              {/* Niveles de Stock por Sucursal */}
+              <div style={{ marginBottom: '20px' }}>
+                <h4 style={{ margin: '0 0 10px 0', fontSize: '13px', color: '#38bdf8', fontWeight: '600' }}>📦 Inventario por Sucursal</h4>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '10px' }}>
+                  {branches.map(b => {
+                    const info = getProductStockInfo(viewingProduct.id, b.id);
+                    return (
+                      <div key={b.id} style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: '8px', padding: '10px', textAlign: 'center' }}>
+                        <div style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '4px', fontWeight: '600' }}>{b.nombre}</div>
+                        <div style={{ fontSize: '16px', fontWeight: 'bold', color: info.isLowStock ? '#ef4444' : '#4ade80' }}>
+                          {info.stock} <span style={{ fontSize: '11px', fontWeight: 'normal', color: '#94a3b8' }}>{viewingProduct.unidad}</span>
+                        </div>
+                        {info.isLowStock && <div style={{ fontSize: '10px', color: '#ef4444', marginTop: '2px' }}>⚠️ Mín: {info.details[0]?.stockMinimo || 5}</div>}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Datos de Auditoría */}
+              <div style={{ background: 'rgba(56, 189, 248, 0.05)', border: '1px solid rgba(56, 189, 248, 0.2)', borderRadius: '12px', padding: '16px' }}>
+                <h4 style={{ margin: '0 0 10px 0', fontSize: '13px', color: '#38bdf8', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  🛡️ Registro de Auditoría de Última Modificación
+                </h4>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', fontSize: '12px' }}>
+                  <div>
+                    <span style={{ color: '#94a3b8', display: 'block', marginBottom: '2px' }}>📅 Fecha de Modificación:</span>
+                    <strong style={{ color: '#fff' }}>
+                      {viewingProduct.fechaActualizacion ? new Date(viewingProduct.fechaActualizacion).toLocaleString('es-AR') : 'Sin registro de edición'}
+                    </strong>
+                  </div>
+                  <div>
+                    <span style={{ color: '#94a3b8', display: 'block', marginBottom: '2px' }}>👤 ID de Usuario:</span>
+                    <strong style={{ color: '#fff', fontFamily: 'monospace' }}>{viewingProduct.updatedByUserId || '-'}</strong>
+                  </div>
+                  <div>
+                    <span style={{ color: '#94a3b8', display: 'block', marginBottom: '2px' }}>🔑 Rol del Usuario:</span>
+                    <strong style={{ color: '#fff', textTransform: 'capitalize' }}>{viewingProduct.updatedByRoleId || '-'}</strong>
+                  </div>
+                  <div>
+                    <span style={{ color: '#94a3b8', display: 'block', marginBottom: '2px' }}>🏪 Sucursal de Edición:</span>
+                    <strong style={{ color: '#fff' }}>
+                      {viewingProduct.updatedByBranchId ? (branches.find(b => String(b.id) === String(viewingProduct.updatedByBranchId))?.nombre || `Sucursal #${viewingProduct.updatedByBranchId}`) : '-'}
+                    </strong>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+            <div className="modal-footer" style={{ borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '16px', marginTop: '16px', display: 'flex', justifyContent: 'flex-end' }}>
+              <button type="button" className="btn btn-primary" style={{ background: '#38bdf8', color: '#0f172a', border: 'none', padding: '8px 20px', borderRadius: '6px', fontWeight: '600', cursor: 'pointer' }} onClick={() => setViewingProduct(null)}>Cerrar</button>
+            </div>
           </div>
         </div>
       )}

@@ -738,6 +738,36 @@ function App() {
 
           {/* User notifications and profile triggers */}
           <div className="header-actions" style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {currentUser && (
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => {
+                  if (window.confirm('¿Estás seguro de que deseas cerrar sesión?')) {
+                    setCurrentUser(null);
+                    localStorage.removeItem('qca_admin_user');
+                    supabase.auth.signOut();
+                  }
+                }}
+                style={{
+                  padding: '7px 14px',
+                  borderRadius: '9999px',
+                  fontSize: '12.5px',
+                  fontWeight: 600,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                  borderColor: '#fca5a5',
+                  backgroundColor: '#fef2f2',
+                  color: '#ef4444',
+                  cursor: 'pointer'
+                }}
+                title="Cerrar sesión de colaborador / administrador"
+              >
+                🚪 Cerrar Sesión
+              </button>
+            )}
+
             <button
               type="button"
               className="btn btn-secondary"

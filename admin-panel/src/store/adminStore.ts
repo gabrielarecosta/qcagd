@@ -339,11 +339,24 @@ export const useAdminStore = create<AdminStore>((set, get) => ({
   },
 
   updateProduct: async (id, updates) => {
-    // Configurar variables en base de datos para auditoría
-    const userEmail = get().currentUser?.email || '';
-    await supabase.rpc('set_config', { placeholder: 'app.current_user_email', value: userEmail, is_local: false });
+    const currentUser = get().currentUser;
+    const activeBranchId = get().activeBranchId;
+    const userEmail = currentUser?.email || '';
 
-    await productService.update(String(id), updates);
+    try {
+      await supabase.rpc('set_config', { placeholder: 'app.current_user_email', value: userEmail, is_local: false });
+    } catch (_) {}
+
+    const auditFields = {
+      updatedByUserId: currentUser?.id || 'admin-system',
+      updatedByRoleId: currentUser?.rol || 'admin',
+      updatedByBranchId: currentUser?.branchId || (activeBranchId !== 'all' ? activeBranchId : undefined),
+    };
+
+    await productService.update(String(id), {
+      ...updates,
+      ...auditFields,
+    });
     await get().fetchData(true);
   },
 
