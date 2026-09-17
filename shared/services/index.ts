@@ -15,4 +15,6 @@ export * from './companySettingsService';
 export * from './refundService';
 export * from './routeService';
 export * from './localidadService';
+export * from './branchLocalidadService';
 export * from './processLogService';
+

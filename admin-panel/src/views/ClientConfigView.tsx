@@ -31,7 +31,7 @@ const DEFAULT_RULES: Record<string, string[]> = {
 };
 
 export function ClientConfigView() {
-  const { fetchData } = useAdminStore();
+  const { branches, fetchData } = useAdminStore();
 
   // Active Main Tab
   const [activeTab, setActiveTab] = useState<'categorias' | 'recategorizacion' | 'localidades'>('categorias');
@@ -56,6 +56,16 @@ export function ClientConfigView() {
       setLoadingLocalidades(false);
     }
   };
+
+  const handleUpdateLocalidadBranch = async (locId: string, branchId?: number) => {
+    try {
+      await localidadService.update(locId, { branchId });
+      setLocalidadesList(prev => prev.map(l => l.id === locId ? { ...l, branchId } : l));
+    } catch (e) {
+      console.error('Error actualizando sucursal de localidad:', e);
+    }
+  };
+
 
   useEffect(() => {
     loadLocalidades();
@@ -1357,7 +1367,22 @@ export function ClientConfigView() {
                           style={{ width: '18px', height: '18px', cursor: 'pointer', accentColor: '#2563EB' }}
                         />
                       </label>
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '4px' }}>
+                        <span style={{ fontSize: '12px', fontWeight: '700', color: '#475569' }}>🏢 Sucursal Principal Asignada:</span>
+                        <select
+                          value={loc.branchId || ''}
+                          onChange={e => handleUpdateLocalidadBranch(loc.id, e.target.value ? Number(e.target.value) : undefined)}
+                          style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '12px', fontWeight: 'bold', background: '#ffffff' }}
+                        >
+                          <option value="">(Sin asignar / Por Defecto)</option>
+                          {branches.map(b => (
+                            <option key={b.id} value={b.id}>🏢 {b.nombre} ({b.localidad || 'Deheza'})</option>
+                          ))}
+                        </select>
+                      </div>
                     </div>
+
                   </div>
                 ))}
               </div>

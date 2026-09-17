@@ -17,7 +17,9 @@ import { ClientConfigView } from './views/ClientConfigView';
 import { UsersView } from './views/UsersView';
 import { ReportsView } from './views/ReportsView';
 import { LoginView } from './views/LoginView';
+import { SystemAdminView } from './views/SystemAdminView';
 import { AdminPwaInstallBanner, triggerAdminPwaInstallModal } from './components/AdminPwaInstallBanner';
+import { ChangePasswordModal } from './components/ChangePasswordModal';
 
 
 type TabType = 
@@ -36,6 +38,7 @@ type TabType =
   | 'paymentConfig'
   | 'clientConfig'
   | 'users'
+  | 'systemAdmin'
   | 'reports';
 
 
@@ -188,6 +191,7 @@ function App() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
+  const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
 
   const { 
     activeBranchId, 
@@ -325,6 +329,7 @@ function App() {
     { id: 'branches', label: '🏢 Sucursales & Multi-Sucursal', group: 'Configuración' },
     { id: 'paymentConfig', label: 'Medios de Pago & CBU', group: 'Configuración' },
     { id: 'users', label: 'Usuarios & Permisos', group: 'Configuración' },
+    { id: 'systemAdmin', label: '⚡ SuperAdmin (Sistema)', group: 'Configuración' },
     { id: 'reports', label: '📊 Reportes & Estadísticas', group: 'Configuración' },
   ] as const;
 
@@ -371,6 +376,8 @@ function App() {
         return <ClientConfigView />;
       case 'users':
         return <UsersView />;
+      case 'systemAdmin':
+        return <SystemAdminView />;
       case 'reports':
         return <ReportsView />;
       default:
@@ -737,33 +744,56 @@ function App() {
           {/* User notifications and profile triggers */}
           <div className="header-actions" style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '8px' }}>
             {currentUser && (
-              <button
-                type="button"
-                className="btn btn-secondary"
-                onClick={() => {
-                  if (window.confirm('¿Estás seguro de que deseas cerrar sesión?')) {
-                    setCurrentUser(null);
-                    localStorage.removeItem('qca_admin_user');
-                    supabase.auth.signOut();
-                  }
-                }}
-                style={{
-                  padding: '7px 14px',
-                  borderRadius: '9999px',
-                  fontSize: '12.5px',
-                  fontWeight: 600,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '5px',
-                  borderColor: '#fca5a5',
-                  backgroundColor: '#fef2f2',
-                  color: '#ef4444',
-                  cursor: 'pointer'
-                }}
-                title="Cerrar sesión de colaborador / administrador"
-              >
-                🚪 Cerrar Sesión
-              </button>
+              <>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setShowChangePasswordModal(true)}
+                  style={{
+                    padding: '7px 14px',
+                    borderRadius: '9999px',
+                    fontSize: '12.5px',
+                    fontWeight: 600,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    borderColor: '#38bdf8',
+                    backgroundColor: 'rgba(56, 189, 248, 0.1)',
+                    color: '#38bdf8',
+                    cursor: 'pointer'
+                  }}
+                  title="Configuración de mi usuario, email y contraseña"
+                >
+                  ⚙️ Mi Cuenta / Contraseña
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => {
+                    if (window.confirm('¿Estás seguro de que deseas cerrar sesión?')) {
+                      setCurrentUser(null);
+                      localStorage.removeItem('qca_admin_user');
+                      supabase.auth.signOut();
+                    }
+                  }}
+                  style={{
+                    padding: '7px 14px',
+                    borderRadius: '9999px',
+                    fontSize: '12.5px',
+                    fontWeight: 600,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    borderColor: '#fca5a5',
+                    backgroundColor: '#fef2f2',
+                    color: '#ef4444',
+                    cursor: 'pointer'
+                  }}
+                  title="Cerrar sesión de colaborador / administrador"
+                >
+                  🚪 Cerrar Sesión
+                </button>
+              </>
             )}
 
             <button
@@ -889,6 +919,12 @@ function App() {
       </div>
 
       <AdminPwaInstallBanner />
+      <ChangePasswordModal
+        isOpen={showChangePasswordModal}
+        onClose={() => setShowChangePasswordModal(false)}
+        currentUser={currentUser}
+        onUserUpdated={(updated) => setCurrentUser(updated)}
+      />
     </div>
   );
 }

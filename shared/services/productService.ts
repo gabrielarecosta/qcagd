@@ -152,8 +152,8 @@ export const productService = {
           const bId = Number(options.branchId);
           if (!isNaN(bId)) invQuery = invQuery.eq('branch_id', bId);
         }
-        const { data: invData } = await invQuery;
-        if (invData && invData.length > 0) {
+        const { data: invData, error: invErr } = await invQuery;
+        if (!invErr && invData) {
           invData.forEach((s: any) => {
             const pid = String(s.product_id);
             const prev = stocksMap.get(pid) || { stock: 0, stockMinimo: Number(s.stock_minimo) || 5 };
@@ -162,8 +162,8 @@ export const productService = {
               stockMinimo: Number(s.stock_minimo) || 5
             });
           });
-        } else {
-          // Fallback a la tabla stocks si inventory no contiene datos
+        } else if (invErr) {
+          // Fallback a la tabla stocks SOLO si la consulta a inventory falló con un error de BD
           let stQuery = supabase.from('stocks').select('product_id, branch_id, stock, stock_minimo').in('product_id', prodIds);
           if (options.branchId && options.branchId !== 'all') {
             const bId = Number(options.branchId);
@@ -285,7 +285,7 @@ export const productService = {
       }
     }
 
-    const targetBranch = branchId && branchId !== 'all' ? branchId : 1;
+    const targetBranch = branchId && branchId !== 'all' ? branchId : undefined;
 
     // 2. Obtener todo el inventario paginado para la sucursal (evitando límite de 1000)
     let stocks: any[] = [];
@@ -296,11 +296,15 @@ export const productService = {
       const fromRange = stockPage * pageSize;
       const toRange = fromRange + pageSize - 1;
 
-      const { data: chunk, error: stockErr } = await supabase
+      let invQuery = supabase
         .from('inventory')
-        .select('product_id, stock, stock_minimo')
-        .eq('branch_id', targetBranch)
-        .range(fromRange, toRange);
+        .select('product_id, branch_id, stock, stock_minimo');
+
+      if (targetBranch) {
+        invQuery = invQuery.eq('branch_id', Number(targetBranch));
+      }
+
+      const { data: chunk, error: stockErr } = await invQuery.range(fromRange, toRange);
 
       if (stockErr) throw stockErr;
 
@@ -316,14 +320,59 @@ export const productService = {
       }
     }
 
+    const stocksMap = new Map<string, { stock: number; stockMinimo: number }>();
+    (stocks || []).forEach((s: any) => {
+      const pid = String(s.product_id);
+      const prev = stocksMap.get(pid) || { stock: 0, stockMinimo: Number(s.stock_minimo) || 5 };
+      stocksMap.set(pid, {
+        stock: prev.stock + Number(s.stock || 0),
+        stockMinimo: Number(s.stock_minimo) || 5
+      });
+    });
+
     return (prods || []).map((p: any) => {
-      const stockInfo = (stocks || []).find((s: any) => String(s.product_id) === String(p.id));
+      const stockInfo = stocksMap.get(String(p.id)) || { stock: 0, stockMinimo: 5 };
       return {
         ...mapProduct(p, rate, isPublic),
-        stock: stockInfo ? Number(stockInfo.stock) : 0,
-        stockMinimo: stockInfo ? Number(stockInfo.stock_minimo) : 5,
+        stock: stockInfo.stock,
+        stockMinimo: stockInfo.stockMinimo,
       };
     });
+  },
+
+  getProductStocksAllBranches: async (productId: string): Promise<Record<string, { stock: number; stockMinimo: number }>> => {
+    try {
+      const { data: invData, error: invErr } = await supabase
+        .from('inventory')
+        .select('branch_id, stock, stock_minimo')
+        .eq('product_id', productId);
+
+      const result: Record<string, { stock: number; stockMinimo: number }> = {};
+      if (!invErr && invData) {
+        invData.forEach((s: any) => {
+          result[String(s.branch_id)] = {
+            stock: Number(s.stock || 0),
+            stockMinimo: Number(s.stock_minimo || 5)
+          };
+        });
+      } else if (invErr) {
+        const { data: stData } = await supabase
+          .from('stocks')
+          .select('branch_id, stock, stock_minimo')
+          .eq('product_id', productId);
+        if (stData) {
+          stData.forEach((s: any) => {
+            result[String(s.branch_id)] = {
+              stock: Number(s.stock || 0),
+              stockMinimo: Number(s.stock_minimo || 5)
+            };
+          });
+        }
+      }
+      return result;
+    } catch (_) {
+      return {};
+    }
   },
 
   getById: async (id: string, branchId?: string): Promise<(Product & { stock: number; stockMinimo: number }) | undefined> => {

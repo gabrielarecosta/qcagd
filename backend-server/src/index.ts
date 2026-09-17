@@ -677,6 +677,234 @@ app.get('/api/mercadopago/status/:orderId', async (req: Request, res: Response):
 });
 
 
+// ------------------------------------------------------------
+// SUPERADMIN SYSTEM MANAGEMENT ENDPOINTS & PORTAL
+// ------------------------------------------------------------
+
+// Endpoint para listar todos los usuarios registrados (para combo selector)
+app.get('/api/superadmin/users', async (_req: Request, res: Response): Promise<void> => {
+  try {
+    const { data: profiles, error } = await supabase
+      .from('profiles')
+      .select('id, email, nombre, rol, branch_id, activo, created_at')
+      .order('nombre', { ascending: true });
+
+    if (error) {
+      res.status(500).json({ error: error.message });
+      return;
+    }
+
+    res.json(profiles || []);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Error listando usuarios' });
+  }
+});
+
+// Endpoint para pisar contraseña o usuario/email de cualquier cuenta
+app.post('/api/superadmin/override-password', async (req: Request, res: Response): Promise<void> => {
+  const { userId, email, newPassword, newEmail } = req.body;
+
+  if (!userId && !email) {
+    res.status(400).json({ error: 'Se requiere userId o email del usuario a pisar.' });
+    return;
+  }
+
+  try {
+    let targetId = userId;
+
+    // Buscar ID por email si no enviaron userId
+    if (!targetId && email) {
+      const { data: prof } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('email', email.trim().toLowerCase())
+        .maybeSingle();
+      if (prof) targetId = prof.id;
+    }
+
+    if (!targetId) {
+      res.status(404).json({ error: 'No se encontró ningún usuario con ese email/ID.' });
+      return;
+    }
+
+    // Pisar contraseña si se especificó
+    if (newPassword && newPassword.trim().length >= 6) {
+      const { error: pwErr } = await supabase.rpc('update_user_password', {
+        target_user_id: targetId,
+        new_password: newPassword.trim()
+      });
+      if (pwErr) {
+        console.warn('Error ejecutando RPC update_user_password:', pwErr.message);
+      }
+    }
+
+    // Pisar email si se especificó
+    if (newEmail && newEmail.trim().includes('@')) {
+      const cleanEmail = newEmail.trim().toLowerCase();
+      const { error: emErr } = await supabase.rpc('update_user_email', {
+        target_user_id: targetId,
+        new_email: cleanEmail
+      });
+      if (emErr) {
+        // Fallback actualización directa en profiles
+        await supabase.from('profiles').update({ email: cleanEmail }).eq('id', targetId);
+      }
+    }
+
+    res.json({ success: true, message: '✅ Contraseña y/o datos de usuario pisados correctamente.' });
+  } catch (err: any) {
+    console.error('Error pisando usuario/contraseña:', err.message);
+    res.status(500).json({ error: err.message || 'Ocurrió un error al pisar la contraseña.' });
+  }
+});
+
+// Standalone Web Portal para Administrador del Sistema (Superadmin)
+app.get('/superadmin', (_req: Request, res: Response) => {
+  res.send(`
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>⚡ SuperAdmin - Administración del Sistema</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    * { box-sizing: border-box; font-family: system-ui, -apple-system, sans-serif; }
+    body { background: #0f172a; color: #f8fafc; margin: 0; padding: 30px; display: flex; justify-content: center; }
+    .card { background: #1e293b; border: 1px solid #334155; border-radius: 16px; padding: 32px; max-width: 650px; width: 100%; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); }
+    h1 { margin-top: 0; color: #38bdf8; font-size: 22px; display: flex; align-items: center; gap: 10px; }
+    p { color: #94a3b8; font-size: 13.5px; line-height: 1.5; }
+    .form-group { margin-bottom: 20px; }
+    label { display: block; font-size: 13px; font-weight: 600; color: #cbd5e1; margin-bottom: 6px; }
+    select, input { width: 100%; padding: 12px; background: #0f172a; border: 1px solid #334155; border-radius: 8px; color: #fff; font-size: 14px; }
+    select:focus, input:focus { outline: none; border-color: #38bdf8; }
+    .btn { background: linear-gradient(135deg, #ef4444, #dc2626); color: white; border: none; padding: 14px; border-radius: 8px; font-weight: 700; width: 100%; cursor: pointer; font-size: 15px; margin-top: 10px; }
+    .btn:hover { opacity: 0.9; }
+    .alert { padding: 12px; border-radius: 8px; font-size: 13.5px; margin-bottom: 20px; display: none; }
+    .alert-success { background: rgba(16,185,129,0.15); border: 1px solid #10b981; color: #6ee7b7; }
+    .alert-error { background: rgba(239,68,68,0.15); border: 1px solid #ef4444; color: #fca5a5; }
+    .user-info { background: #0f172a; border: 1px dashed #334155; border-radius: 8px; padding: 12px; margin-top: 8px; font-size: 12.5px; color: #38bdf8; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>⚡ Administrador del Sistema (SuperAdmin)</h1>
+    <p>Herramienta independiente para pisar contraseñas y usuarios de cualquier cuenta del sistema (sin pasar por el panel de negocio).</p>
+
+    <div id="alertSuccess" class="alert alert-success"></div>
+    <div id="alertError" class="alert alert-error"></div>
+
+    <form id="overrideForm">
+      <div class="form-group">
+        <label>1. Seleccionar Usuario desde Combo / Dropdown:</label>
+        <select id="userCombo">
+          <option value="">-- Cargar usuarios... --</option>
+        </select>
+        <div id="userInfo" class="user-info" style="display:none;"></div>
+      </div>
+
+      <div class="form-group">
+        <label>O ingresar Usuario ID / Email manualmente (opcional):</label>
+        <input type="text" id="manualInput" placeholder="UUID del usuario o email exacto...">
+      </div>
+
+      <div class="form-group">
+        <label>2. Nueva Contraseña a Pisar (mínimo 6 caracteres):</label>
+        <input type="text" id="newPassword" placeholder="Escribí la nueva contraseña para pisar..." required>
+      </div>
+
+      <div class="form-group">
+        <label>3. Nuevo Email / Usuario a Pisar (opcional):</label>
+        <input type="email" id="newEmail" placeholder="Dejar vacío si no querés cambiar el email...">
+      </div>
+
+      <button type="submit" class="btn">⚡ PISAR CONTRASENA Y DATO DE USUARIO</button>
+    </form>
+  </div>
+
+  <script>
+    const userCombo = document.getElementById('userCombo');
+    const manualInput = document.getElementById('manualInput');
+    const userInfo = document.getElementById('userInfo');
+    const overrideForm = document.getElementById('overrideForm');
+    const alertSuccess = document.getElementById('alertSuccess');
+    const alertError = document.getElementById('alertError');
+    let usersList = [];
+
+    async function loadUsers() {
+      try {
+        const res = await fetch('/api/superadmin/users');
+        const data = await res.json();
+        usersList = data;
+        userCombo.innerHTML = '<option value="">-- Seleccioná un usuario del sistema (' + data.length + ') --</option>';
+        data.forEach(u => {
+          const opt = document.createElement('option');
+          opt.value = u.id;
+          opt.textContent = (u.nombre || 'Sin nombre') + ' | ' + u.email + ' (' + (u.rol || 'rol') + ')';
+          userCombo.appendChild(opt);
+        });
+      } catch (err) {
+        console.error('Error cargando usuarios:', err);
+      }
+    }
+
+    userCombo.addEventListener('change', () => {
+      const selectedId = userCombo.value;
+      const u = usersList.find(item => item.id === selectedId);
+      if (u) {
+        userInfo.style.display = 'block';
+        userInfo.innerHTML = '<b>ID:</b> ' + u.id + '<br><b>Nombre:</b> ' + u.nombre + '<br><b>Email:</b> ' + u.email + '<br><b>Rol:</b> ' + u.rol + ' | <b>Sucursal:</b> ' + (u.branch_id || 1);
+        manualInput.value = u.id;
+      } else {
+        userInfo.style.display = 'none';
+      }
+    });
+
+    overrideForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      alertSuccess.style.display = 'none';
+      alertError.style.display = 'none';
+
+      const targetId = manualInput.value || userCombo.value;
+      const newPassword = document.getElementById('newPassword').value;
+      const newEmail = document.getElementById('newEmail').value;
+
+      if (!targetId) {
+        alertError.textContent = '❌ Por favor seleccioná un usuario del combo o ingresá un ID/Email.';
+        alertError.style.display = 'block';
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/superadmin/override-password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: targetId, newPassword, newEmail })
+        });
+        const result = await res.json();
+
+        if (res.ok && result.success) {
+          alertSuccess.textContent = '✅ ' + result.message;
+          alertSuccess.style.display = 'block';
+          document.getElementById('newPassword').value = '';
+          document.getElementById('newEmail').value = '';
+          loadUsers();
+        } else {
+          alertError.textContent = '❌ ' + (result.error || 'Error al pisar la contraseña.');
+          alertError.style.display = 'block';
+        }
+      } catch (err) {
+        alertError.textContent = '❌ Error de conexión con el servidor.';
+        alertError.style.display = 'block';
+      }
+    });
+
+    loadUsers();
+  </script>
+</body>
+</html>
+  `);
+});
+
 // Start Server if not loaded from test suite
 if (process.env.NODE_ENV !== 'test') {
   app.listen(PORT, () => {

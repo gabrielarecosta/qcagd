@@ -1,4 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
+
 import {
   View,
   Text,
@@ -115,7 +116,7 @@ export function RegisterClienteScreen({ onBack }: RegisterClienteScreenProps) {
   useEffect(() => {
     const loadBranchesAndLocalidades = async () => {
       try {
-        const list = await branchService.getAll();
+        const list = await branchService.getOnlineSalesBranches();
         if (list && list.length > 0) {
           setAvailableBranches(list);
           setSelectedBranchId(list[0].id);
@@ -132,6 +133,35 @@ export function RegisterClienteScreen({ onBack }: RegisterClienteScreenProps) {
     loadBranchesAndLocalidades();
   }, []);
 
+  // Filtrar sucursales correspondientes a la localidad seleccionada (excluyendo depósitos y sucursales sin venta online)
+  const matchingBranchesForLocalidad = useMemo(() => {
+    const onlineBranches = availableBranches.filter(b => b.activo !== false && b.permiteVentaOnline !== false && b.tipoSucursal !== 'deposito');
+    if (!selectedLocalidad) return onlineBranches;
+    const locClean = selectedLocalidad.trim().toLowerCase();
+    const locObj = allowedLocalidades.find(l => l.nombre.trim().toLowerCase() === locClean);
+
+    const matches = onlineBranches.filter((b: Branch) => {
+      if (locObj && locObj.branchId && (b.id === locObj.branchId || String(b.id) === String(locObj.branchId))) return true;
+      if (b.localidad && b.localidad.trim().toLowerCase() === locClean) return true;
+      if (b.nombre.toLowerCase().includes(locClean)) return true;
+      return false;
+    });
+
+    return matches.length > 0 ? matches : onlineBranches;
+  }, [selectedLocalidad, availableBranches, allowedLocalidades]);
+
+
+  // Al cambiar la localidad, seleccionar la sucursal predeterminada correspondiente
+  useEffect(() => {
+    if (matchingBranchesForLocalidad.length > 0) {
+      const alreadySelectedValid = matchingBranchesForLocalidad.some((b: Branch) => String(b.id) === String(selectedBranchId));
+      if (!alreadySelectedValid) {
+        setSelectedBranchId(matchingBranchesForLocalidad[0].id);
+      }
+    }
+  }, [matchingBranchesForLocalidad]);
+
+
   const handleRegister = async () => {
     setError(null);
 
@@ -142,7 +172,7 @@ export function RegisterClienteScreen({ onBack }: RegisterClienteScreenProps) {
     const emailFinal = (isSucursal ? branchEmail.trim() : regEmail.trim()).toLowerCase();
     const passwordFinal = isSucursal ? branchPassword : regPassword;
     const cuitFinal = isSucursal ? branchCuit.trim() : regCuit.trim();
-    const branchAsignada = isSucursal ? selectedBranchId : 1;
+    const branchAsignada = selectedBranchId || 1;
     const localidadFinal = selectedLocalidad.trim();
 
     if (isSucursal) {
@@ -200,6 +230,7 @@ export function RegisterClienteScreen({ onBack }: RegisterClienteScreenProps) {
             rol: 'cliente',
             tipo_cliente: isSucursal ? 'sucursal' : 'minorista',
             localidad: localidadFinal,
+            branch_id: branchAsignada,
           },
         },
       });
@@ -238,7 +269,7 @@ export function RegisterClienteScreen({ onBack }: RegisterClienteScreenProps) {
         '¡Registro Exitoso!',
         isSucursal 
           ? `La sucursal "${nombreFinal}" ha sido registrada exitosamente en Supabase Auth. Ya podés realizar pedidos.`
-          : `¡Bienvenido/a ${nombreFinal}! Tu cuenta ha sido registrada exitosamente en Supabase Auth.`
+          : `¡Bienvenido/a ${nombreFinal}! Tu cuenta ha sido registrada exitosamente.`
       );
     } catch (err: any) {
       console.error('Error al registrar cuenta:', err);
@@ -247,6 +278,7 @@ export function RegisterClienteScreen({ onBack }: RegisterClienteScreenProps) {
       setIsLoading(false);
     }
   };
+
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -368,6 +400,39 @@ export function RegisterClienteScreen({ onBack }: RegisterClienteScreenProps) {
                 />
               )}
             </View>
+
+            {/* Selector de Sucursal Asignada para la Localidad */}
+            {matchingBranchesForLocalidad.length > 0 && (
+              <View style={[styles.branchSelectContainer, { marginTop: 4 }]}>
+                <Text style={styles.fieldLabel}>
+                  🏢 Sucursal de Venta y Reparto en {selectedLocalidad || 'tu zona'} *:
+                </Text>
+                <View style={styles.branchPillsRow}>
+                  {matchingBranchesForLocalidad.map((b: Branch) => (
+                    <TouchableOpacity
+                      key={b.id}
+
+                      style={[
+                        styles.branchPill,
+                        String(selectedBranchId) === String(b.id) && styles.branchPillActive,
+                      ]}
+                      onPress={() => setSelectedBranchId(b.id)}
+                      activeOpacity={0.8}
+                    >
+                      <Text
+                        style={[
+                          styles.branchPillText,
+                          String(selectedBranchId) === String(b.id) && styles.branchPillTextActive,
+                        ]}
+                      >
+                        🏢 {b.nombre}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            )}
+
 
             <AnimatedInput
               placeholder="Nombre Completo *"

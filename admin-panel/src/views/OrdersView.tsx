@@ -296,7 +296,9 @@ export function OrdersView() {
             <thead>
               <tr>
                 <th>Número / Fecha</th>
-                <th>Sucursal</th>
+                <th style={{ background: activeBranchId === 'all' ? 'rgba(56, 189, 248, 0.1)' : undefined, color: activeBranchId === 'all' ? '#38bdf8' : undefined }}>
+                  {activeBranchId === 'all' ? '🏢 Sucursal de Venta ⭐' : 'Sucursal'}
+                </th>
                 <th>Cliente</th>
                 <th>Artículos</th>
                 <th>Monto Total</th>
@@ -311,30 +313,50 @@ export function OrdersView() {
                 const client = getClientInfo(o.clienteId, o);
                 const orderStatusLabel = getOrderStatusLabel(o.estado);
                 const orderStatusColor = getOrderStatusColor(o.estado);
+                const branchName = getBranchName(o.branchId);
 
                 return (
-                  <tr key={o.id}>
+                  <tr 
+                    key={o.id}
+                    onClick={() => setSelectedOrder(o)}
+                    style={{ cursor: 'pointer', transition: 'background-color 0.15s' }}
+                    title="Hacé click para ver la dirección, sucursal y detalle completo de la compra"
+                  >
                     <td>
-                      <div style={{ fontWeight: 'bold', fontSize: '14px' }}>#{o.numero}</div>
+                      <div style={{ fontWeight: 'bold', fontSize: '14px', color: '#0284c7' }}>#{o.numero}</div>
                       <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
                         {new Date(o.fecha).toLocaleDateString()} {new Date(o.fecha).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} hs
                       </div>
                     </td>
-                    <td>
-                      <span className="badge badge-neutral" style={{ fontSize: '11px' }}>
-                        {getBranchName(o.branchId)}
+                    <td onClick={(e) => e.stopPropagation()}>
+                      <span 
+                        className="badge" 
+                        style={{ 
+                          fontSize: '11px', 
+                          fontWeight: 'bold',
+                          padding: '4px 10px',
+                          borderRadius: '6px',
+                          background: activeBranchId === 'all' ? 'rgba(56, 189, 248, 0.15)' : '#334155',
+                          color: activeBranchId === 'all' ? '#38bdf8' : '#e2e8f0',
+                          border: activeBranchId === 'all' ? '1px solid rgba(56, 189, 248, 0.4)' : 'none',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px'
+                        }}
+                      >
+                        🏢 {branchName}
                       </span>
                     </td>
                     <td>
                       <div style={{ fontWeight: '600' }}>{client.name}</div>
-                      <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>Dir: {client.dir}</div>
+                      <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>📍 Dir: {client.dir}</div>
                     </td>
                     <td>
                       <div style={{ fontSize: '13px' }}>
                         <strong>{(o.items || []).reduce((acc, it) => acc + (Number(it?.cantidad) || 0), 0)}</strong> ítems
                       </div>
                     </td>
-                    <td style={{ fontWeight: 'bold', fontSize: '14px' }}>
+                    <td style={{ fontWeight: 'bold', fontSize: '14px', color: 'var(--text-primary)' }}>
                       {formatPrice(o.total)}
                     </td>
                     <td>
@@ -371,11 +393,11 @@ export function OrdersView() {
                         {orderStatusLabel}
                       </span>
                     </td>
-                    <td className="text-right">
+                    <td className="text-right" onClick={(e) => e.stopPropagation()}>
                       <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
                         <button 
                           className="btn btn-secondary" 
-                          style={{ padding: '6px 10px', fontSize: '12px' }}
+                          style={{ padding: '6px 10px', fontSize: '12px', background: '#0284c7', color: '#fff', border: 'none', fontWeight: '600' }}
                           onClick={() => setSelectedOrder(o)}
                         >
                           👁️ Detalle
@@ -418,54 +440,93 @@ export function OrdersView() {
             if (e.target === e.currentTarget) setSelectedOrder(null);
           }}
         >
-          <div className="modal-content" style={{ maxWidth: '600px' }} onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
+          <div className="modal-content" style={{ maxWidth: '680px', width: '90%' }} onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header" style={{ borderBottom: '1px solid #e2e8f0', paddingBottom: '12px' }}>
               <div>
-                <h2 className="card-title" style={{ margin: 0 }}>Detalle de Pedido #{selectedOrder.numero}</h2>
-                <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-                  Ingresado el {new Date(selectedOrder.fecha).toLocaleDateString()} a las {new Date(selectedOrder.fecha).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} hs
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <h2 className="card-title" style={{ margin: 0, fontSize: '18px' }}>Pedido #{selectedOrder.numero}</h2>
+                  <span className="badge" style={{ fontSize: '11px', background: 'rgba(56, 189, 248, 0.15)', color: '#0284c7', border: '1px solid #38bdf8', fontWeight: 'bold' }}>
+                    🏢 {getBranchName(selectedOrder.branchId)}
+                  </span>
+                </div>
+                <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                  Fecha de Venta: {new Date(selectedOrder.fecha).toLocaleDateString()} a las {new Date(selectedOrder.fecha).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} hs
                 </div>
               </div>
               <button type="button" className="btn-close" onClick={() => setSelectedOrder(null)}>✕</button>
             </div>
             
-            <div className="modal-body" style={{ padding: '20px' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px', background: '#f8fafc', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+            <div className="modal-body" style={{ padding: '20px', maxHeight: '80vh', overflowY: 'auto' }}>
+              {/* Sucursal y Cliente */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px', background: '#f8fafc', padding: '14px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
                 <div>
-                  <h4 style={{ margin: '0 0 6px 0', fontSize: '13px', color: '#64748b' }}>CLIENTE</h4>
-                  <div style={{ fontWeight: 'bold' }}>{getClientInfo(selectedOrder.clienteId, selectedOrder).name}</div>
-                  <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>CUIT: {getClientInfo(selectedOrder.clienteId, selectedOrder).cuit}</div>
-                  <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Tel: {getClientInfo(selectedOrder.clienteId, selectedOrder).tel}</div>
+                  <h4 style={{ margin: '0 0 6px 0', fontSize: '12px', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>👤 CLIENTE</h4>
+                  <div style={{ fontWeight: 'bold', fontSize: '14px' }}>{getClientInfo(selectedOrder.clienteId, selectedOrder).name}</div>
+                  {getClientInfo(selectedOrder.clienteId, selectedOrder).cuit && (
+                    <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>CUIT/DNI: {getClientInfo(selectedOrder.clienteId, selectedOrder).cuit}</div>
+                  )}
+                  <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Teléfono: {getClientInfo(selectedOrder.clienteId, selectedOrder).tel || 'Sin registrar'}</div>
                 </div>
                 <div>
-                  <h4 style={{ margin: '0 0 6px 0', fontSize: '13px', color: '#64748b' }}>ENTREGA</h4>
-                  <div>{getClientInfo(selectedOrder.clienteId, selectedOrder).dir}</div>
-                  <div style={{ fontSize: '12px', color: 'var(--accent-color)', fontWeight: 'bold', marginTop: '4px' }}>
-                    Sucursal: {getBranchName(selectedOrder.branchId)}
+                  <h4 style={{ margin: '0 0 6px 0', fontSize: '12px', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>🏢 SUCURSAL DE VENTA</h4>
+                  <div style={{ fontWeight: 'bold', color: '#0284c7', fontSize: '14px' }}>
+                    {getBranchName(selectedOrder.branchId)}
+                  </div>
+                  <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                    Método de Entrega: <strong>{selectedOrder.deliveryMethod === 'whatsapp' ? '📱 WhatsApp' : selectedOrder.deliveryMethod === 'retiro' ? '🏪 Retiro en Sucursal' : '🚚 Reparto a Domicilio'}</strong>
                   </div>
                 </div>
               </div>
 
-              <h3 style={{ fontSize: '14px', marginBottom: '8px', borderBottom: '1px solid #eee', paddingBottom: '4px' }}>Artículos del Pedido</h3>
-              <div style={{ maxHeight: '200px', overflowY: 'auto', marginBottom: '20px' }}>
+              {/* Dirección Completa de Entrega */}
+              <div style={{ marginBottom: '16px', background: '#eff6ff', border: '1px solid #bfdbfe', padding: '14px', borderRadius: '8px' }}>
+                <h4 style={{ margin: '0 0 6px 0', fontSize: '12px', color: '#1e40af', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span>📍 DIRECCIÓN DE ENTREGA Y UBICACIÓN</span>
+                  {selectedOrder.locationVerified && (
+                    <span style={{ fontSize: '10px', background: '#10b981', color: '#fff', padding: '2px 6px', borderRadius: '4px' }}>✓ Verificada</span>
+                  )}
+                </h4>
+                <div style={{ fontWeight: '600', fontSize: '14px', color: '#1e3a8a' }}>
+                  {selectedOrder.originalAddress || selectedOrder.formattedAddress || getClientInfo(selectedOrder.clienteId, selectedOrder).dir}
+                </div>
+                {selectedOrder.city && (
+                  <div style={{ fontSize: '12px', color: '#3b82f6', marginTop: '2px' }}>
+                    Ciudad / Localidad: <strong>{selectedOrder.city}</strong> {selectedOrder.province ? `, ${selectedOrder.province}` : ''}
+                  </div>
+                )}
+                {selectedOrder.addressReference && (
+                  <div style={{ fontSize: '12px', color: '#475569', marginTop: '4px', fontStyle: 'italic', background: '#ffffff', padding: '6px 10px', borderRadius: '4px', border: '1px border #dbeafe' }}>
+                    💡 Referencia de ubicación: "{selectedOrder.addressReference}"
+                  </div>
+                )}
+                {selectedOrder.deliveryDate && (
+                  <div style={{ fontSize: '12px', color: '#1e40af', marginTop: '6px', fontWeight: '500' }}>
+                    📅 Turno de entrega pactado: <strong>{selectedOrder.deliveryDate}</strong> ({selectedOrder.deliveryStartTime || '08:00'} a {selectedOrder.deliveryEndTime || '18:00'} hs)
+                  </div>
+                )}
+              </div>
+
+              {/* Detalle de Artículos Comprados */}
+              <h3 style={{ fontSize: '14px', marginBottom: '8px', borderBottom: '1px solid #eee', paddingBottom: '4px', fontWeight: 'bold' }}>🛒 Detalle de los Artículos de la Compra</h3>
+              <div style={{ maxHeight: '220px', overflowY: 'auto', marginBottom: '16px', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
                 <table className="admin-table" style={{ fontSize: '13px' }}>
                   <thead>
                     <tr style={{ background: '#f8fafc' }}>
-                      <th style={{ padding: '6px' }}>Cod</th>
-                      <th style={{ padding: '6px' }}>Artículo</th>
-                      <th style={{ padding: '6px', textAlign: 'center' }}>Cant</th>
-                      <th style={{ padding: '6px', textAlign: 'right' }}>P.Unit</th>
-                      <th style={{ padding: '6px', textAlign: 'right' }}>Subtotal</th>
+                      <th style={{ padding: '8px' }}>Código</th>
+                      <th style={{ padding: '8px' }}>Artículo / Descripción</th>
+                      <th style={{ padding: '8px', textAlign: 'center' }}>Cant.</th>
+                      <th style={{ padding: '8px', textAlign: 'right' }}>P. Unitario</th>
+                      <th style={{ padding: '8px', textAlign: 'right' }}>Subtotal</th>
                     </tr>
                   </thead>
                   <tbody>
                     {(selectedOrder.items || []).map((item, idx) => (
                       <tr key={idx}>
-                        <td style={{ fontFamily: 'monospace', padding: '6px' }}>{getItemCode(item)}</td>
-                        <td style={{ padding: '6px' }}>{getItemName(item)} {getItemPresentation(item) ? `(${getItemPresentation(item)})` : ''}</td>
-                        <td style={{ textAlign: 'center', padding: '6px' }}>{getItemQty(item)}</td>
-                        <td style={{ textAlign: 'right', padding: '6px' }}>{formatPrice(getItemPrice(item))}</td>
-                        <td style={{ textAlign: 'right', padding: '6px', fontWeight: 'bold' }}>{formatPrice(getItemPrice(item) * getItemQty(item))}</td>
+                        <td style={{ fontFamily: 'monospace', padding: '8px', fontWeight: 'bold' }}>{getItemCode(item)}</td>
+                        <td style={{ padding: '8px' }}>{getItemName(item)} {getItemPresentation(item) ? `(${getItemPresentation(item)})` : ''}</td>
+                        <td style={{ textAlign: 'center', padding: '8px', fontWeight: 'bold' }}>{getItemQty(item)}</td>
+                        <td style={{ textAlign: 'right', padding: '8px' }}>{formatPrice(getItemPrice(item))}</td>
+                        <td style={{ textAlign: 'right', padding: '8px', fontWeight: 'bold' }}>{formatPrice(getItemPrice(item) * getItemQty(item))}</td>
                       </tr>
                     ))}
                     {(!selectedOrder.items || selectedOrder.items.length === 0) && (
@@ -479,36 +540,27 @@ export function OrdersView() {
                 </table>
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', borderTop: '1px solid #eee', paddingTop: '12px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px' }}>
-                  <span>Forma de pago:</span>
+              {/* Forma de Pago y Monto Total */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', background: '#f8fafc', padding: '14px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                  <span>Método y Estado de Pago:</span>
                   <strong>{getPaymentMethodLabel(selectedOrder.paymentMethod)} ({getPaymentStatusLabel(selectedOrder.paymentStatus)})</strong>
                 </div>
                 {selectedOrder.abonaCon && (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', color: 'var(--success-color)' }}>
-                    <span>Paga con:</span>
-                    <strong>{formatPrice(selectedOrder.abonaCon)} (Cambio: {formatPrice(selectedOrder.cambioEstimado || 0)})</strong>
-                  </div>
-                )}
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px' }}>
-                  <span>Método de entrega:</span>
-                  <strong>{selectedOrder.deliveryMethod === 'whatsapp' ? 'WhatsApp' : selectedOrder.deliveryMethod === 'retiro' ? 'Retiro' : 'Reparto'}</strong>
-                </div>
-                {selectedOrder.deliveryDate && (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px' }}>
-                    <span>Fecha de entrega:</span>
-                    <strong>{selectedOrder.deliveryDate} ({selectedOrder.deliveryStartTime} a {selectedOrder.deliveryEndTime} hs)</strong>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: 'var(--success-color)' }}>
+                    <span>Abona con:</span>
+                    <strong>{formatPrice(selectedOrder.abonaCon)} (Cambio/Vuelto estimado: {formatPrice(selectedOrder.cambioEstimado || 0)})</strong>
                   </div>
                 )}
 
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '18px', fontWeight: '800', marginTop: '8px' }}>
-                  <span>TOTAL ESTIMADO:</span>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '18px', fontWeight: '800', borderTop: '1px solid #cbd5e1', paddingTop: '10px', marginTop: '4px' }}>
+                  <span>MONTO TOTAL DE VENTA:</span>
                   <span style={{ color: 'var(--accent-color)' }}>{formatPrice(selectedOrder.total)}</span>
                 </div>
               </div>
 
               {selectedOrder.outOfStockPreference && (
-                <div style={{ marginTop: '16px', padding: '12px 14px', background: 'rgba(59, 130, 246, 0.08)', border: '1px solid rgba(59, 130, 246, 0.25)', borderRadius: '8px', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{ marginTop: '12px', padding: '10px 12px', background: 'rgba(59, 130, 246, 0.08)', border: '1px solid rgba(59, 130, 246, 0.25)', borderRadius: '8px', fontSize: '12.5px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <span style={{ fontSize: '16px' }}>{selectedOrder.outOfStockPreference === 'reemplazar' ? '🔄' : '📞'}</span>
                   <div>
                     <strong>Instrucción ante falta de stock: </strong>
@@ -520,14 +572,14 @@ export function OrdersView() {
               )}
 
               {selectedOrder.observacionesCliente && (
-                <div style={{ marginTop: '16px', padding: '10px', background: '#fffbeb', border: '1px solid #fef3c7', borderRadius: '6px', fontSize: '13px' }}>
-                  <strong>Observaciones del Cliente:</strong>
-                  <div style={{ color: '#b45309', marginTop: '4px' }}>"{selectedOrder.observacionesCliente}"</div>
+                <div style={{ marginTop: '12px', padding: '10px', background: '#fffbeb', border: '1px solid #fef3c7', borderRadius: '6px', fontSize: '12.5px' }}>
+                  <strong>Notas del Cliente:</strong>
+                  <div style={{ color: '#b45309', marginTop: '2px' }}>"{selectedOrder.observacionesCliente}"</div>
                 </div>
               )}
             </div>
 
-            <div className="modal-footer" style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+            <div className="modal-footer" style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', borderTop: '1px solid #e2e8f0', paddingTop: '12px' }}>
               <button className="btn btn-secondary" onClick={() => setSelectedOrder(null)}>Cerrar</button>
               <button className="btn btn-primary" onClick={() => { handlePrint(selectedOrder); setSelectedOrder(null); }}>🖨️ Imprimir Factura / Remito</button>
             </div>

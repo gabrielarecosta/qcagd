@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useAdminStore } from '../store/adminStore';
 import type { InternalUser, UserRole } from '@shared/types/user';
+import { userService } from '@shared/services/userService';
 import { ExtraModuleWrapper } from '../components/ExtraModuleWrapper';
 
 export function UsersView() {
@@ -129,31 +130,59 @@ export function UsersView() {
     });
   };
 
-  const handleSaveEdit = (e: React.FormEvent) => {
+  const handleSaveEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingUser) return;
 
-    const updates: any = {
-      ...formUser,
-      branchId: formUser.branchId || undefined,
-    };
-    
-    // Si no ingresaron nueva contraseña, la removemos para no pisarla con vacío en la BD
-    if (!formUser.password || formUser.password.trim() === '') {
+    try {
+      const updates: any = {
+        ...formUser,
+        branchId: formUser.branchId || undefined,
+      };
+      
       delete updates.password;
-    }
 
-    updateUser(editingUser.id, updates);
-    setEditingUser(null);
+      await updateUser(editingUser.id, updates);
+
+      if (formUser.password && formUser.password.trim().length >= 6) {
+        await userService.adminUpdateUserPassword(editingUser.id, formUser.password.trim());
+      }
+      setEditingUser(null);
+      alert('✅ Usuario y contraseña actualizados correctamente.');
+    } catch (err: any) {
+      console.error('Error al actualizar usuario:', err);
+      alert('Error al actualizar usuario: ' + (err.message || String(err)));
+    }
   };
 
-  const handleSaveCreate = (e: React.FormEvent) => {
+  const handleSaveCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    createUser({
-      ...formUser,
-      branchId: formUser.branchId ? String(formUser.branchId) : undefined,
-    });
-    setIsCreating(false);
+    try {
+      if (formUser.password && formUser.password.trim().length >= 6) {
+        await userService.adminUpsertUser({
+          email: formUser.email,
+          password: formUser.password.trim(),
+          nombre: formUser.nombre,
+          rol: formUser.rol,
+          branchId: formUser.branchId,
+          telefono: formUser.telefono,
+          dni: formUser.dni,
+          auto: formUser.auto,
+          patente: formUser.patente,
+        });
+        await fetchUsersOnly();
+      } else {
+        await createUser({
+          ...formUser,
+          branchId: formUser.branchId ? String(formUser.branchId) : undefined,
+        });
+      }
+      setIsCreating(false);
+      alert('✅ Colaborador y contraseña registrados con éxito.');
+    } catch (err: any) {
+      console.error('Error al crear usuario:', err);
+      alert('Error al crear usuario: ' + (err.message || String(err)));
+    }
   };
 
   return (

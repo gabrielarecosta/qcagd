@@ -24,10 +24,14 @@ import { formatPrice } from '../../utils/formatters';
 import { Order, CustomerAddress } from '../../types';
 import { OrderCard } from '../OrderCard';
 import { OrderDetailModal } from '../OrderDetailModal';
+import { ChangePasswordModal } from '../ChangePasswordModal';
 import { AppFooter } from '../AppFooter';
 import { suggestDehezaStreets, StreetSuggestion } from '@shared/utils/dehezaStreets';
-import { geocodeAddress } from '@shared/utils/geo';
+import { branchService } from '@shared/services/branchService';
+import { Branch } from '@shared/types/branch';
+import { geocodeAddress, getLocalityCenter } from '@shared/utils/geo';
 import { triggerPwaInstallModal } from '../PwaInstallBanner';
+
 
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
@@ -76,6 +80,7 @@ export function ClienteAccountScreen() {
   const [newIndicaciones, setNewIndicaciones] = useState('');
   const [savingAddress, setSavingAddress] = useState(false);
   const [selectedOrderForModal, setSelectedOrderForModal] = useState<Order | null>(null);
+  const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
   const [deliveryMethodFilter, setDeliveryMethodFilter] = useState<'all' | 'reparto' | 'retiro' | 'whatsapp'>('all');
   const [statusFilter, setStatusFilter] = useState<'all' | 'preparacion' | 'en_camino' | 'entregado' | 'cancelado'>('all');
 
@@ -84,8 +89,25 @@ export function ClienteAccountScreen() {
   const mapInstanceRef = useRef<any>(null);
   const markerRef = useRef<any>(null);
 
-  const [newLat, setNewLat] = useState(-32.7561);
-  const [newLng, setNewLng] = useState(-63.7845);
+  const [allBranches, setAllBranches] = useState<Branch[]>([]);
+
+
+  // Centrar mapa por defecto en las coordenadas urbanas de la localidad del cliente
+  const defaultLocCenter = useMemo(() => {
+    return getLocalityCenter(clientData?.localidad);
+  }, [clientData?.localidad]);
+
+  const [newLat, setNewLat] = useState(defaultLocCenter.latitude);
+  const [newLng, setNewLng] = useState(defaultLocCenter.longitude);
+
+  // Actualizar lat/lng del mapa si cambia el estado o la localidad
+  useEffect(() => {
+    if (!newLat || !newLng || (newLat === -32.7561 && newLng === -63.7845 && defaultLocCenter.latitude !== -32.7561)) {
+      setNewLat(defaultLocCenter.latitude);
+      setNewLng(defaultLocCenter.longitude);
+    }
+  }, [defaultLocCenter]);
+
 
   const loadAddresses = async () => {
     if (!clientData) return;
@@ -245,7 +267,7 @@ export function ClienteAccountScreen() {
     if (!query.trim()) return;
 
     try {
-      const geoResult = await geocodeAddress(query, 'General Deheza', 'Córdoba');
+      const geoResult = await geocodeAddress(query, clientData?.localidad || 'General Deheza', 'Córdoba');
       if (geoResult) {
         setNewLat(geoResult.latitude);
         setNewLng(geoResult.longitude);
@@ -270,6 +292,7 @@ export function ClienteAccountScreen() {
     }
   };
 
+
   const dehezaStreetSuggestions = useMemo(() => {
     if (!newDireccion || newDireccion.trim().length < 2) return [];
     return suggestDehezaStreets(newDireccion, 3);
@@ -289,9 +312,9 @@ export function ClienteAccountScreen() {
       let verified = true;
 
       // Si no ha tocado el mapa pero tipeó la dirección, geocodificar por defecto
-      if (lat === -32.7561 && lon === -63.7845) {
+      if (lat === defaultLocCenter.latitude && lon === defaultLocCenter.longitude) {
         try {
-          const geoResult = await geocodeAddress(newDireccion, 'General Deheza', 'Córdoba');
+          const geoResult = await geocodeAddress(newDireccion, clientData?.localidad || 'General Deheza', 'Córdoba');
           if (geoResult) {
             lat = geoResult.latitude;
             lon = geoResult.longitude;
@@ -300,6 +323,7 @@ export function ClienteAccountScreen() {
           console.warn('Geocoding fallback:', e);
         }
       }
+
 
       const isFirstAddress = addresses.length === 0;
 
@@ -347,17 +371,52 @@ export function ClienteAccountScreen() {
   };
 
   useEffect(() => {
-    const loadSettings = async () => {
-      const settings = await companySettingsService.get();
-      setCompanySettings(settings);
+    const loadSettingsAndBranches = async () => {
+      try {
+        const settings = await companySettingsService.get();
+        setCompanySettings(settings);
+        const branches = await branchService.getAll();
+        setAllBranches(branches);
+      } catch (err) {
+        console.warn('Error loading initial data:', err);
+      }
     };
-    loadSettings();
+    loadSettingsAndBranches();
     loadAddresses();
-    // Fix bug: fetch orders on mount so they appear without visiting the reparto screen
     if (clientData?.id) {
       fetchOrders(clientData.id);
     }
   }, [clientData]);
+
+  const currentBranchName = useMemo(() => {
+    if (!clientData?.branchId) return 'Casa Central';
+    const found = allBranches.find(b => String(b.id) === String(clientData.branchId));
+    return found ? found.nombre : 'Casa Central';
+  }, [clientData?.branchId, allBranches]);
+
+  const branchesForMyLocality = useMemo(() => {
+    if (!clientData?.localidad) return allBranches;
+    const locClean = clientData.localidad.trim().toLowerCase();
+    const matches = allBranches.filter(b => {
+      if (b.localidad && b.localidad.trim().toLowerCase() === locClean) return true;
+      if (b.nombre.toLowerCase().includes(locClean)) return true;
+      return false;
+    });
+    return matches.length > 0 ? matches : allBranches;
+  }, [clientData?.localidad, allBranches]);
+
+  const handleSwitchBranch = async (newBranchId: string | number) => {
+    if (!clientData) return;
+    try {
+      await clientService.update(clientData.id, { branchId: newBranchId });
+      setClienteSession({ ...clientData, branchId: newBranchId });
+      customAlert('Sucursal Actualizada', 'Tu sucursal de abastecimiento preferida ha sido guardada.');
+    } catch (err) {
+      console.error('Error al cambiar sucursal:', err);
+      customAlert('Error', 'No se pudo cambiar la sucursal asignada.');
+    }
+  };
+
 
   const clientOrders = useMemo(() => {
     if (!clientData) return [];
@@ -513,8 +572,41 @@ export function ClienteAccountScreen() {
         <InfoRow label="CUIT / DNI" value={clientData.cuit || '-'} />
         <InfoRow label="Teléfono" value={clientData.telefono} />
         <InfoRow label="Email" value={clientData.email || '-'} />
+        <InfoRow label="Localidad de Reparto" value={`📍 ${clientData.localidad || 'General Deheza'}`} />
+        <InfoRow label="Sucursal Asignada" value={`🏢 ${currentBranchName}`} />
         <InfoRow label="Tipo de Cliente" value={clientData.tipoCliente === 'mayorista' ? 'Mayorista' : clientData.tipoCliente === 'sucursal' ? 'Sucursal' : 'Consumidor Final'} />
+
+        {/* Si la localidad tiene más de 1 sucursal, permitir cambiar la sucursal preferida */}
+        {branchesForMyLocality.length > 1 && (
+          <View style={{ marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: Colors.border }}>
+            <Text style={{ fontSize: 12, fontWeight: '700', color: Colors.textSecondary, marginBottom: 8 }}>
+              🔄 Cambiar sucursal de abastecimiento en {clientData.localidad}:
+            </Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+              {branchesForMyLocality.map((b) => (
+                <TouchableOpacity
+                  key={b.id}
+                  style={{
+                    paddingVertical: 6,
+                    paddingHorizontal: 10,
+                    borderRadius: Radius.full,
+                    backgroundColor: String(clientData.branchId) === String(b.id) ? Colors.primaryLight : Colors.white,
+                    borderWidth: 1.5,
+                    borderColor: String(clientData.branchId) === String(b.id) ? Colors.primary : Colors.border,
+                  }}
+                  onPress={() => handleSwitchBranch(b.id)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={{ fontSize: 12, fontWeight: '600', color: String(clientData.branchId) === String(b.id) ? Colors.primary : Colors.textSecondary }}>
+                    🏢 {b.nombre}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        )}
       </View>
+
 
       {/* Instalar App Móvil */}
       {Platform.OS === 'web' && (
@@ -1030,10 +1122,20 @@ export function ClienteAccountScreen() {
         )}
       </View>
 
-      {/* Cerrar Sesión */}
-      <TouchableOpacity style={styles.logoutButton} onPress={logout} activeOpacity={0.8}>
-        <Text style={styles.logoutButtonText}>Cerrar sesión</Text>
-      </TouchableOpacity>
+      {/* Cambiar Contraseña & Cerrar Sesión */}
+      <View style={{ gap: 10, marginTop: Spacing.sm }}>
+        <TouchableOpacity
+          style={[styles.logoutButton, { backgroundColor: Colors.surfaceBackground || '#f1f5f9', borderColor: Colors.border || '#cbd5e1', borderWidth: 1 }]}
+          onPress={() => setShowChangePasswordModal(true)}
+          activeOpacity={0.8}
+        >
+          <Text style={[styles.logoutButtonText, { color: Colors.primary || '#0284c7' }]}>🔑 Cambiar mi contraseña</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.logoutButton} onPress={logout} activeOpacity={0.8}>
+          <Text style={styles.logoutButtonText}>Cerrar sesión</Text>
+        </TouchableOpacity>
+      </View>
 
       <View style={styles.versionContainer}>
         <Text style={styles.versionText}>Química General Deheza · Cliente Final</Text>
@@ -1046,6 +1148,12 @@ export function ClienteAccountScreen() {
         order={selectedOrderForModal}
         onClose={() => setSelectedOrderForModal(null)}
         onRepeat={handleRepeatOrder}
+      />
+
+      <ChangePasswordModal
+        visible={showChangePasswordModal}
+        onClose={() => setShowChangePasswordModal(false)}
+        userEmail={clientData?.email}
       />
     </ScrollView>
   );

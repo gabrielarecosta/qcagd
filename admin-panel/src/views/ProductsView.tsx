@@ -221,6 +221,7 @@ export function ProductsView({
 
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [viewingProduct, setViewingProduct] = useState<(Product & { stock: number; stockMinimo: number }) | null>(null);
+  const [viewingProductBranchStocks, setViewingProductBranchStocks] = useState<Record<string, { stock: number; stockMinimo: number }>>({});
   const [isCreating, setIsCreating] = useState(false);
 
   // Form State for Editing/Creating
@@ -301,7 +302,13 @@ export function ProductsView({
     }
   };
 
-  const handleOpenEdit = (p: Product) => {
+  const handleOpenView = async (p: Product & { stock: number; stockMinimo: number }) => {
+    setViewingProduct(p);
+    const perBranch = await productService.getProductStocksAllBranches(String(p.id));
+    setViewingProductBranchStocks(perBranch);
+  };
+
+  const handleOpenEdit = async (p: Product) => {
     setEditingProduct(p);
     setStockReason('Ajuste de emergencia');
     setFormProduct({
@@ -316,14 +323,12 @@ export function ProductsView({
       descripcion: p.descripcion || '',
     });
 
-    // Cargar stocks actuales
+    // Cargar stocks actuales por sucursal directamente desde Supabase
+    const perBranch = await productService.getProductStocksAllBranches(String(p.id));
     const stockMap: Record<string, { stock: number; stockMinimo: number }> = {};
     branches.forEach(b => {
-      const match = stocks.find(s => s.productId === p.id && s.branchId === b.id);
-      stockMap[b.id] = {
-        stock: match ? match.stock : 0,
-        stockMinimo: match ? match.stockMinimo : 5,
-      };
+      const bKey = String(b.id);
+      stockMap[b.id] = perBranch[bKey] || { stock: 0, stockMinimo: 5 };
     });
     setFormStocks(stockMap);
   };
@@ -924,7 +929,7 @@ export function ProductsView({
                         <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
                           <button 
                             className="btn btn-secondary" 
-                            onClick={() => setViewingProduct(p)} 
+                            onClick={() => handleOpenView(p)} 
                             style={{ padding: '6px 10px', fontSize: '12px', background: '#0284c7', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: '600', cursor: 'pointer' }}
                             title="Ver detalles del producto (solo lectura)"
                           >
@@ -1652,14 +1657,16 @@ export function ProductsView({
                 <h4 style={{ margin: '0 0 10px 0', fontSize: '13px', color: '#38bdf8', fontWeight: '600' }}>📦 Inventario por Sucursal</h4>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '10px' }}>
                   {branches.map(b => {
-                    const info = getProductStockInfo(viewingProduct.id, b.id);
+                    const bKey = String(b.id);
+                    const info = viewingProductBranchStocks[bKey] || { stock: 0, stockMinimo: 5 };
+                    const isLowStock = info.stock <= info.stockMinimo;
                     return (
                       <div key={b.id} style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: '8px', padding: '10px', textAlign: 'center' }}>
                         <div style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '4px', fontWeight: '600' }}>{b.nombre}</div>
-                        <div style={{ fontSize: '16px', fontWeight: 'bold', color: info.isLowStock ? '#ef4444' : '#4ade80' }}>
+                        <div style={{ fontSize: '16px', fontWeight: 'bold', color: isLowStock ? '#ef4444' : '#4ade80' }}>
                           {info.stock} <span style={{ fontSize: '11px', fontWeight: 'normal', color: '#94a3b8' }}>{viewingProduct.unidad}</span>
                         </div>
-                        {info.isLowStock && <div style={{ fontSize: '10px', color: '#ef4444', marginTop: '2px' }}>⚠️ Mín: {info.details[0]?.stockMinimo || 5}</div>}
+                        {isLowStock && <div style={{ fontSize: '10px', color: '#ef4444', marginTop: '2px' }}>⚠️ Mín: {info.stockMinimo}</div>}
                       </div>
                     );
                   })}

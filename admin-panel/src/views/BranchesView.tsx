@@ -4,20 +4,38 @@ import { Branch } from '@shared/types/branch';
 import { formatPrice } from '@shared/utils/formatCurrency';
 import { geocodeAddress } from '@shared/utils/geo';
 import { suggestDehezaStreets } from '@shared/utils/dehezaStreets';
+import { localidadService, Localidad } from '@shared/services/localidadService';
 
 export function BranchesView() {
   const { branches, updateBranch, createBranch, orders, users } = useAdminStore();
   const [editingBranch, setEditingBranch] = useState<Branch | null>(null);
   const [isCreatingBranch, setIsCreatingBranch] = useState(false);
+  const [localidadesList, setLocalidadesList] = useState<Localidad[]>([]);
+
   const [newBranchForm, setNewBranchForm] = useState({
     nombre: '',
     direccion: '',
+    localidad: 'General Deheza',
     telefono: '',
     whatsapp: '',
     horarioAtencion: 'Lunes a Viernes 08:00 - 18:00 hs',
     activo: true,
+    permiteVentaOnline: true,
+    permiteVentaPresencial: true,
+    permiteReparto: true,
+    tipoSucursal: 'sucursal_completa' as 'sucursal_completa' | 'deposito' | 'solo_reparto' | 'solo_presencial',
   });
   const [isGeocoding, setIsGeocoding] = useState(false);
+
+  useEffect(() => {
+    localidadService.getAll().then(list => {
+      setLocalidadesList(list);
+      if (list.length > 0 && !newBranchForm.localidad) {
+        setNewBranchForm(prev => ({ ...prev, localidad: list[0].nombre }));
+      }
+    }).catch(err => console.warn('Error cargando localidades en sucursales:', err));
+  }, []);
+
 
   const branchMapRef = useRef<any>(null);
   const branchMarkerRef = useRef<any>(null);
@@ -36,25 +54,37 @@ export function BranchesView() {
       await createBranch({
         nombre: newBranchForm.nombre.trim(),
         direccion: newBranchForm.direccion.trim() || 'General Deheza',
+        localidad: newBranchForm.localidad || 'General Deheza',
         telefono: newBranchForm.telefono.trim() || '-',
         whatsapp: newBranchForm.whatsapp.trim() || '-',
         horarioAtencion: newBranchForm.horarioAtencion.trim() || '08:00 a 18:00 hs',
         activo: true,
+        permiteVentaOnline: newBranchForm.permiteVentaOnline,
+        permiteVentaPresencial: newBranchForm.permiteVentaPresencial,
+        permiteReparto: newBranchForm.permiteReparto,
+        tipoSucursal: newBranchForm.tipoSucursal,
       });
       setIsCreatingBranch(false);
       setNewBranchForm({
         nombre: '',
         direccion: '',
+        localidad: 'General Deheza',
         telefono: '',
         whatsapp: '',
         horarioAtencion: 'Lunes a Viernes 08:00 - 18:00 hs',
         activo: true,
+        permiteVentaOnline: true,
+        permiteVentaPresencial: true,
+        permiteReparto: true,
+        tipoSucursal: 'sucursal_completa',
       });
       alert('✅ Sucursal creada exitosamente!');
     } catch (err: any) {
       alert('Error al crear la sucursal: ' + (err.message || String(err)));
     }
   };
+
+
 
   // Autobúsqueda de coordenadas al presionar "Ubicar en Mapa"
   const handleGeocode = async () => {
@@ -271,10 +301,10 @@ export function BranchesView() {
               <thead>
                 <tr>
                   <th>Nombre</th>
+                  <th>Localidad Asignada</th>
+                  <th>Tipo & Canales de Operación</th>
                   <th>Dirección</th>
-                  <th>Coordenadas (Lat / Lng)</th>
                   <th>Contacto</th>
-                  <th>Horario</th>
                   <th>Pedidos</th>
                   <th>Ventas</th>
                   <th>Estado</th>
@@ -285,12 +315,37 @@ export function BranchesView() {
                 {branches.map(b => {
                   const stats = getBranchStats(b.id);
                   const isCentral = String(b.id) === '1' || b.id === 1 || b.nombre.toLowerCase().includes('central');
+                  const isDeposito = b.tipoSucursal === 'deposito';
                   return (
                     <tr key={b.id}>
                       <td style={{ fontWeight: 'bold' }}>
                         {b.nombre} {isCentral ? <span style={{ backgroundColor: '#0f172a', color: 'white', fontSize: '10px', padding: '2px 6px', borderRadius: '8px', marginLeft: '4px' }}>CASA CENTRAL</span> : null}
                       </td>
+                      <td>
+                        <span className="badge" style={{ backgroundColor: '#f1f5f9', color: '#0f172a', border: '1px solid #cbd5e1', fontWeight: 'bold', fontSize: '12px' }}>
+                          📍 {b.localidad || 'General Deheza'}
+                        </span>
+                      </td>
+                      <td>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                          <span style={{ fontSize: '11px', fontWeight: 'bold', color: isDeposito ? '#d97706' : '#0284c7' }}>
+                            {isDeposito ? '📦 DEPÓSITO / ALMACÉN' : b.tipoSucursal === 'solo_reparto' ? '🚚 SOLO REPARTO' : b.tipoSucursal === 'solo_presencial' ? '🏬 SOLO VENTA FÍSICA' : '🏪 SUCURSAL COMPLETA'}
+                          </span>
+                          <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                            <span style={{ fontSize: '10px', padding: '1px 5px', borderRadius: '4px', background: b.permiteVentaOnline !== false && !isDeposito ? '#dcfce7' : '#fee2e2', color: b.permiteVentaOnline !== false && !isDeposito ? '#15803d' : '#b91c1c', fontWeight: '600' }}>
+                              {b.permiteVentaOnline !== false && !isDeposito ? '🛒 Venta Online App' : '🚫 Sin Venta Online'}
+                            </span>
+                            {b.permiteReparto !== false && (
+                              <span style={{ fontSize: '10px', padding: '1px 5px', borderRadius: '4px', background: '#e0f2fe', color: '#0369a1', fontWeight: '600' }}>
+                                🚚 Reparto
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </td>
                       <td>{b.direccion || 'Sin dirección asignada'}</td>
+
+
                       <td>
                         <span style={{ fontSize: '12px', fontFamily: 'monospace', color: b.latitude ? '#0284c7' : '#94a3b8' }}>
                           {b.latitude && b.longitude ? `📍 ${b.latitude}, ${b.longitude}` : 'Sin coordenadas'}
@@ -367,6 +422,69 @@ export function BranchesView() {
                     </select>
                   </div>
                 </div>
+
+                <div className="form-grid">
+                  <div className="form-group">
+                    <label className="form-label" style={{ fontWeight: 'bold' }}>Tipo de Sucursal / Función</label>
+                    <select 
+                      className="form-select"
+                      value={editingBranch.tipoSucursal || 'sucursal_completa'}
+                      onChange={e => setEditingBranch({ ...editingBranch, tipoSucursal: e.target.value as any })}
+                    >
+                      <option value="sucursal_completa">🏪 Sucursal Completa (Venta & Reparto)</option>
+                      <option value="deposito">📦 Depósito / Almacén (Sin Venta Directa)</option>
+                      <option value="solo_reparto">🚚 Centro de Logística y Reparto</option>
+                      <option value="solo_presencial">🏬 Sucursal Física (Venta Presencial Únicamente)</option>
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label" style={{ fontWeight: 'bold' }}>Localidad Habilitada Asociada *</label>
+                    <select 
+                      className="form-select"
+                      value={editingBranch.localidad || 'General Deheza'}
+                      onChange={e => setEditingBranch({ ...editingBranch, localidad: e.target.value })}
+                      required
+                    >
+                      {localidadesList.map(l => (
+                        <option key={l.id} value={l.nombre}>📍 {l.nombre} ({l.provincia})</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+
+                {/* Habilitación de Canales de Venta y Operación */}
+                <div style={{ background: '#f8fafc', padding: '14px', borderRadius: '10px', border: '1px solid #cbd5e1', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <label className="form-label" style={{ fontWeight: 'bold', margin: 0, color: '#0f172a' }}>⚡ Habilitación de Canales de Comercialización:</label>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '10px', fontSize: '13px' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontWeight: '600', color: '#15803d' }}>
+                      <input 
+                        type="checkbox" 
+                        checked={editingBranch.permiteVentaOnline !== false}
+                        onChange={e => setEditingBranch({ ...editingBranch, permiteVentaOnline: e.target.checked })}
+                      />
+                      🛒 Permitir Venta Online (App)
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontWeight: '600', color: '#0284c7' }}>
+                      <input 
+                        type="checkbox" 
+                        checked={editingBranch.permiteVentaPresencial !== false}
+                        onChange={e => setEditingBranch({ ...editingBranch, permiteVentaPresencial: e.target.checked })}
+                      />
+                      🏬 Permitir Venta Presencial
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontWeight: '600', color: '#0369a1' }}>
+                      <input 
+                        type="checkbox" 
+                        checked={editingBranch.permiteReparto !== false}
+                        onChange={e => setEditingBranch({ ...editingBranch, permiteReparto: e.target.checked })}
+                      />
+                      🚚 Permitir Reparto / Envíos
+                    </label>
+                  </div>
+                </div>
+
+
 
                 {/* Dirección y botón de geocodificación */}
                 <div className="form-group">
@@ -476,6 +594,68 @@ export function BranchesView() {
                   />
                 </div>
 
+                <div className="form-grid">
+                  <div className="form-group">
+                    <label className="form-label" style={{ fontWeight: 'bold' }}>Tipo de Sucursal / Función *</label>
+                    <select 
+                      className="form-select"
+                      value={newBranchForm.tipoSucursal}
+                      onChange={e => setNewBranchForm({ ...newBranchForm, tipoSucursal: e.target.value as any })}
+                      required
+                    >
+                      <option value="sucursal_completa">🏪 Sucursal Completa (Venta & Reparto)</option>
+                      <option value="deposito">📦 Depósito / Almacén (Sin Venta Directa)</option>
+                      <option value="solo_reparto">🚚 Centro de Logística y Reparto</option>
+                      <option value="solo_presencial">🏬 Sucursal Física (Venta Presencial Únicamente)</option>
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label" style={{ fontWeight: 'bold' }}>Localidad Habilitada Asociada *</label>
+                    <select 
+                      className="form-select"
+                      value={newBranchForm.localidad}
+                      onChange={e => setNewBranchForm({ ...newBranchForm, localidad: e.target.value })}
+                      required
+                    >
+                      {localidadesList.map(l => (
+                        <option key={l.id} value={l.nombre}>📍 {l.nombre} ({l.provincia})</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Habilitación de Canales de Venta y Operación */}
+                <div style={{ background: '#f8fafc', padding: '14px', borderRadius: '10px', border: '1px solid #cbd5e1', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <label className="form-label" style={{ fontWeight: 'bold', margin: 0, color: '#0f172a' }}>⚡ Habilitación de Canales de Comercialización:</label>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px', fontSize: '13px' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontWeight: '600', color: '#15803d' }}>
+                      <input 
+                        type="checkbox" 
+                        checked={newBranchForm.permiteVentaOnline}
+                        onChange={e => setNewBranchForm({ ...newBranchForm, permiteVentaOnline: e.target.checked })}
+                      />
+                      🛒 Permitir Venta Online (App)
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontWeight: '600', color: '#0284c7' }}>
+                      <input 
+                        type="checkbox" 
+                        checked={newBranchForm.permiteVentaPresencial}
+                        onChange={e => setNewBranchForm({ ...newBranchForm, permiteVentaPresencial: e.target.checked })}
+                      />
+                      🏬 Venta Presencial
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontWeight: '600', color: '#0369a1' }}>
+                      <input 
+                        type="checkbox" 
+                        checked={newBranchForm.permiteReparto}
+                        onChange={e => setNewBranchForm({ ...newBranchForm, permiteReparto: e.target.checked })}
+                      />
+                      🚚 Permitir Reparto
+                    </label>
+                  </div>
+                </div>
+
+
                 <div className="form-group">
                   <label className="form-label">Dirección Física *</label>
                   <input 
@@ -487,6 +667,7 @@ export function BranchesView() {
                     required
                   />
                 </div>
+
 
                 <div className="form-grid">
                   <div className="form-group">

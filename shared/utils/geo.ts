@@ -98,11 +98,27 @@ export function optimizeRouteStops(
   };
 }
 
+export const LOCALITY_CENTERS: Record<string, { latitude: number; longitude: number }> = {
+  'general deheza': { latitude: -32.7561, longitude: -63.7845 },
+  'general cabrera': { latitude: -32.8122, longitude: -63.8722 },
+  'las perdices': { latitude: -32.6953, longitude: -63.7056 },
+  'río cuarto': { latitude: -33.1230, longitude: -64.3492 },
+  'rio cuarto': { latitude: -33.1230, longitude: -64.3492 },
+  'villa maría': { latitude: -32.4075, longitude: -63.2403 },
+  'villa maria': { latitude: -32.4075, longitude: -63.2403 },
+};
+
+export function getLocalityCenter(localityName?: string): { latitude: number; longitude: number } {
+  if (!localityName) return LOCALITY_CENTERS['general deheza'];
+  const key = localityName.trim().toLowerCase();
+  return LOCALITY_CENTERS[key] || LOCALITY_CENTERS['general deheza'];
+}
+
 import { suggestDehezaStreets } from './dehezaStreets';
 
 /**
  * Geocodifica una dirección hacia coordenadas [latitude, longitude]
- * Con sugerencias y corrección ortográfica de calles de General Deheza, Córdoba.
+ * Con sugerencias y corrección ortográfica según localidad.
  */
 export async function geocodeAddress(
   address: string,
@@ -112,12 +128,14 @@ export async function geocodeAddress(
   const cleanAddress = address.trim();
   if (!cleanAddress) return null;
 
-  // 1. Analizar sugerencia con Fuzzy Matching de General Deheza
-  const dehezaSuggestions = suggestDehezaStreets(cleanAddress, 1);
+  const isDeheza = city.toLowerCase().includes('general deheza') || cleanAddress.toLowerCase().includes('deheza');
+
+  // 1. Analizar sugerencia con Fuzzy Matching solo si es General Deheza
+  const dehezaSuggestions = isDeheza ? suggestDehezaStreets(cleanAddress, 1) : [];
   const bestMatch = dehezaSuggestions.length > 0 ? dehezaSuggestions[0] : null;
 
   // Si la dirección ya contiene la localidad/provincia, no duplicarla en la búsqueda
-  const hasCityInText = cleanAddress.toLowerCase().includes('deheza') || cleanAddress.toLowerCase().includes('córdoba') || cleanAddress.toLowerCase().includes('cordoba');
+  const hasCityInText = cleanAddress.toLowerCase().includes(city.toLowerCase()) || cleanAddress.toLowerCase().includes('córdoba') || cleanAddress.toLowerCase().includes('cordoba');
 
   const addressToSearch = (bestMatch && bestMatch.score >= 0.5)
     ? bestMatch.fullAddress
@@ -156,7 +174,7 @@ export async function geocodeAddress(
   }
 
   // 3. Si falló la consulta externa pero tenemos la calle oficial de General Deheza
-  if (bestMatch && (city.toLowerCase().includes('general deheza') || address.toLowerCase().includes('deheza') || bestMatch.score >= 0.4)) {
+  if (bestMatch && (isDeheza || bestMatch.score >= 0.4)) {
     return {
       latitude: bestMatch.latitude,
       longitude: bestMatch.longitude,
@@ -165,14 +183,12 @@ export async function geocodeAddress(
     };
   }
 
-  // 4. Coordenadas de referencia urbana por defecto
-  if (hasCityInText || city.toLowerCase().includes('general deheza')) {
-    return {
-      latitude: -32.7561,
-      longitude: -63.7845,
-      formattedAddress: canonicalFormattedAddress,
-    };
-  }
-
-  return null;
+  // 4. Coordenadas de referencia urbana según centro de la localidad
+  const center = getLocalityCenter(city);
+  return {
+    latitude: center.latitude,
+    longitude: center.longitude,
+    formattedAddress: canonicalFormattedAddress,
+  };
 }
+

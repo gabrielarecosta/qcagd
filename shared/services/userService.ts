@@ -184,5 +184,110 @@ export const userService = {
 
   updatePassword: async (newPassword: string) => {
     return await supabase.auth.updateUser({ password: newPassword });
+  },
+
+  changeOwnPassword: async (newPassword: string) => {
+    if (!newPassword || newPassword.trim().length < 6) {
+      throw new Error('La contraseña debe tener al menos 6 caracteres.');
+    }
+    const { data, error } = await supabase.auth.updateUser({ password: newPassword });
+    if (error) {
+      // Fallback a RPC si aplica
+      const userRes = await supabase.auth.getUser();
+      if (userRes.data?.user?.id) {
+        const { error: rpcErr } = await supabase.rpc('update_user_password', {
+          target_user_id: userRes.data.user.id,
+          new_password: newPassword
+        });
+        if (rpcErr) throw rpcErr;
+        return { user: userRes.data.user };
+      }
+      throw error;
+    }
+    return data;
+  },
+
+  adminUpdateUserPassword: async (userId: string, newPassword: string) => {
+    if (!newPassword || newPassword.trim().length < 6) {
+      throw new Error('La contraseña debe tener al menos 6 caracteres.');
+    }
+    const { data, error } = await supabase.rpc('update_user_password', {
+      target_user_id: userId,
+      new_password: newPassword
+    });
+    if (error) {
+      console.warn('Error en RPC update_user_password:', error.message);
+      throw error;
+    }
+    return data;
+  },
+
+  adminUpsertUser: async (user: {
+    email: string;
+    password?: string;
+    nombre: string;
+    rol?: string;
+    branchId?: number | string;
+    telefono?: string;
+    dni?: string;
+    auto?: string;
+    patente?: string;
+  }) => {
+    const { data, error } = await supabase.rpc('admin_upsert_user', {
+      p_email: user.email,
+      p_password: user.password || null,
+      p_nombre: user.nombre,
+      p_rol: user.rol || 'ventas',
+      p_branch_id: Number(user.branchId || 1),
+      p_telefono: user.telefono || null,
+      p_dni: user.dni || null,
+      p_auto: user.auto || null,
+      p_patente: user.patente || null,
+    });
+    if (error) {
+      console.warn('Error en admin_upsert_user RPC:', error.message);
+      throw error;
+    }
+    return data;
+  },
+
+  updateOwnProfile: async (userId: string, updates: { email?: string; nombre?: string }) => {
+    if (updates.email && updates.email.trim()) {
+      const newEmail = updates.email.trim().toLowerCase();
+      try {
+        await supabase.auth.updateUser({ email: newEmail });
+      } catch (authErr: any) {
+        console.warn('Advertencia actualizando email en auth:', authErr.message);
+      }
+
+      if (userId && userId !== '1') {
+        const { error: pErr } = await supabase
+          .from('profiles')
+          .update({
+            email: newEmail,
+            nombre: updates.nombre || undefined,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', userId);
+
+        if (pErr) console.warn('Error actualizando perfil:', pErr.message);
+
+        try {
+          await supabase.rpc('update_user_email', {
+            target_user_id: userId,
+            new_email: newEmail
+          });
+        } catch (_) {}
+      }
+    } else if (updates.nombre && userId && userId !== '1') {
+      await supabase
+        .from('profiles')
+        .update({
+          nombre: updates.nombre,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', userId);
+    }
+    return true;
   }
 };
