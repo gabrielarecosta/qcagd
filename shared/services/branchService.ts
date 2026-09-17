@@ -62,12 +62,38 @@ export const branchService = {
 
     Object.keys(dbUpdates).forEach(key => dbUpdates[key] === undefined && delete dbUpdates[key]);
 
-    const { data, error } = await supabase
+    let data: any = null;
+    let error: any = null;
+
+    const res = await supabase
       .from('branches')
       .update(dbUpdates)
       .eq('id', id)
       .select('*')
       .single();
+
+    data = res.data;
+    error = res.error;
+
+    // Si Supabase aún no tiene algunas columnas en el schema cache (PGRST204), reintentar sin las columnas opcionales
+    if (error && (error.code === 'PGRST204' || error.message?.includes('column'))) {
+      const fallbackUpdates = { ...dbUpdates };
+      delete fallbackUpdates.localidad;
+      delete fallbackUpdates.permite_venta_online;
+      delete fallbackUpdates.permite_venta_presencial;
+      delete fallbackUpdates.permite_reparto;
+      delete fallbackUpdates.tipo_sucursal;
+
+      const retryRes = await supabase
+        .from('branches')
+        .update(fallbackUpdates)
+        .eq('id', id)
+        .select('*')
+        .single();
+      
+      data = retryRes.data;
+      error = retryRes.error;
+    }
 
     if (error) throw error;
     return mapBranch(data);
@@ -92,15 +118,40 @@ export const branchService = {
       dbInsert.id = branch.id;
     }
 
-    const { data, error } = await supabase
+    let data: any = null;
+    let error: any = null;
+
+    const res = await supabase
       .from('branches')
       .insert(dbInsert)
       .select('*')
       .single();
 
+    data = res.data;
+    error = res.error;
+
+    if (error && (error.code === 'PGRST204' || error.message?.includes('column'))) {
+      const fallbackInsert = { ...dbInsert };
+      delete fallbackInsert.localidad;
+      delete fallbackInsert.permite_venta_online;
+      delete fallbackInsert.permite_venta_presencial;
+      delete fallbackInsert.permite_reparto;
+      delete fallbackInsert.tipo_sucursal;
+
+      const retryRes = await supabase
+        .from('branches')
+        .insert(fallbackInsert)
+        .select('*')
+        .single();
+
+      data = retryRes.data;
+      error = retryRes.error;
+    }
+
     if (error) throw error;
     return mapBranch(data);
   }
+
 };
 
 

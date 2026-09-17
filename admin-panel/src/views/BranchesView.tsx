@@ -92,15 +92,20 @@ export function BranchesView() {
     setIsGeocoding(true);
 
     try {
-      const geo = await geocodeAddress(editingBranch.direccion, 'General Deheza', 'Córdoba');
-      if (geo && (geo.latitude !== -32.7561 || geo.longitude !== -63.7845)) {
+      const targetLocality = editingBranch.localidad?.trim() || 'General Deheza';
+      const isDeheza = targetLocality.toLowerCase().includes('deheza');
+      const center = getLocalityCenter(targetLocality);
+
+      const geo = await geocodeAddress(editingBranch.direccion, targetLocality, 'Córdoba');
+      
+      if (geo && (geo.latitude !== center.latitude || geo.longitude !== center.longitude)) {
         setEditingBranch({
           ...editingBranch,
           direccion: geo.formattedAddress || editingBranch.direccion,
           latitude: geo.latitude,
           longitude: geo.longitude,
         });
-      } else {
+      } else if (isDeheza) {
         const sug = suggestDehezaStreets(editingBranch.direccion, 1);
         if (sug.length > 0) {
           setEditingBranch({
@@ -109,7 +114,26 @@ export function BranchesView() {
             latitude: sug[0].latitude,
             longitude: sug[0].longitude,
           });
+        } else {
+          setEditingBranch({
+            ...editingBranch,
+            latitude: center.latitude,
+            longitude: center.longitude,
+          });
         }
+      } else if (geo) {
+        setEditingBranch({
+          ...editingBranch,
+          direccion: geo.formattedAddress || editingBranch.direccion,
+          latitude: geo.latitude,
+          longitude: geo.longitude,
+        });
+      } else {
+        setEditingBranch({
+          ...editingBranch,
+          latitude: center.latitude,
+          longitude: center.longitude,
+        });
       }
     } catch (e) {
       console.warn('Error geocoding branch address:', e);
@@ -151,8 +175,9 @@ export function BranchesView() {
       const container = document.getElementById('branch-edit-map');
       if (!container) return;
 
-      const lat = editingBranch.latitude || -32.7650;
-      const lng = editingBranch.longitude || -63.7860;
+      const center = getLocalityCenter(editingBranch.localidad || 'General Deheza');
+      const lat = editingBranch.latitude || center.latitude;
+      const lng = editingBranch.longitude || center.longitude;
 
       if (!branchMapRef.current) {
         (container as any)._leaflet_id = null;
