@@ -18,6 +18,7 @@ import { UsersView } from './views/UsersView';
 import { ReportsView } from './views/ReportsView';
 import { LoginView } from './views/LoginView';
 import { SystemAdminView } from './views/SystemAdminView';
+import { ResetPasswordView } from './views/ResetPasswordView';
 import { AdminPwaInstallBanner, triggerAdminPwaInstallModal } from './components/AdminPwaInstallBanner';
 import { ChangePasswordModal } from './components/ChangePasswordModal';
 
@@ -192,6 +193,27 @@ function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
+
+  const [isResetPasswordMode, setIsResetPasswordMode] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return (
+      window.location.hash.includes('type=recovery') ||
+      window.location.pathname.includes('/reset-password') ||
+      window.location.search.includes('type=recovery') ||
+      window.location.search.includes('reset=1')
+    );
+  });
+
+  useEffect(() => {
+    const { data: authListener } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        setIsResetPasswordMode(true);
+      }
+    });
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
+  }, []);
 
   const { 
     activeBranchId, 
@@ -402,6 +424,17 @@ function App() {
     setActiveTab(tab);
     setSearchQuery('');
   };
+
+  if (isResetPasswordMode) {
+    return (
+      <ResetPasswordView
+        onSuccess={() => {
+          setIsResetPasswordMode(false);
+          window.location.href = window.location.origin;
+        }}
+      />
+    );
+  }
 
   const activeUser = currentUser || (isAutoLogin ? { id: '1', nombre: 'Administrador General', email: 'admin@quimicadeheza.com', rol: 'admin', activo: true } : null);
 

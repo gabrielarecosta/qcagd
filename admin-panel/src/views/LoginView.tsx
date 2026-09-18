@@ -19,7 +19,39 @@ export function LoginView() {
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
+  const [showForgotModal, setShowForgotModal] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotLoading, setForgotLoading] = useState(false);
+  const [forgotMessage, setForgotMessage] = useState('');
+  const [forgotError, setForgotError] = useState('');
+
   const { users, setCurrentUser } = useAdminStore();
+
+  const handleForgotSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!forgotEmail.trim() || !forgotEmail.includes('@')) {
+      setForgotError('Por favor ingrese un email válido.');
+      return;
+    }
+    setForgotError('');
+    setForgotMessage('');
+    setForgotLoading(true);
+
+    try {
+      const redirectUrl = `${window.location.origin}/reset-password`;
+      const { error: resetErr } = await supabase.auth.resetPasswordForEmail(forgotEmail.trim().toLowerCase(), {
+        redirectTo: redirectUrl,
+      });
+
+      if (resetErr) throw resetErr;
+
+      setForgotMessage(`Se envió un enlace de recuperación a ${forgotEmail}. Revisa tu bandeja de entrada.`);
+    } catch (err: any) {
+      setForgotError(err.message || 'No se pudo enviar el correo de recuperación.');
+    } finally {
+      setForgotLoading(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -390,6 +422,15 @@ export function LoginView() {
                 )}
               </button>
             </div>
+            <div style={{ textAlign: 'right', marginTop: '6px' }}>
+              <a 
+                type="button"
+                onClick={() => setShowForgotModal(true)}
+                style={{ color: '#38bdf8', fontSize: '12.5px', cursor: 'pointer', textDecoration: 'none' }}
+              >
+                ¿Olvidaste tu contraseña?
+              </a>
+            </div>
           </div>
 
           <button type="submit" className="login-btn" disabled={isLoading}>
@@ -408,6 +449,90 @@ export function LoginView() {
           QUÍMICA GENERAL DEHEZA © {new Date().getFullYear()}
         </div>
       </div>
+
+      {showForgotModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(15, 23, 42, 0.85)',
+          backdropFilter: 'blur(8px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '20px',
+          zIndex: 10000
+        }}>
+          <div style={{
+            background: '#1e293b',
+            border: '1px solid rgba(255,255,255,0.12)',
+            borderRadius: '16px',
+            padding: '32px',
+            width: '100%',
+            maxWidth: '420px',
+            boxShadow: '0 20px 40px rgba(0,0,0,0.5)'
+          }}>
+            <h3 style={{ color: '#f8fafc', fontSize: '18px', fontWeight: 'bold', marginBottom: '8px', textAlign: 'center' }}>
+              Recuperar Contraseña
+            </h3>
+            <p style={{ color: '#94a3b8', fontSize: '13px', marginBottom: '24px', textAlign: 'center', lineHeight: '1.4' }}>
+              Ingresa el email registrado. Te enviaremos un enlace seguro para restablecer tu contraseña.
+            </p>
+
+            {forgotError && (
+              <div style={{ background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239,68,68,0.3)', color: '#fca5a5', padding: '10px 14px', borderRadius: '10px', fontSize: '13px', marginBottom: '16px' }}>
+                {forgotError}
+              </div>
+            )}
+
+            {forgotMessage && (
+              <div style={{ background: 'rgba(34, 197, 94, 0.15)', border: '1px solid rgba(34,197,94,0.3)', color: '#86efac', padding: '10px 14px', borderRadius: '10px', fontSize: '13px', marginBottom: '16px' }}>
+                {forgotMessage}
+              </div>
+            )}
+
+            <form onSubmit={handleForgotSubmit}>
+              <div style={{ marginBottom: '20px' }}>
+                <label style={{ display: 'block', color: '#cbd5e1', fontSize: '13px', fontWeight: '500', marginBottom: '8px' }}>
+                  Email de usuario
+                </label>
+                <input
+                  type="email"
+                  className="login-input"
+                  placeholder="ejemplo@quimica.com"
+                  value={forgotEmail}
+                  onChange={(e) => setForgotEmail(e.target.value)}
+                  disabled={forgotLoading}
+                  autoFocus
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowForgotModal(false);
+                    setForgotError('');
+                    setForgotMessage('');
+                  }}
+                  style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.15)', color: '#94a3b8', padding: '10px 18px', borderRadius: '10px', fontSize: '13.5px', cursor: 'pointer' }}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={forgotLoading}
+                  style={{ background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)', border: 'none', color: 'white', padding: '10px 20px', borderRadius: '10px', fontSize: '13.5px', fontWeight: 'bold', cursor: 'pointer' }}
+                >
+                  {forgotLoading ? 'Enviando...' : 'Enviar Enlace'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

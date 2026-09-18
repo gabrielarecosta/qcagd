@@ -86,6 +86,16 @@ export function BranchesView() {
 
 
 
+  // Helper para centro geográfico de localidades
+  const getLocalityCenter = (localityName: string) => {
+    const norm = (localityName || '').toLowerCase().trim();
+    if (norm.includes('cuarto')) return { latitude: -33.1230, longitude: -64.3493 }; // Río Cuarto
+    if (norm.includes('maría') || norm.includes('maria')) return { latitude: -32.4075, longitude: -63.2403 }; // Villa María
+    if (norm.includes('cabrera')) return { latitude: -32.8122, longitude: -63.8722 }; // General Cabrera
+    if (norm.includes('perdices')) return { latitude: -32.6978, longitude: -63.7042 }; // Las Perdices
+    return { latitude: -32.7565, longitude: -63.7845 }; // General Deheza por defecto
+  };
+
   // Autobúsqueda de coordenadas al presionar "Ubicar en Mapa"
   const handleGeocode = async () => {
     if (!editingBranch || !editingBranch.direccion.trim()) return;
