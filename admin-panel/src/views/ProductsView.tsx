@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { useAdminStore } from '../store/adminStore';
 import type { Product, ProductCategory } from '@shared/types/product';
 import { formatPrice } from '@shared/utils/formatCurrency';
@@ -1091,8 +1092,8 @@ export function ProductsView({
       </div>
 
       {/* Modal Editar Producto / Stock */}
-      {editingProduct && (
-        <div className="modal-overlay" style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(15, 23, 42, 0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
+      {editingProduct && createPortal(
+        <div className="modal-overlay" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, width: '100vw', height: '100vh', background: 'rgba(15, 23, 42, 0.75)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 999999 }}>
           <div className="modal-content" style={{ background: '#1e293b', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '16px', padding: '24px', width: '90%', maxWidth: '700px', display: 'flex', flexDirection: 'column', zIndex: 10000, boxShadow: '0 20px 25px -5px rgba(0,0,0,0.5)', color: '#fff' }}>
             <form onSubmit={handleSaveEdit}>
               <div className="modal-header" style={{ borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '12px', marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -1380,13 +1381,14 @@ export function ProductsView({
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Modal Crear Súper Oferta Combo */}
-      {isCreatingOffer && (
-        <div className="modal-overlay" style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(15, 23, 42, 0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
-          <div className="modal-content" style={{ background: '#1e293b', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '16px', padding: '24px', width: '95%', maxWidth: '650px', display: 'flex', flexDirection: 'column', zIndex: 10000, boxShadow: '0 20px 25px -5px rgba(0,0,0,0.5)', color: '#fff' }}>
+      {isCreatingOffer && createPortal(
+        <div className="modal-overlay" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, width: '100vw', height: '100vh', background: 'rgba(15, 23, 42, 0.75)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 999999 }}>
+          <div className="modal-content" style={{ background: '#1e293b', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '16px', padding: '24px', width: '95%', maxWidth: '650px', display: 'flex', flexDirection: 'column', zIndex: 1000000, boxShadow: '0 20px 25px -5px rgba(0,0,0,0.5)', color: '#fff' }}>
             <form onSubmit={handleSaveOffer}>
               <div className="modal-header" style={{ borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '12px', marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <h2 className="card-title" style={{ color: '#fff', fontSize: '18px', fontWeight: '700', margin: 0 }}>🚨 Crear Súper Oferta Combo</h2>
@@ -1495,12 +1497,13 @@ export function ProductsView({
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Modal Crear Producto */}
-      {isCreating && (
-        <div className="modal-overlay" style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(15, 23, 42, 0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
+      {isCreating && createPortal(
+        <div className="modal-overlay" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, width: '100vw', height: '100vh', background: 'rgba(15, 23, 42, 0.75)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 999999 }}>
           <div className="modal-content" style={{ background: '#1e293b', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '16px', padding: '24px', width: '90%', maxWidth: '700px', display: 'flex', flexDirection: 'column', zIndex: 10000, boxShadow: '0 20px 25px -5px rgba(0,0,0,0.5)' }}>
             <form onSubmit={handleSaveCreate}>
               <div className="modal-header">
@@ -1750,12 +1753,13 @@ export function ProductsView({
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Modal Visor de Producto (Solo Lectura) */}
-      {viewingProduct && (
-        <div className="modal-overlay" style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(15, 23, 42, 0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
+      {viewingProduct && createPortal(
+        <div className="modal-overlay" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, width: '100vw', height: '100vh', background: 'rgba(15, 23, 42, 0.8)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 999999 }}>
           <div className="modal-content" style={{ background: '#1e293b', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '16px', padding: '24px', width: '90%', maxWidth: '720px', display: 'flex', flexDirection: 'column', zIndex: 10000, boxShadow: '0 20px 25px -5px rgba(0,0,0,0.5)', color: '#fff' }}>
             <div className="modal-header" style={{ borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '12px', marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -1860,7 +1864,8 @@ export function ProductsView({
               <button type="button" className="btn btn-primary" style={{ background: '#38bdf8', color: '#0f172a', border: 'none', padding: '8px 20px', borderRadius: '6px', fontWeight: '600', cursor: 'pointer' }} onClick={() => setViewingProduct(null)}>Cerrar</button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* ── Modal Resultado Recategorización ── */}
@@ -1927,8 +1932,8 @@ export function ProductsView({
       )}
 
       {/* ── Modal Actualización Masiva de Precios ── */}
-      {showBulkPriceModal && (
-        <div className="modal-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
+      {showBulkPriceModal && createPortal(
+        <div className="modal-overlay" style={{ position: 'fixed', inset: 0, width: '100vw', height: '100vh', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', zIndex: 999999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
           <div className="modal-content" style={{ background: '#ffffff', borderRadius: '12px', width: '100%', maxWidth: '680px', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)', border: '1px solid #e2e8f0', color: '#0f172a' }}>
             
             {/* Header */}
@@ -2203,7 +2208,8 @@ export function ProductsView({
             </div>
 
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
