@@ -60,6 +60,13 @@ export const useAuthStore = create<AuthState>()(
           clientData: client,
           repartidorData: null,
         });
+        // Cargar el carrito guardado del usuario desde Supabase DB
+        try {
+          const { useCartStore } = require('./cartStore');
+          if (client?.id) {
+            useCartStore.getState().loadCartForUser(String(client.id));
+          }
+        } catch (_) {}
       },
 
       loginAsCliente: async (username, password) => {
@@ -104,28 +111,37 @@ export const useAuthStore = create<AuthState>()(
             fecha_alta: new Date().toISOString(),
           };
 
+          const clientObj = {
+            id: client.id,
+            nombre: client.nombre,
+            razonSocial: client.razon_social || client.nombre,
+            cuit: client.cuit || '',
+            telefono: client.telefono || '',
+            whatsapp: client.whatsapp || '',
+            email: client.email || u,
+            direccion: client.direccion || '',
+            branchId: client.branch_id || 1,
+            tipoCliente: client.tipo_cliente || 'minorista',
+            activo: client.activo ?? true,
+            observaciones: client.observaciones || undefined,
+            fechaAlta: client.fecha_alta,
+          };
+
           set({
             isLoggedIn: true,
             userRole: 'cliente',
             lastUsername: client.nombre,
             sessionExpired: false,
-            clientData: {
-              id: client.id,
-              nombre: client.nombre,
-              razonSocial: client.razon_social || client.nombre,
-              cuit: client.cuit || '',
-              telefono: client.telefono || '',
-              whatsapp: client.whatsapp || '',
-              email: client.email || u,
-              direccion: client.direccion || '',
-              branchId: client.branch_id || 1,
-              tipoCliente: client.tipo_cliente || 'minorista',
-              activo: client.activo ?? true,
-              observaciones: client.observaciones || undefined,
-              fechaAlta: client.fecha_alta,
-            },
+            clientData: clientObj,
             repartidorData: null,
           });
+
+          // Cargar automáticamente el carrito guardado desde la BD
+          try {
+            const { useCartStore } = require('./cartStore');
+            useCartStore.getState().loadCartForUser(String(client.id));
+          } catch (_) {}
+
           return true;
         } catch (err) {
           console.error('Error en loginAsCliente:', err);
@@ -248,6 +264,12 @@ export const useAuthStore = create<AuthState>()(
       logout: () => {
         try {
           supabase.auth.signOut();
+        } catch (_) {}
+        try {
+          // Solo reseteamos el estado local visual del carrito (NO borramos de Supabase DB)
+          // Así, cuando el usuario vuelva a iniciar sesión, su carrito guardado se restaurará intacto.
+          const { useCartStore } = require('./cartStore');
+          useCartStore.setState({ items: [] });
         } catch (_) {}
         set({
           isLoggedIn: false,
