@@ -134,12 +134,22 @@ export function analyzeImportRows(
       validationErrors.push('La descripción (nombre) es obligatoria y no puede estar vacía.');
     }
 
-    // Validación de precio
+    // Validación de precio (Lista 1 - Columna F precio al público minorista)
     let precio = 0;
     if (rawPrice === undefined || rawPrice === null || rawPrice === '') {
-      validationErrors.push('El precio (Lista1) está vacío.');
+      validationErrors.push('El precio al público minorista (Lista 1 - Columna F) está vacío.');
     } else {
-      precio = Number(rawPrice);
+      let parsedVal: any = rawPrice;
+      if (typeof rawPrice === 'string') {
+        let clean = rawPrice.trim().replace(/\$/g, '').trim();
+        if (clean.includes('.') && clean.includes(',')) {
+          clean = clean.replace(/\./g, '').replace(',', '.');
+        } else if (clean.includes(',')) {
+          clean = clean.replace(',', '.');
+        }
+        parsedVal = clean;
+      }
+      precio = Number(parsedVal);
       if (isNaN(precio)) {
         validationErrors.push(`El precio "${rawPrice}" no es numérico.`);
       }
@@ -150,7 +160,12 @@ export function analyzeImportRows(
     if (rawStock === undefined || rawStock === null || rawStock === '') {
       validationErrors.push('El stock está vacío.');
     } else {
-      stock = Number(rawStock);
+      let parsedStock: any = rawStock;
+      if (typeof rawStock === 'string') {
+        let clean = rawStock.trim().replace(/\./g, '').replace(',', '.');
+        parsedStock = clean;
+      }
+      stock = Number(parsedStock);
       if (isNaN(stock)) {
         validationErrors.push(`El stock "${rawStock}" no es numérico.`);
       }

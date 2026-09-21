@@ -153,8 +153,12 @@ export function ExcelImportView() {
       try {
         const data = new Uint8Array(e.target?.result as ArrayBuffer);
         const workbook = XLSX.read(data, { type: 'array' });
-        const firstSheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[firstSheetName];
+        // Buscar específicamente la hoja "lista 1" (o variant como "lista1"), o fallback a la primera hoja
+        const targetSheetName = workbook.SheetNames.find(name => {
+          const norm = name.toLowerCase().trim().replace(/\s+/g, ' ');
+          return norm === 'lista 1' || norm === 'lista1' || norm.includes('lista 1') || norm.includes('lista1');
+        }) || workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[targetSheetName];
         
         // Obtener filas como array de arrays para validar por posición de celda
         const rawRows = XLSX.utils.sheet_to_json<any[]>(worksheet, { header: 1, defval: '' });
