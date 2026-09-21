@@ -356,15 +356,17 @@ export function ProductsView({
     if (!file) return;
     setIsUploading(true);
     try {
-      const prodId = editingProduct ? editingProduct.id : `prod_${Date.now()}`;
+      const prodCode = formProduct.codigo || (editingProduct ? editingProduct.codigo : `prod_${Date.now()}`);
       const ext = file.name.split('.').pop() || 'jpg';
-      const path = `products/${prodId}_${Date.now()}.${ext}`;
+      const path = `products/${prodCode}_${Date.now()}.${ext}`;
 
+      // Subir al bucket 'app-assets' en la carpeta 'products/'
       let { error: upErr } = await supabase.storage
         .from('app-assets')
         .upload(path, file, { upsert: true, contentType: file.type || 'image/jpeg' });
 
-      if (upErr && (upErr.message?.toLowerCase().includes('bucket not found') || (upErr as any).statusCode === '404')) {
+      // Si el bucket 'app-assets' no existiera, intentar crearlo
+      if (upErr && (upErr.message?.toLowerCase().includes('bucket not found') || (upErr as any).statusCode === '404' || (upErr as any).statusCode === 404)) {
         try {
           await supabase.storage.createBucket('app-assets', { public: true });
           const retryRes = await supabase.storage
@@ -375,10 +377,15 @@ export function ProductsView({
       }
 
       if (upErr) {
-        if (upErr.message?.toLowerCase().includes('bucket not found')) {
-          throw new Error('El bucket "app-assets" no existe en Supabase Storage. Ejecute la migración SQL 10 en Supabase.');
-        }
-        throw upErr;
+        // Fallback a 'imagenes' por compatibilidad si hiciera falta
+        const fallbackRes = await supabase.storage
+          .from('imagenes')
+          .upload(path, file, { upsert: true, contentType: file.type || 'image/jpeg' });
+        if (fallbackRes.error) throw upErr;
+
+        const { data: fallbackUrl } = supabase.storage.from('imagenes').getPublicUrl(path);
+        setFormProduct(prev => ({ ...prev, imagen: fallbackUrl.publicUrl }));
+        return;
       }
 
       const { data: urlData } = supabase.storage
@@ -387,7 +394,94 @@ export function ProductsView({
 
       setFormProduct(prev => ({ ...prev, imagen: urlData.publicUrl }));
     } catch (err: any) {
-      alert('Error al subir imagen a Supabase: ' + (err.message || String(err)));
+      alert('Error al subir imagen a Supabase Storage (app-assets/products): ' + (err.message || String(err)));
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleUploadImageFromUrl = async (imageUrl: string) => {
+    if (!imageUrl || !imageUrl.trim()) {
+      alert('Por favor ingrese una URL válida de imagen.');
+      return;
+    }
+    setIsUploading(true);
+    try {
+      const cleanUrl = imageUrl.trim();
+      let blob: Blob | null = null;
+      let contentType = 'image/jpeg';
+
+      try {
+        const res = await fetch(cleanUrl);
+        if (res.ok) {
+          blob = await res.blob();
+          contentType = blob.type || 'image/jpeg';
+        }
+      } catch (_) {
+        // Fallback vía Canvas si hay restricciones CORS
+        blob = await new Promise<Blob | null>((resolve) => {
+          const img = new Image();
+          img.crossOrigin = 'anonymous';
+          img.onload = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = img.naturalWidth || img.width;
+            canvas.height = img.naturalHeight || img.height;
+            const ctx = canvas.getContext('2d');
+            ctx?.drawImage(img, 0, 0);
+            canvas.toBlob((b) => resolve(b), 'image/jpeg', 0.92);
+          };
+          img.onerror = () => resolve(null);
+          img.src = cleanUrl;
+        });
+      }
+
+      if (!blob) {
+        throw new Error('No se pudo descargar la imagen desde la URL ingresada (Verifique la URL o permisos CORS).');
+      }
+
+      let ext = 'jpg';
+      if (contentType.includes('png')) ext = 'png';
+      else if (contentType.includes('webp')) ext = 'webp';
+      else if (contentType.includes('gif')) ext = 'gif';
+
+      const prodCode = formProduct.codigo || (editingProduct ? editingProduct.codigo : `prod_${Date.now()}`);
+      const path = `products/${prodCode}_${Date.now()}.${ext}`;
+
+      // Subir al bucket 'app-assets' en la carpeta 'products/'
+      let { error: upErr } = await supabase.storage
+        .from('app-assets')
+        .upload(path, blob, { upsert: true, contentType });
+
+      if (upErr && (upErr.message?.toLowerCase().includes('bucket not found') || (upErr as any).statusCode === '404' || (upErr as any).statusCode === 404)) {
+        try {
+          await supabase.storage.createBucket('app-assets', { public: true });
+          const retryRes = await supabase.storage
+            .from('app-assets')
+            .upload(path, blob, { upsert: true, contentType });
+          upErr = retryRes.error;
+        } catch (_) {}
+      }
+
+      if (upErr) {
+        const fallbackRes = await supabase.storage
+          .from('imagenes')
+          .upload(path, blob, { upsert: true, contentType });
+        if (fallbackRes.error) throw upErr;
+
+        const { data: fallbackUrl } = supabase.storage.from('imagenes').getPublicUrl(path);
+        setFormProduct(prev => ({ ...prev, imagen: fallbackUrl.publicUrl }));
+        alert('✅ Imagen guardada exitosamente en el bucket de Supabase!');
+        return;
+      }
+
+      const { data: urlData } = supabase.storage
+        .from('app-assets')
+        .getPublicUrl(path);
+
+      setFormProduct(prev => ({ ...prev, imagen: urlData.publicUrl }));
+      alert('✅ ¡Imagen descargada y guardada exitosamente en "app-assets/products"!');
+    } catch (err: any) {
+      alert('Error al descargar y guardar la imagen en app-assets/products: ' + (err.message || String(err)));
     } finally {
       setIsUploading(false);
     }
@@ -1207,14 +1301,41 @@ export function ProductsView({
 
                   {/* URL Input */}
                   {imageTab === 'url' && (
-                    <input
-                      type="text"
-                      className="form-input"
-                      style={{ background: '#0f172a', border: '1px solid #334155', color: '#fff', borderRadius: '6px', width: '100%', padding: '8px 12px' }}
-                      placeholder="https://example.com/foto.jpg"
-                      value={formProduct.imagen}
-                      onChange={e => setFormProduct({ ...formProduct, imagen: e.target.value })}
-                    />
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <input
+                          type="text"
+                          className="form-input"
+                          style={{ background: '#0f172a', border: '1px solid #334155', color: '#fff', borderRadius: '6px', flex: 1, padding: '8px 12px' }}
+                          placeholder="https://example.com/foto.jpg"
+                          value={formProduct.imagen}
+                          onChange={e => setFormProduct({ ...formProduct, imagen: e.target.value })}
+                        />
+                        {formProduct.imagen && !formProduct.imagen.includes('supabase.co/storage') && (
+                          <button
+                            type="button"
+                            onClick={() => handleUploadImageFromUrl(formProduct.imagen)}
+                            disabled={isUploading}
+                            style={{
+                              background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                              color: '#fff',
+                              border: 'none',
+                              borderRadius: '6px',
+                              padding: '8px 14px',
+                              fontSize: '12px',
+                              fontWeight: '700',
+                              cursor: isUploading ? 'not-allowed' : 'pointer',
+                              whiteSpace: 'nowrap'
+                            }}
+                          >
+                            {isUploading ? '⏳ Guardando...' : '⬇️ Guardar en Bucket'}
+                          </button>
+                        )}
+                      </div>
+                      <span style={{ fontSize: '11px', color: '#94a3b8' }}>
+                        💡 Ingresa una URL externa y presiona <b>"Guardar en Bucket"</b> para alojarla en Supabase Storage.
+                      </span>
+                    </div>
                   )}
 
                   {/* Live preview */}
@@ -1573,9 +1694,41 @@ export function ProductsView({
                     </label>
                   </div>
 
+                  {/* URL Externa opcional */}
+                  <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
+                    <input
+                      type="text"
+                      className="form-input"
+                      style={{ background: '#0f172a', border: '1px solid #334155', color: '#fff', borderRadius: '6px', flex: 1, padding: '8px 12px', fontSize: '13px' }}
+                      placeholder="O pegar URL de imagen: https://ejemplo.com/foto.jpg"
+                      value={formProduct.imagen}
+                      onChange={e => setFormProduct({ ...formProduct, imagen: e.target.value })}
+                    />
+                    {formProduct.imagen && !formProduct.imagen.includes('supabase.co/storage') && (
+                      <button
+                        type="button"
+                        onClick={() => handleUploadImageFromUrl(formProduct.imagen)}
+                        disabled={isUploading}
+                        style={{
+                          background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                          color: '#fff',
+                          border: 'none',
+                          borderRadius: '6px',
+                          padding: '8px 14px',
+                          fontSize: '12px',
+                          fontWeight: '700',
+                          cursor: isUploading ? 'not-allowed' : 'pointer',
+                          whiteSpace: 'nowrap'
+                        }}
+                      >
+                        {isUploading ? '⏳ Guardando...' : '⬇️ Guardar en Bucket'}
+                      </button>
+                    )}
+                  </div>
+
                   {isUploading && (
                     <div style={{ fontSize: '12px', color: '#38BDF8', textAlign: 'center', padding: '6px', fontWeight: '700' }}>
-                      ⏳ Subiendo imagen a Supabase Storage...
+                      ⏳ Subiendo / Guardando imagen en "app-assets/products"...
                     </div>
                   )}
 
