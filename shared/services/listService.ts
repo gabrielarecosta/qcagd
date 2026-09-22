@@ -24,36 +24,76 @@ export const listService = {
    */
   getUserLists: async (userIdOrIds: string | string[]): Promise<UserList[]> => {
     try {
-      const ids = Array.isArray(userIdOrIds) ? userIdOrIds.map(String).filter(Boolean) : [String(userIdOrIds)];
-      if (ids.length === 0) return [];
+      const allIds = Array.isArray(userIdOrIds) ? userIdOrIds.map(String).filter(Boolean) : [String(userIdOrIds)];
+      if (allIds.length === 0) return [];
 
-      let query = supabase
-        .from('user_lists')
-        .select(`
-          id, user_id, nombre, descripcion, created_at, updated_at,
-          user_list_items (
-            id, list_id, product_id, created_at,
-            products (id, codigo, nombre, descripcion, presentacion, precio, unidad, categoria, subcategoria, imagen, destacado, activo, marca)
-          )
-        `);
+      const numericIds = allIds.filter((id) => /^\d+$/.test(id));
+      const uuidIds = allIds.filter((id) => id.includes('-'));
 
-      if (ids.length === 1) {
-        query = query.eq('user_id', ids[0]);
-      } else {
-        query = query.in('user_id', ids);
-      }
+      const fetchedLists: any[] = [];
+      const seenIds = new Set<string | number>();
 
-      const { data, error } = await query.order('created_at', { ascending: false });
+      const runQuery = async (queryIds: string[]) => {
+        if (queryIds.length === 0) return;
+        try {
+          let query = supabase
+            .from('user_lists')
+            .select(`
+              id, user_id, nombre, descripcion, created_at, updated_at,
+              user_list_items (
+                id, list_id, product_id, created_at,
+                products (id, codigo, nombre, descripcion, presentacion, precio, unidad, categoria, subcategoria, imagen, destacado, activo, marca)
+              )
+            `);
 
-      if (error) {
-        if (error.code === 'PGRST204' || error.message?.includes('does not exist')) {
-          console.warn('La tabla user_lists aún no existe en Supabase DB.');
-          return [];
+          if (queryIds.length === 1) {
+            query = query.eq('user_id', queryIds[0]);
+          } else {
+            query = query.in('user_id', queryIds);
+          }
+
+          const { data, error } = await query.order('created_at', { ascending: false });
+          if (!error && data) {
+            data.forEach((item: any) => {
+              if (!seenIds.has(item.id)) {
+                seenIds.add(item.id);
+                fetchedLists.push(item);
+              }
+            });
+          }
+        } catch (err) {
+          console.warn('Advertencia en runQuery para ids:', queryIds, err);
         }
-        throw error;
+      };
+
+      // Si tenemos UUIDs, intentamos resolver el ID numérico correspondiente en la tabla customers
+      if (uuidIds.length > 0) {
+        try {
+          const { data: custRows } = await supabase
+            .from('customers')
+            .select('id')
+            .in('user_id', uuidIds);
+          if (custRows && custRows.length > 0) {
+            custRows.forEach((c: any) => {
+              if (c?.id && !numericIds.includes(String(c.id))) {
+                numericIds.push(String(c.id));
+              }
+            });
+          }
+        } catch (_) {}
       }
 
-      return (data || []).map((l: any) => ({
+      // 1. Primero intentar con numericIds (evita 22P02 si user_id es BIGINT)
+      if (numericIds.length > 0) {
+        await runQuery(numericIds);
+      }
+
+      // 2. Solo intentar con uuidIds si no se encontró nada por numericIds y la columna admitiera UUIDs
+      if (uuidIds.length > 0 && fetchedLists.length === 0) {
+        await runQuery(uuidIds);
+      }
+
+      return fetchedLists.map((l: any) => ({
         id: l.id,
         userId: l.user_id,
         nombre: l.nombre,
@@ -96,11 +136,50 @@ export const listService = {
    * Crea una nueva lista para el usuario.
    */
   createList: async (userId: string, nombre: string, descripcion?: string): Promise<UserList> => {
-    const { data, error } = await supabase
+    let targetUserId: any = String(userId);
+
+    // Pre-resolución de UUID a ID numérico para evitar error 22P02
+    if (typeof targetUserId === 'string' && targetUserId.includes('-')) {
+      try {
+        const { data: cust } = await supabase
+          .from('customers')
+          .select('id')
+          .eq('user_id', targetUserId)
+          .maybeSingle();
+        if (cust?.id) {
+          targetUserId = cust.id;
+        }
+      } catch (_) {}
+    }
+
+    let { data, error } = await supabase
       .from('user_lists')
-      .insert({ user_id: String(userId), nombre: nombre.trim(), descripcion: descripcion?.trim() || null })
+      .insert({ user_id: targetUserId, nombre: nombre.trim(), descripcion: descripcion?.trim() || null })
       .select()
       .single();
+
+    // Si aún así falló por 22P02:
+    if (error && error.code === '22P02' && typeof targetUserId === 'string' && targetUserId.includes('-')) {
+      const { data: cust } = await supabase
+        .from('customers')
+        .select('id')
+        .eq('user_id', targetUserId)
+        .maybeSingle();
+
+      if (cust?.id) {
+        targetUserId = cust.id;
+        const retry = await supabase
+          .from('user_lists')
+          .insert({ user_id: targetUserId, nombre: nombre.trim(), descripcion: descripcion?.trim() || null })
+          .select()
+          .single();
+
+        if (!retry.error && retry.data) {
+          data = retry.data;
+          error = null;
+        }
+      }
+    }
 
     if (error) {
       console.error('Error al crear lista en Supabase:', error.message, error.details, error.hint);

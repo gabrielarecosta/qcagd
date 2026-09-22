@@ -195,9 +195,161 @@ export function MisListasScreen({ onBackToAccount }: MisListasScreenProps) {
         </View>
 
         {/* ─────────────────────────────────────────────────────────── */}
-        {/* BUSCADOR CON LUPA (No precargado, busca al tocar Buscar) */}
+        {/* LISTADO DE LISTAS CREADAS */}
         {/* ─────────────────────────────────────────────────────────── */}
-        <View style={styles.searchCard}>
+        <View style={{ marginTop: 6 }}>
+          <Text style={styles.sectionHeaderTitle}>Tus Listas ({lists.length})</Text>
+        </View>
+
+        {!isLoggedIn ? (
+          <View style={styles.notLoggedInCard}>
+            <MaterialCommunityIcons name="account-lock-outline" size={48} color={Colors.primary} />
+            <Text style={styles.notLoggedInTitle}>Iniciá sesión para ver tus listas</Text>
+            <Text style={styles.notLoggedInSub}>
+              Tus listas personalizadas están guardadas en tu cuenta para acceder desde cualquier dispositivo.
+            </Text>
+          </View>
+        ) : isLoading ? (
+          <View style={styles.loadingBox}>
+            <ActivityIndicator size="large" color={Colors.primary} />
+            <Text style={styles.loadingText}>Cargando tus listas...</Text>
+            <Text style={styles.loadingSubtext}>Obteniendo datos actualizados desde el servidor</Text>
+          </View>
+        ) : lists.length === 0 ? (
+          <View style={styles.emptyCard}>
+            <View style={styles.emptyIconBox}>
+              <MaterialCommunityIcons name="playlist-plus" size={44} color={Colors.primary} />
+            </View>
+            <Text style={styles.emptyHeading}>No tenés listas creadas</Text>
+            <Text style={styles.emptyDesc}>
+              Creá tu primera lista como "Compras Semanales", "Limpieza Oficina" o "Favoritos" para agilizar tus pedidos.
+            </Text>
+            <TouchableOpacity
+              style={styles.emptyActionBtn}
+              onPress={() => setShowCreateModal(true)}
+              activeOpacity={0.8}
+            >
+              <MaterialCommunityIcons name="plus" size={18} color={Colors.white} />
+              <Text style={styles.emptyActionBtnText}>Crear primera lista</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <View style={styles.listsGrid}>
+            {lists.map((list) => {
+              const previewItems = list.items.slice(0, 4);
+              const isTargetActive = String(focusedTargetListId) === String(list.id);
+
+              return (
+                <View
+                  key={list.id}
+                  style={[styles.listCard, isTargetActive && styles.listCardFocused]}
+                >
+                  <TouchableOpacity
+                    onPress={() => setActiveListId(list.id)}
+                    activeOpacity={0.85}
+                  >
+                    <View style={styles.cardHeader}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.cardTitle} numberOfLines={1}>
+                          {list.nombre}
+                        </Text>
+                        {list.descripcion ? (
+                          <Text style={styles.cardDesc} numberOfLines={2}>
+                            {list.descripcion}
+                          </Text>
+                        ) : null}
+                      </View>
+                      <View style={styles.counterBadge}>
+                        <Text style={styles.counterBadgeText}>
+                          {list.items.length} {list.items.length === 1 ? 'ítem' : 'ítems'}
+                        </Text>
+                      </View>
+                    </View>
+
+                    {/* Previews de productos */}
+                    {list.items.length > 0 ? (
+                      <View style={styles.previewRow}>
+                        {previewItems.map((it, idx) => (
+                          <View key={it.id || idx} style={styles.previewThumbBox}>
+                            {it.product?.imagen ? (
+                              <Image
+                                source={{ uri: it.product.imagen }}
+                                style={styles.previewThumbImg}
+                                resizeMode="contain"
+                              />
+                            ) : (
+                              <MaterialCommunityIcons name="cube-outline" size={18} color={Colors.primary} />
+                            )}
+                          </View>
+                        ))}
+                        {list.items.length > 4 && (
+                          <View style={[styles.previewThumbBox, styles.previewThumbMore]}>
+                            <Text style={styles.previewThumbMoreText}>+{list.items.length - 4}</Text>
+                          </View>
+                        )}
+                      </View>
+                    ) : (
+                      <View style={styles.noItemsBox}>
+                        <Text style={styles.noItemsText}>Sin productos guardados aún</Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+
+                  {/* Acciones de la tarjeta */}
+                  <View style={styles.cardFooter}>
+                    {/* Botón requerido: "Agregar productos a esta lista" */}
+                    <TouchableOpacity
+                      style={[
+                        styles.addProductsDirectBtn,
+                        isTargetActive && styles.addProductsDirectBtnActive,
+                      ]}
+                      onPress={() => {
+                        if (isTargetActive) {
+                          setFocusedTargetListId(null);
+                        } else {
+                          setFocusedTargetListId(list.id);
+                          scrollRef.current?.scrollToEnd({ animated: true });
+                          useNotificationStore.getState().showToast({
+                            message: `Buscá productos con la lupa abajo para agregarlos directamente a "${list.nombre}".`,
+                            type: 'info',
+                          });
+                        }
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      <MaterialCommunityIcons
+                        name={isTargetActive ? 'check' : 'plus-circle-outline'}
+                        size={16}
+                        color={isTargetActive ? Colors.white : Colors.primary}
+                      />
+                      <Text
+                        style={[
+                          styles.addProductsDirectBtnText,
+                          isTargetActive && styles.addProductsDirectBtnTextActive,
+                        ]}
+                      >
+                        {isTargetActive ? 'Agregando productos aquí' : 'Agregar productos a esta lista'}
+                      </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      onPress={() => setActiveListId(list.id)}
+                      activeOpacity={0.7}
+                      style={{ paddingVertical: 4, paddingHorizontal: 6 }}
+                    >
+                      <Text style={styles.viewListLink}>Ver detalle ›</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              );
+            })}
+          </View>
+        )}
+
+        {/* ─────────────────────────────────────────────────────────── */}
+        {/* BUSCADOR CON LUPA (Colocado abajo como solicitado) */}
+        {/* ─────────────────────────────────────────────────────────── */}
+        <View style={[styles.searchCard, { marginTop: Spacing.xl }]}>
           {focusedTargetList && (
             <View style={styles.focusedBanner}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
@@ -327,158 +479,6 @@ export function MisListasScreen({ onBackToAccount }: MisListasScreenProps) {
             </View>
           )}
         </View>
-
-        {/* ─────────────────────────────────────────────────────────── */}
-        {/* LISTADO DE LISTAS CREADAS */}
-        {/* ─────────────────────────────────────────────────────────── */}
-        <View style={{ marginTop: 6 }}>
-          <Text style={styles.sectionHeaderTitle}>Tus Listas ({lists.length})</Text>
-        </View>
-
-        {!isLoggedIn ? (
-          <View style={styles.notLoggedInCard}>
-            <MaterialCommunityIcons name="account-lock-outline" size={48} color={Colors.primary} />
-            <Text style={styles.notLoggedInTitle}>Iniciá sesión para ver tus listas</Text>
-            <Text style={styles.notLoggedInSub}>
-              Tus listas personalizadas están guardadas en tu cuenta para acceder desde cualquier dispositivo.
-            </Text>
-          </View>
-        ) : isLoading ? (
-          <View style={styles.loadingBox}>
-            <ActivityIndicator size="large" color={Colors.primary} />
-            <Text style={styles.loadingText}>Cargando tus listas...</Text>
-            <Text style={styles.loadingSubtext}>Obteniendo datos actualizados desde el servidor</Text>
-          </View>
-        ) : lists.length === 0 ? (
-          <View style={styles.emptyCard}>
-            <View style={styles.emptyIconBox}>
-              <MaterialCommunityIcons name="playlist-plus" size={44} color={Colors.primary} />
-            </View>
-            <Text style={styles.emptyHeading}>No tenés listas creadas</Text>
-            <Text style={styles.emptyDesc}>
-              Creá tu primera lista como "Compras Semanales", "Limpieza Oficina" o "Favoritos" para agilizar tus pedidos.
-            </Text>
-            <TouchableOpacity
-              style={styles.emptyActionBtn}
-              onPress={() => setShowCreateModal(true)}
-              activeOpacity={0.8}
-            >
-              <MaterialCommunityIcons name="plus" size={18} color={Colors.white} />
-              <Text style={styles.emptyActionBtnText}>Crear primera lista</Text>
-            </TouchableOpacity>
-          </View>
-        ) : (
-          <View style={styles.listsGrid}>
-            {lists.map((list) => {
-              const previewItems = list.items.slice(0, 4);
-              const isTargetActive = String(focusedTargetListId) === String(list.id);
-
-              return (
-                <View
-                  key={list.id}
-                  style={[styles.listCard, isTargetActive && styles.listCardFocused]}
-                >
-                  <TouchableOpacity
-                    onPress={() => setActiveListId(list.id)}
-                    activeOpacity={0.85}
-                  >
-                    <View style={styles.cardHeader}>
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.cardTitle} numberOfLines={1}>
-                          {list.nombre}
-                        </Text>
-                        {list.descripcion ? (
-                          <Text style={styles.cardDesc} numberOfLines={2}>
-                            {list.descripcion}
-                          </Text>
-                        ) : null}
-                      </View>
-                      <View style={styles.counterBadge}>
-                        <Text style={styles.counterBadgeText}>
-                          {list.items.length} {list.items.length === 1 ? 'ítem' : 'ítems'}
-                        </Text>
-                      </View>
-                    </View>
-
-                    {/* Previews de productos */}
-                    {list.items.length > 0 ? (
-                      <View style={styles.previewRow}>
-                        {previewItems.map((it, idx) => (
-                          <View key={it.id || idx} style={styles.previewThumbBox}>
-                            {it.product?.imagen ? (
-                              <Image
-                                source={{ uri: it.product.imagen }}
-                                style={styles.previewThumbImg}
-                                resizeMode="contain"
-                              />
-                            ) : (
-                              <MaterialCommunityIcons name="cube-outline" size={18} color={Colors.primary} />
-                            )}
-                          </View>
-                        ))}
-                        {list.items.length > 4 && (
-                          <View style={[styles.previewThumbBox, styles.previewThumbMore]}>
-                            <Text style={styles.previewThumbMoreText}>+{list.items.length - 4}</Text>
-                          </View>
-                        )}
-                      </View>
-                    ) : (
-                      <View style={styles.noItemsBox}>
-                        <Text style={styles.noItemsText}>Sin productos guardados aún</Text>
-                      </View>
-                    )}
-                  </TouchableOpacity>
-
-                  {/* Acciones de la tarjeta */}
-                  <View style={styles.cardFooter}>
-                    {/* Botón requerido: "Agregar productos a esta lista" */}
-                    <TouchableOpacity
-                      style={[
-                        styles.addProductsDirectBtn,
-                        isTargetActive && styles.addProductsDirectBtnActive,
-                      ]}
-                      onPress={() => {
-                        if (isTargetActive) {
-                          setFocusedTargetListId(null);
-                        } else {
-                          setFocusedTargetListId(list.id);
-                          scrollRef.current?.scrollTo({ y: 0, animated: true });
-                          useNotificationStore.getState().showToast({
-                            message: `Buscá productos con la lupa para agregarlos directamente a "${list.nombre}".`,
-                            type: 'info',
-                          });
-                        }
-                      }}
-                      activeOpacity={0.8}
-                    >
-                      <MaterialCommunityIcons
-                        name={isTargetActive ? 'check' : 'plus-circle-outline'}
-                        size={16}
-                        color={isTargetActive ? Colors.white : Colors.primary}
-                      />
-                      <Text
-                        style={[
-                          styles.addProductsDirectBtnText,
-                          isTargetActive && styles.addProductsDirectBtnTextActive,
-                        ]}
-                      >
-                        {isTargetActive ? 'Agregando productos aquí' : 'Agregar productos a esta lista'}
-                      </Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      onPress={() => setActiveListId(list.id)}
-                      activeOpacity={0.7}
-                      style={{ paddingVertical: 4, paddingHorizontal: 6 }}
-                    >
-                      <Text style={styles.viewListLink}>Ver detalle ›</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              );
-            })}
-          </View>
-        )}
       </ScrollView>
 
       {/* Modal contextual con checkboxes cuando hay más de una lista */}
