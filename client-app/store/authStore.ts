@@ -113,6 +113,7 @@ export const useAuthStore = create<AuthState>()(
 
           const clientObj = {
             id: client.id,
+            userId: client.user_id || authData.user.id,
             nombre: client.nombre,
             razonSocial: client.razon_social || client.nombre,
             cuit: client.cuit || '',
@@ -120,11 +121,15 @@ export const useAuthStore = create<AuthState>()(
             whatsapp: client.whatsapp || '',
             email: client.email || u,
             direccion: client.direccion || '',
+            localidad: client.localidad || 'General Deheza',
             branchId: client.branch_id || 1,
             tipoCliente: client.tipo_cliente || 'minorista',
             activo: client.activo ?? true,
             observaciones: client.observaciones || undefined,
             fechaAlta: client.fecha_alta,
+            latitude: client.latitude ? Number(client.latitude) : undefined,
+            longitude: client.longitude ? Number(client.longitude) : undefined,
+            locationVerified: client.location_verified ?? false,
           };
 
           set({

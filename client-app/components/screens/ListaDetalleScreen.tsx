@@ -60,7 +60,7 @@ export function ListaDetalleScreen({ listId, onBack }: ListaDetalleScreenProps) 
     try {
       const { data, error } = await supabase
         .from('products')
-        .select('id, codigo, nombre, descripcion, presentacion, precio, unidad, categoria, subcategoria, stock, imagen, destacado, activo, marca')
+        .select('id, codigo, nombre, descripcion, presentacion, precio, unidad, categoria, subcategoria, imagen, destacado, activo, marca')
         .eq('activo', true)
         .or(`nombre.ilike.%${q}%,codigo.ilike.%${q}%,descripcion.ilike.%${q}%,presentacion.ilike.%${q}%`)
         .limit(30);

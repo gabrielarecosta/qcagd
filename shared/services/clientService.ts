@@ -52,7 +52,7 @@ export const clientService = {
     return data ? mapCustomer(data) : undefined;
   },
 
-  update: async (id: string, updates: Partial<Customer>): Promise<Customer> => {
+  update: async (id: string | number, updates: Partial<Customer>): Promise<Customer> => {
     const dbUpdates: any = {
       user_id: updates.userId,
       nombre: updates.nombre,
@@ -77,24 +77,28 @@ export const clientService = {
 
     Object.keys(dbUpdates).forEach(key => dbUpdates[key] === undefined && delete dbUpdates[key]);
 
-    let { data, error } = await supabase
-      .from('customers')
-      .update(dbUpdates)
-      .eq('id', id)
-      .select('*')
-      .single();
+    const isNum = /^\d+$/.test(String(id));
+    let query = supabase.from('customers').update(dbUpdates);
+    if (isNum) {
+      query = query.eq('id', Number(id));
+    } else {
+      query = query.eq('user_id', String(id));
+    }
+
+    let { data, error } = await query.select('*').maybeSingle();
 
     if (error && error.message?.includes('column')) {
       delete dbUpdates.user_id;
       delete dbUpdates.cta_cte_autorizada;
       delete dbUpdates.limite_credito;
       delete dbUpdates.mayorista_autorizado;
-      const { data: retryData, error: retryErr } = await supabase
-        .from('customers')
-        .update(dbUpdates)
-        .eq('id', id)
-        .select('*')
-        .single();
+      let retryQuery = supabase.from('customers').update(dbUpdates);
+      if (isNum) {
+        retryQuery = retryQuery.eq('id', Number(id));
+      } else {
+        retryQuery = retryQuery.eq('user_id', String(id));
+      }
+      const { data: retryData, error: retryErr } = await retryQuery.select('*').maybeSingle();
       if (retryErr) throw retryErr;
       data = { 
         ...retryData, 
@@ -192,21 +196,50 @@ export const clientService = {
     return true;
   },
 
-  getAddresses: async (customerId: string): Promise<CustomerAddress[]> => {
-    const { data, error } = await supabase
-      .from('customer_addresses')
-      .select('*')
-      .eq('customer_id', customerId)
-      .order('default_address', { ascending: false })
-      .order('created_at', { ascending: true });
+  getAddresses: async (customerId: string | number): Promise<CustomerAddress[]> => {
+    if (!customerId) return [];
+    try {
+      const { numericId, uuid } = await resolveCustomerDbId(customerId);
 
-    if (error) throw error;
-    return (data || []).map(mapAddress);
+      if (numericId !== undefined) {
+        const { data, error } = await supabase
+          .from('customer_addresses')
+          .select('*')
+          .eq('customer_id', numericId)
+          .order('default_address', { ascending: false })
+          .order('created_at', { ascending: true });
+
+        if (!error && data && data.length > 0) {
+          return data.map(mapAddress);
+        }
+      }
+
+      if (uuid) {
+        const { data, error } = await supabase
+          .from('customer_addresses')
+          .select('*')
+          .eq('customer_id', uuid)
+          .order('default_address', { ascending: false })
+          .order('created_at', { ascending: true });
+
+        if (!error && data) {
+          return data.map(mapAddress);
+        }
+      }
+
+      return [];
+    } catch (err) {
+      console.warn('Error al obtener direcciones de cliente:', err);
+      return [];
+    }
   },
 
   addAddress: async (address: Omit<CustomerAddress, 'id'>): Promise<CustomerAddress> => {
-    const dbInsert = {
-      customer_id: address.customerId,
+    const { numericId, uuid } = await resolveCustomerDbId(address.customerId);
+    const targetCustomerId = numericId !== undefined ? numericId : (uuid || address.customerId);
+
+    const dbInsert: any = {
+      customer_id: targetCustomerId,
       direccion: address.direccion,
       indicaciones: address.indicaciones,
       latitude: address.latitude,
@@ -216,23 +249,46 @@ export const clientService = {
     };
 
     if (address.defaultAddress) {
-      await supabase
-        .from('customer_addresses')
-        .update({ default_address: false })
-        .eq('customer_id', address.customerId);
+      try {
+        await supabase
+          .from('customer_addresses')
+          .update({ default_address: false })
+          .eq('customer_id', targetCustomerId);
+      } catch (_) {}
     }
 
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('customer_addresses')
       .insert(dbInsert)
       .select('*')
       .single();
 
+    // Si falló por 22P02 porque la columna es BIGINT y targetCustomerId era UUID:
+    if (error && error.code === '22P02' && uuid && numericId === undefined) {
+      const { data: cust } = await supabase
+        .from('customers')
+        .select('id')
+        .eq('user_id', uuid)
+        .maybeSingle();
+
+      if (cust?.id) {
+        dbInsert.customer_id = cust.id;
+        const retry = await supabase
+          .from('customer_addresses')
+          .insert(dbInsert)
+          .select('*')
+          .single();
+        if (!retry.error && retry.data) {
+          return mapAddress(retry.data);
+        }
+      }
+    }
+
     if (error) throw error;
     return mapAddress(data);
   },
 
-  deleteAddress: async (id: string): Promise<boolean> => {
+  deleteAddress: async (id: string | number): Promise<boolean> => {
     const { error } = await supabase
       .from('customer_addresses')
       .delete()
@@ -242,7 +298,7 @@ export const clientService = {
     return true;
   },
 
-  updateAddress: async (id: string, updates: Partial<CustomerAddress>): Promise<CustomerAddress> => {
+  updateAddress: async (id: string | number, updates: Partial<CustomerAddress>): Promise<CustomerAddress> => {
     const dbUpdates: any = {
       direccion: updates.direccion,
       indicaciones: updates.indicaciones,
@@ -256,19 +312,22 @@ export const clientService = {
     const { data, error } = await supabase
       .from('customer_addresses')
       .update(dbUpdates)
-      .eq('id', id)
-      .select('*')
-      .single();
+      .eq('id', id);
 
     if (error) throw error;
     return mapAddress(data);
   },
 
-  setDefaultAddress: async (customerId: string, id: string): Promise<boolean> => {
-    await supabase
-      .from('customer_addresses')
-      .update({ default_address: false })
-      .eq('customer_id', customerId);
+  setDefaultAddress: async (customerId: string | number, id: string | number): Promise<boolean> => {
+    const { numericId, uuid } = await resolveCustomerDbId(customerId);
+    const targetCustomerId = numericId !== undefined ? numericId : (uuid || customerId);
+
+    try {
+      await supabase
+        .from('customer_addresses')
+        .update({ default_address: false })
+        .eq('customer_id', targetCustomerId);
+    } catch (_) {}
 
     const { error } = await supabase
       .from('customer_addresses')
@@ -278,6 +337,26 @@ export const clientService = {
     if (error) throw error;
     return true;
   }
+};
+
+const resolveCustomerDbId = async (customerId: string | number): Promise<{ numericId?: number; uuid?: string }> => {
+  const strId = String(customerId).trim();
+  if (/^\d+$/.test(strId)) {
+    return { numericId: parseInt(strId, 10) };
+  }
+  // Es un UUID
+  try {
+    const { data } = await supabase
+      .from('customers')
+      .select('id, user_id')
+      .or(`user_id.eq.${strId},id.eq.${strId}`)
+      .maybeSingle();
+
+    if (data?.id && typeof data.id === 'number') {
+      return { numericId: data.id, uuid: strId };
+    }
+  } catch (_) {}
+  return { uuid: strId };
 };
 
 const mapAddress = (a: any): CustomerAddress => ({

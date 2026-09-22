@@ -26,7 +26,6 @@ import { OrderCard } from '../OrderCard';
 import { OrderDetailModal } from '../OrderDetailModal';
 import { ChangePasswordModal } from '../ChangePasswordModal';
 import { AppFooter } from '../AppFooter';
-import { suggestDehezaStreets, StreetSuggestion } from '@shared/utils/dehezaStreets';
 import { branchService } from '@shared/services/branchService';
 import { Branch } from '@shared/types/branch';
 import { geocodeAddress, getLocalityCenter } from '@shared/utils/geo';
@@ -297,16 +296,6 @@ export function ClienteAccountScreen() {
   };
 
 
-  const dehezaStreetSuggestions = useMemo(() => {
-    if (!newDireccion || newDireccion.trim().length < 2) return [];
-    return suggestDehezaStreets(newDireccion, 3);
-  }, [newDireccion]);
-
-  const handleSelectStreetSuggestion = (sug: StreetSuggestion) => {
-    setNewDireccion(sug.fullAddress);
-    handleSearchAddressInMap(sug.fullAddress);
-  };
-
   const handleSaveAddress = async () => {
     if (!clientData || !newDireccion.trim()) return;
     setSavingAddress(true);
@@ -328,7 +317,6 @@ export function ClienteAccountScreen() {
         }
       }
 
-
       const isFirstAddress = addresses.length === 0;
 
       await clientService.addAddress({
@@ -341,16 +329,13 @@ export function ClienteAccountScreen() {
         defaultAddress: isFirstAddress,
       });
 
-      if (isFirstAddress) {
+      // Actualizar perfil y sesión del cliente para que desaparezca el aviso de falta de dirección
+      const currentDir = (clientData.direccion || '').trim();
+      const hasValidProfileDir = currentDir !== '' && currentDir !== 'Sin dirección registrada' && currentDir !== 'Sin dirección';
+
+      if (isFirstAddress || !hasValidProfileDir) {
         try {
           await clientService.update(clientData.id, {
-            direccion: newDireccion,
-            latitude: lat,
-            longitude: lon,
-            locationVerified: verified,
-          });
-          setClienteSession({
-            ...clientData,
             direccion: newDireccion,
             latitude: lat,
             longitude: lon,
@@ -359,6 +344,14 @@ export function ClienteAccountScreen() {
         } catch (updateErr) {
           console.warn('Error al actualizar dirección principal en perfil:', updateErr);
         }
+
+        setClienteSession({
+          ...clientData,
+          direccion: newDireccion,
+          latitude: lat,
+          longitude: lon,
+          locationVerified: verified,
+        });
       }
 
       await loadAddresses();
@@ -762,7 +755,7 @@ export function ClienteAccountScreen() {
             </Text>
 
             <Text style={{ fontSize: 12, color: Colors.textSecondary, marginBottom: 4 }}>Dirección (Calle, Altura, Localidad)</Text>
-            <View style={{ backgroundColor: 'white', borderRadius: Radius.sm, borderWidth: 1, borderColor: Colors.border, paddingHorizontal: 10, paddingVertical: 8, marginBottom: dehezaStreetSuggestions.length > 0 ? 6 : Spacing.sm, flexDirection: 'row', alignItems: 'center' }}>
+            <View style={{ backgroundColor: 'white', borderRadius: Radius.sm, borderWidth: 1, borderColor: Colors.border, paddingHorizontal: 10, paddingVertical: 8, marginBottom: Spacing.sm, flexDirection: 'row', alignItems: 'center' }}>
               <TextInput
                 placeholder="Ej: Bv. San Martín 456, General Deheza"
                 value={newDireccion}
@@ -798,32 +791,6 @@ export function ClienteAccountScreen() {
                 🔍 Buscar "{newDireccion || 'Dirección'}" en el Mapa
               </Text>
             </TouchableOpacity>
-
-            {/* Sugerencias de calles de General Deheza */}
-            {dehezaStreetSuggestions.length > 0 && (
-              <View style={{ marginBottom: Spacing.md, backgroundColor: '#eff6ff', borderRadius: Radius.sm, padding: 8, borderWidth: 1, borderColor: '#bfdbfe' }}>
-                <Text style={{ fontSize: 11, fontWeight: 'bold', color: '#1e40af', marginBottom: 4 }}>
-                  💡 Calles sugeridas de General Deheza:
-                </Text>
-                {dehezaStreetSuggestions.map((sug) => (
-                  <TouchableOpacity
-                    key={sug.street.name}
-                    style={{ paddingVertical: 5, paddingHorizontal: 8, borderRadius: 4, backgroundColor: 'white', marginBottom: 4, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderWidth: 1, borderColor: '#e2e8f0' }}
-                    onPress={() => handleSelectStreetSuggestion(sug)}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={{ fontSize: 12, fontWeight: '600', color: Colors.textPrimary }}>
-                      📍 {sug.fullAddress}
-                    </Text>
-                    {sug.street.zoneHint && (
-                      <Text style={{ fontSize: 10, color: Colors.primary, fontWeight: 'bold' }}>
-                        Zona {sug.street.zoneHint}
-                      </Text>
-                    )}
-                  </TouchableOpacity>
-                ))}
-              </View>
-            )}
 
             {/* Mapa interactivo de MapLibre en Web */}
             {Platform.OS === 'web' && (

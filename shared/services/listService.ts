@@ -33,7 +33,7 @@ export const listService = {
           id, user_id, nombre, descripcion, created_at, updated_at,
           user_list_items (
             id, list_id, product_id, created_at,
-            products (id, codigo, nombre, descripcion, presentacion, precio, unidad, categoria, subcategoria, stock, imagen, destacado, activo, marca)
+            products (id, codigo, nombre, descripcion, presentacion, precio, unidad, categoria, subcategoria, imagen, destacado, activo, marca)
           )
         `);
 
@@ -75,7 +75,7 @@ export const listService = {
             unidad: item.products.unidad || 'unidad',
             categoria: item.products.categoria,
             subcategoria: item.products.subcategoria,
-            stock: item.products.stock,
+            stock: 0,
             imagen: item.products.imagen,
             destacado: item.products.destacado,
             activo: item.products.activo,
