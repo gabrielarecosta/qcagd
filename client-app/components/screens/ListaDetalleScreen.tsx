@@ -18,6 +18,7 @@ import { formatPrice } from '../../utils/formatters';
 import { useListsStore } from '../../store/listsStore';
 import { useCartStore } from '../../store/cartStore';
 import { Product } from '../../types';
+import { supabase } from '@shared/services/supabaseClient';
 import MaterialCommunityIcons from '../icons/MaterialCommunityIcons';
 
 interface ListaDetalleScreenProps {
@@ -31,6 +32,7 @@ export function ListaDetalleScreen({ listId, onBack }: ListaDetalleScreenProps) 
     lists,
     updateList,
     deleteList,
+    addItemToList,
     removeItemFromList,
     addListToCart,
     addSingleProductToCart,
@@ -45,6 +47,37 @@ export function ListaDetalleScreen({ listId, onBack }: ListaDetalleScreenProps) 
   const [editNombre, setEditNombre] = useState(currentList?.nombre || '');
   const [editDesc, setEditDesc] = useState(currentList?.descripcion || '');
   const [isSavingEdit, setIsSavingEdit] = useState(false);
+
+  // Buscador de productos bajo demanda
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<Product[] | null>(null);
+  const [isSearching, setIsSearching] = useState(false);
+
+  const handleSearch = async () => {
+    const q = searchQuery.trim();
+    if (!q) return;
+    setIsSearching(true);
+    try {
+      const { data, error } = await supabase
+        .from('products')
+        .select('id, codigo, nombre, descripcion, presentacion, precio, unidad, categoria, subcategoria, stock, imagen, destacado, activo, marca')
+        .eq('activo', true)
+        .or(`nombre.ilike.%${q}%,codigo.ilike.%${q}%,descripcion.ilike.%${q}%,presentacion.ilike.%${q}%`)
+        .limit(30);
+
+      if (error) {
+        console.error('Error al buscar productos en detalle:', error);
+        setSearchResults([]);
+      } else {
+        setSearchResults((data as any[]) || []);
+      }
+    } catch (err) {
+      console.error('Error en búsqueda de detalle:', err);
+      setSearchResults([]);
+    } finally {
+      setIsSearching(false);
+    }
+  };
 
   // Modal de confirmación de eliminación
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -189,6 +222,116 @@ export function ListaDetalleScreen({ listId, onBack }: ListaDetalleScreenProps) 
                 <MaterialCommunityIcons name="sync" size={18} color={Colors.primary} />
                 <Text style={styles.btnReplaceAllText}>Reemplazar carrito</Text>
               </TouchableOpacity>
+            </View>
+          )}
+        </View>
+
+        {/* Buscador de productos bajo demanda para agregar directamente a esta lista */}
+        <View style={styles.searchCard}>
+          <Text style={styles.searchSectionTitle}>
+            🔍 Buscar productos para agregar a esta lista
+          </Text>
+
+          <View style={styles.searchBarRow}>
+            <View style={styles.searchInputWrapper}>
+              <MaterialCommunityIcons name="magnify" size={20} color={Colors.textDisabled} />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Escribí nombre o código y tocá Buscar..."
+                placeholderTextColor={Colors.textDisabled}
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                onSubmitEditing={handleSearch}
+                returnKeyType="search"
+              />
+              {searchQuery.length > 0 && (
+                <TouchableOpacity
+                  onPress={() => {
+                    setSearchQuery('');
+                    setSearchResults(null);
+                  }}
+                  style={{ padding: 4 }}
+                >
+                  <MaterialCommunityIcons name="close-circle" size={18} color={Colors.textDisabled} />
+                </TouchableOpacity>
+              )}
+            </View>
+
+            <TouchableOpacity
+              style={[styles.searchBtn, (!searchQuery.trim() || isSearching) && styles.searchBtnDisabled]}
+              onPress={handleSearch}
+              disabled={!searchQuery.trim() || isSearching}
+              activeOpacity={0.8}
+            >
+              {isSearching ? (
+                <ActivityIndicator size="small" color={Colors.white} />
+              ) : (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                  <MaterialCommunityIcons name="magnify" size={18} color={Colors.white} />
+                  <Text style={styles.searchBtnText}>Buscar</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          </View>
+
+          {/* Resultados de búsqueda */}
+          {searchResults !== null && (
+            <View style={styles.resultsContainer}>
+              <View style={styles.resultsHeader}>
+                <Text style={styles.resultsCount}>
+                  {searchResults.length} {searchResults.length === 1 ? 'producto encontrado' : 'productos encontrados'}
+                </Text>
+                <TouchableOpacity onPress={() => setSearchResults(null)}>
+                  <Text style={styles.closeResultsLink}>Cerrar resultados ✕</Text>
+                </TouchableOpacity>
+              </View>
+
+              {searchResults.length === 0 ? (
+                <View style={styles.noResultsBox}>
+                  <Text style={styles.noResultsText}>
+                    No se encontraron productos para "{searchQuery}".
+                  </Text>
+                </View>
+              ) : (
+                <View style={styles.resultsList}>
+                  {searchResults.map((prod) => {
+                    const alreadyInThisList = items.some((it) => String(it.productId) === String(prod.id));
+
+                    return (
+                      <View key={prod.id} style={styles.resultItemRow}>
+                        {prod.imagen ? (
+                          <Image source={{ uri: prod.imagen }} style={styles.resultThumb} resizeMode="contain" />
+                        ) : (
+                          <View style={styles.resultThumbPlaceholder}>
+                            <MaterialCommunityIcons name="cube-outline" size={20} color={Colors.primary} />
+                          </View>
+                        )}
+
+                        <View style={styles.resultInfo}>
+                          <Text style={styles.resultName} numberOfLines={1}>
+                            {prod.nombre}
+                          </Text>
+                          <Text style={styles.resultMeta}>
+                            {prod.presentacion || prod.codigo} • {prod.precio > 0 ? formatPrice(prod.precio) : 'Sin precio'}
+                          </Text>
+                        </View>
+
+                        <TouchableOpacity
+                          style={[styles.resultAddBtn, alreadyInThisList && styles.resultAddBtnInList]}
+                          onPress={() => addItemToList(listId, prod)}
+                          activeOpacity={0.7}
+                        >
+                          <MaterialCommunityIcons
+                            name={alreadyInThisList ? 'check' : 'plus'}
+                            size={18}
+                            color={Colors.white}
+                          />
+                        </TouchableOpacity>
+                      </View>
+                    );
+                  })}
+                </View>
+              )}
             </View>
           )}
         </View>
@@ -804,5 +947,145 @@ const styles = StyleSheet.create({
   backBtnText: {
     color: Colors.white,
     fontWeight: FontWeight.bold,
+  },
+  searchCard: {
+    backgroundColor: Colors.white,
+    borderRadius: Radius.lg,
+    padding: Spacing.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 2,
+    gap: 10,
+  },
+  searchSectionTitle: {
+    fontSize: FontSize.sm,
+    fontWeight: FontWeight.bold,
+    color: Colors.textPrimary,
+  },
+  searchBarRow: {
+    flexDirection: 'row',
+    gap: 8,
+    alignItems: 'center',
+  },
+  searchInputWrapper: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: Radius.md,
+    paddingHorizontal: 10,
+    gap: 8,
+    height: 42,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: FontSize.sm,
+    color: Colors.textPrimary,
+    paddingVertical: 0,
+  },
+  searchBtn: {
+    backgroundColor: Colors.primary,
+    borderRadius: Radius.md,
+    paddingHorizontal: 14,
+    height: 42,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  searchBtnDisabled: {
+    opacity: 0.6,
+  },
+  searchBtnText: {
+    color: Colors.white,
+    fontSize: FontSize.sm,
+    fontWeight: FontWeight.bold,
+  },
+  resultsContainer: {
+    marginTop: 6,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+    paddingTop: 10,
+  },
+  resultsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  resultsCount: {
+    fontSize: FontSize.xs,
+    color: Colors.textSecondary,
+    fontWeight: FontWeight.semibold,
+  },
+  closeResultsLink: {
+    fontSize: FontSize.xs,
+    color: Colors.danger,
+    fontWeight: FontWeight.bold,
+  },
+  noResultsBox: {
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  noResultsText: {
+    fontSize: FontSize.xs,
+    color: Colors.textSecondary,
+    fontStyle: 'italic',
+  },
+  resultsList: {
+    gap: 8,
+    maxHeight: 260,
+  },
+  resultItemRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 8,
+    backgroundColor: '#F8FAFC',
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    gap: 10,
+  },
+  resultThumb: {
+    width: 38,
+    height: 38,
+    borderRadius: Radius.sm,
+    backgroundColor: Colors.white,
+  },
+  resultThumbPlaceholder: {
+    width: 38,
+    height: 38,
+    borderRadius: Radius.sm,
+    backgroundColor: Colors.primaryLight,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  resultInfo: {
+    flex: 1,
+  },
+  resultName: {
+    fontSize: FontSize.sm,
+    fontWeight: FontWeight.semibold,
+    color: Colors.textPrimary,
+  },
+  resultMeta: {
+    fontSize: FontSize.xs,
+    color: Colors.textSecondary,
+    marginTop: 2,
+  },
+  resultAddBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: Colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  resultAddBtnInList: {
+    backgroundColor: Colors.success,
   },
 });

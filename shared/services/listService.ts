@@ -89,11 +89,14 @@ export const listService = {
   createList: async (userId: string, nombre: string, descripcion?: string): Promise<UserList> => {
     const { data, error } = await supabase
       .from('user_lists')
-      .insert({ user_id: userId, nombre: nombre.trim(), descripcion: descripcion?.trim() || null })
+      .insert({ user_id: String(userId), nombre: nombre.trim(), descripcion: descripcion?.trim() || null })
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      console.error('Error al crear lista en Supabase:', error.message, error.details, error.hint);
+      throw error;
+    }
 
     return {
       id: data.id,
@@ -110,24 +113,32 @@ export const listService = {
    * Actualiza nombre y descripción de una lista.
    */
   updateList: async (listId: string | number, nombre: string, descripcion?: string): Promise<void> => {
+    const numListId = typeof listId === 'string' ? parseInt(listId, 10) : listId;
     const { error } = await supabase
       .from('user_lists')
       .update({ nombre: nombre.trim(), descripcion: descripcion?.trim() || null })
-      .eq('id', listId);
+      .eq('id', numListId);
 
-    if (error) throw error;
+    if (error) {
+      console.error('Error al actualizar lista en Supabase:', error.message, error.details);
+      throw error;
+    }
   },
 
   /**
    * Elimina una lista (cascade elimina sus items).
    */
   deleteList: async (listId: string | number): Promise<void> => {
+    const numListId = typeof listId === 'string' ? parseInt(listId, 10) : listId;
     const { error } = await supabase
       .from('user_lists')
       .delete()
-      .eq('id', listId);
+      .eq('id', numListId);
 
-    if (error) throw error;
+    if (error) {
+      console.error('Error al eliminar lista en Supabase:', error.message, error.details);
+      throw error;
+    }
   },
 
   /**
@@ -135,24 +146,30 @@ export const listService = {
    * Ignora si ya existe (UNIQUE constraint manejado con upsert).
    */
   addItemToList: async (listId: string | number, productId: string | number): Promise<UserListItem> => {
+    const numListId = typeof listId === 'string' ? parseInt(listId, 10) : listId;
+    const numProdId = typeof productId === 'string' ? parseInt(productId, 10) : productId;
+
     const { data, error } = await supabase
       .from('user_list_items')
       .upsert(
-        { list_id: listId, product_id: productId },
+        { list_id: numListId, product_id: numProdId },
         { onConflict: 'list_id,product_id', ignoreDuplicates: true }
       )
       .select()
       .maybeSingle();
 
-    if (error) throw error;
+    if (error) {
+      console.error('Error al agregar item a lista en Supabase:', error.message, error.details);
+      throw error;
+    }
 
     // Si ya existía (ignoreDuplicates), fetcheamos el item
     if (!data) {
       const { data: existing, error: fetchErr } = await supabase
         .from('user_list_items')
         .select()
-        .eq('list_id', listId)
-        .eq('product_id', productId)
+        .eq('list_id', numListId)
+        .eq('product_id', numProdId)
         .single();
 
       if (fetchErr) throw fetchErr;
@@ -177,12 +194,18 @@ export const listService = {
    * Quita un producto de una lista.
    */
   removeItemFromList: async (listId: string | number, productId: string | number): Promise<void> => {
+    const numListId = typeof listId === 'string' ? parseInt(listId, 10) : listId;
+    const numProdId = typeof productId === 'string' ? parseInt(productId, 10) : productId;
+
     const { error } = await supabase
       .from('user_list_items')
       .delete()
-      .eq('list_id', listId)
-      .eq('product_id', productId);
+      .eq('list_id', numListId)
+      .eq('product_id', numProdId);
 
-    if (error) throw error;
+    if (error) {
+      console.error('Error al quitar item de lista en Supabase:', error.message, error.details);
+      throw error;
+    }
   },
 };

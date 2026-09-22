@@ -28,12 +28,14 @@ interface ListsStore {
 }
 
 const getUserId = async (): Promise<string | null> => {
+  const client = useAuthStore.getState().clientData;
+  if (client?.id) return String(client.id);
+  if ((client as any)?.user_id) return String((client as any).user_id);
   try {
     const { data } = await supabase.auth.getUser();
     if (data?.user?.id) return data.user.id;
   } catch (_) {}
-  const client = useAuthStore.getState().clientData;
-  return (client as any)?.user_id || (client?.id ? String(client.id) : null);
+  return null;
 };
 
 export const useListsStore = create<ListsStore>((set, get) => ({
