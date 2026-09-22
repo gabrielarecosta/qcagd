@@ -34,6 +34,35 @@ export function findHeaderIndexes(headers: any[]): HeaderIndexes {
   let stockIdx = -1;
 
   if (Array.isArray(headers)) {
+    // 1. Prioridad máxima para precio: Columna F (índice 5 en base 0)
+    // El Excel "articulos.xls" ubica "Lista 1" (precio minorista al público) en la Columna F
+    if (headers.length > 5) {
+      const normF = normalizeHeaderString(headers[5]);
+      if (
+        normF.includes('lista1') ||
+        normF.includes('lista') ||
+        normF.includes('minorista') ||
+        normF.includes('precio') ||
+        normF.includes('publico') ||
+        normF.includes('pvp') ||
+        normF === ''
+      ) {
+        priceIdx = 5;
+      }
+    }
+
+    // 2. Si no se detectó en la columna F, buscar por nombre exacto de 'lista1'
+    if (priceIdx === -1) {
+      headers.forEach((h, idx) => {
+        if (h === undefined || h === null) return;
+        const norm = normalizeHeaderString(h);
+        if (norm.includes('lista1') || norm.includes('lista_1') || norm === 'l1') {
+          priceIdx = idx;
+        }
+      });
+    }
+
+    // 3. Buscar el resto de las columnas (código, descripción, marca, stock)
     headers.forEach((h, idx) => {
       if (h === undefined || h === null) return;
       const norm = normalizeHeaderString(h);
@@ -45,28 +74,18 @@ export function findHeaderIndexes(headers: any[]): HeaderIndexes {
       } else if (brandIdx === -1 && (norm.includes('marca') || norm.includes('fabricante') || norm.includes('brand'))) {
         brandIdx = idx;
       } else if (priceIdx === -1 && (
-        norm.includes('lista1') || 
         norm.includes('minorista') || 
         norm.includes('publico') || 
         norm.includes('pvp') || 
         norm.includes('p.venta') || 
         norm.includes('precio') || 
         norm.includes('importe')
-      ) && !norm.includes('costo')) {
-        // Se descarta 'costo' para asegurar que el precio al público minorista (Lista 1) sea el seleccionado
+      ) && !norm.includes('costo') && !norm.includes('mayorista') && !norm.includes('lista2') && !norm.includes('lista3')) {
         priceIdx = idx;
       } else if (stockIdx === -1 && (norm.includes('stock') || norm.includes('cantidad') || norm.includes('cant') || norm.includes('existencia') || norm.includes('inventario'))) {
         stockIdx = idx;
       }
     });
-
-    // Si la Columna F (índice 5) existe y no habíamos asignado priceIdx por nombre o el encabezado en índice 5 es Lista 1 / Precio / Minorista
-    if (headers.length > 5) {
-      const normF = normalizeHeaderString(headers[5]);
-      if (normF.includes('lista1') || normF.includes('minorista') || normF.includes('publico') || normF.includes('precio') || normF.includes('pvp') || normF.includes('p.venta') || normF === '') {
-        priceIdx = 5;
-      }
-    }
   }
 
   // Fallbacks posicionales por defecto si la primera fila no traía nombres explícitos

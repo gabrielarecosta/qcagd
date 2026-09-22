@@ -142,6 +142,9 @@ export default function TabsLayout() {
                       </View>
                     )}
                   </TouchableOpacity>
+                  <TouchableOpacity onPress={() => router.push('/(tabs)/listas' as any)} style={[desktopStyles.desktopNavLink, isActive('/listas') && desktopStyles.desktopNavLinkActive]}>
+                    <Text style={[desktopStyles.desktopNavText, isActive('/listas') && desktopStyles.desktopNavTextActive]}>Mis Listas</Text>
+                  </TouchableOpacity>
                 </>
               )}
               <TouchableOpacity onPress={() => router.push('/(tabs)/reparto')} style={[desktopStyles.desktopNavLink, isActive('/reparto') && desktopStyles.desktopNavLinkActive]}>
@@ -256,6 +259,7 @@ export default function TabsLayout() {
             <Tabs.Screen name="index" options={{ href: isRepartidor ? null : undefined }} />
             <Tabs.Screen name="catalogo" options={{ href: isRepartidor ? null : undefined }} />
             <Tabs.Screen name="carrito" options={{ href: isRepartidor ? null : undefined }} />
+            <Tabs.Screen name="listas" options={{ href: isRepartidor ? null : undefined }} />
             <Tabs.Screen name="reparto" />
             <Tabs.Screen name="cuenta" />
           </Tabs>
@@ -300,6 +304,12 @@ export default function TabsLayout() {
             tabBarIcon: ({ focused }) => (
               <CartIcon focused={focused} count={totalItems} />
             ),
+          }}
+        />
+        <Tabs.Screen
+          name="listas"
+          options={{
+            href: null, // Oculto del tab bar móvil, accesible desde Mi Cuenta
           }}
         />
         <Tabs.Screen

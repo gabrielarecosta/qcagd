@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -15,9 +15,12 @@ import { Radius, Spacing } from '../constants/Spacing';
 import { formatPrice } from '../utils/formatters';
 import { useCartStore } from '../store/cartStore';
 import { useAuthStore } from '../store/authStore';
+import { useListsStore } from '../store/listsStore';
+import { useNotificationStore } from '../store/useNotificationStore';
 import { CATEGORY_ICONS } from '../types';
 import MaterialCommunityIcons from './icons/MaterialCommunityIcons';
 import { useEntrance } from '../hooks/useEntrance';
+import { AddToListModal } from './ui/AddToListModal';
 
 interface ProductCardProps {
   product: Product;
@@ -29,6 +32,10 @@ interface ProductCardProps {
 export function ProductCard({ product, style, onPress, delay = 0 }: ProductCardProps) {
   const { isLoggedIn } = useAuthStore();
   const { addProduct, getItemQuantity, updateQuantity } = useCartStore();
+  const isProductInAnyList = useListsStore((state) => state.isProductInAnyList);
+  const inAnyList = isProductInAnyList(product.id);
+  const [showListModal, setShowListModal] = useState(false);
+
   const quantity = getItemQuantity(product.id);
   const icon = CATEGORY_ICONS[product.categoria];
   const isInCart = quantity > 0;
@@ -52,6 +59,32 @@ export function ProductCard({ product, style, onPress, delay = 0 }: ProductCardP
           ) : (
             <MaterialCommunityIcons name={icon as any} size={44} color={Colors.primary} />
           )}
+
+          {/* Botón Guardar en Mis Listas */}
+          <TouchableOpacity
+            style={[styles.listBookmarkBtn, inAnyList && styles.listBookmarkBtnActive]}
+            onPress={(e) => {
+              e.stopPropagation();
+              if (!isLoggedIn) {
+                useNotificationStore.getState().showToast({
+                  message: 'Iniciá sesión para guardar productos en tus listas.',
+                  type: 'warning',
+                });
+                return;
+              }
+              setShowListModal(true);
+            }}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            activeOpacity={0.78}
+            accessibilityLabel="Guardar en mis listas"
+          >
+            <MaterialCommunityIcons
+              name={inAnyList ? 'bookmark' : 'bookmark-outline'}
+              size={18}
+              color={inAnyList ? Colors.primary : '#64748B'}
+            />
+          </TouchableOpacity>
+
           {/* Indicador de cantidad en carrito */}
           {isInCart && (
             <View style={styles.cartBadge}>
@@ -136,6 +169,12 @@ export function ProductCard({ product, style, onPress, delay = 0 }: ProductCardP
           </View>
         </View>
       </TouchableOpacity>
+
+      <AddToListModal
+        visible={showListModal}
+        product={product}
+        onClose={() => setShowListModal(false)}
+      />
     </Animated.View>
   );
 }
@@ -203,6 +242,29 @@ const styles = StyleSheet.create({
     right: 0,
     height: 20,
     backgroundColor: 'rgba(255,255,255,0.25)',
+  },
+  listBookmarkBtn: {
+    position: 'absolute',
+    top: 8,
+    left: 8,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: 'rgba(255, 255, 255, 0.92)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2,
+    zIndex: 10,
+  },
+  listBookmarkBtnActive: {
+    backgroundColor: '#EFF6FF',
+    borderColor: Colors.primary,
   },
   cartBadge: {
     position: 'absolute',

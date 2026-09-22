@@ -31,6 +31,8 @@ import { branchService } from '@shared/services/branchService';
 import { Branch } from '@shared/types/branch';
 import { geocodeAddress, getLocalityCenter } from '@shared/utils/geo';
 import { triggerPwaInstallModal } from '../PwaInstallBanner';
+import { MisListasScreen } from './MisListasScreen';
+import { useListsStore } from '../../store/listsStore';
 
 
 function InfoRow({ label, value }: { label: string; value: string }) {
@@ -83,6 +85,14 @@ export function ClienteAccountScreen() {
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
   const [deliveryMethodFilter, setDeliveryMethodFilter] = useState<'all' | 'reparto' | 'retiro' | 'whatsapp'>('all');
   const [statusFilter, setStatusFilter] = useState<'all' | 'preparacion' | 'en_camino' | 'entregado' | 'cancelado'>('all');
+  const [showMisListas, setShowMisListas] = useState(false);
+  const { lists, fetchLists } = useListsStore();
+
+  useEffect(() => {
+    if (clientData) {
+      fetchLists();
+    }
+  }, [clientData]);
 
   // Coordenadas y mapa para agregar dirección
   const mapContainerRef = useRef<HTMLDivElement>(null);
@@ -521,6 +531,14 @@ export function ClienteAccountScreen() {
     .join('')
     .toUpperCase();
 
+  if (showMisListas) {
+    return (
+      <View style={{ flex: 1, backgroundColor: Colors.background }}>
+        <MisListasScreen onBackToAccount={() => setShowMisListas(false)} />
+      </View>
+    );
+  }
+
   return (
     <ScrollView style={styles.scrollView} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
       {/* Header Perfil */}
@@ -643,6 +661,52 @@ export function ClienteAccountScreen() {
           </TouchableOpacity>
         </View>
       )}
+
+      {/* Mis Listas */}
+      <View style={styles.card}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.cardTitle}>Mis Listas</Text>
+            <Text style={styles.cardDesc}>
+              Listas de productos favoritos y compras habituales.
+            </Text>
+          </View>
+          {lists.length > 0 && (
+            <View style={{ backgroundColor: Colors.primaryLight, paddingHorizontal: 10, paddingVertical: 4, borderRadius: Radius.full }}>
+              <Text style={{ fontSize: 12, fontWeight: '700', color: Colors.primary }}>
+                {lists.length} {lists.length === 1 ? 'lista' : 'listas'}
+              </Text>
+            </View>
+          )}
+        </View>
+
+        <TouchableOpacity
+          style={{
+            backgroundColor: '#eff6ff',
+            borderRadius: 12,
+            paddingVertical: 12,
+            paddingHorizontal: 14,
+            borderWidth: 1,
+            borderColor: '#bfdbfe',
+            marginTop: 10,
+            flexDirection: 'row',
+            alignItems: 'center',
+          }}
+          onPress={() => setShowMisListas(true)}
+          activeOpacity={0.8}
+        >
+          <Text style={{ fontSize: 22, marginRight: 12 }}>📋</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 14, fontWeight: '700', color: Colors.primary }}>
+              Ver y Gestionar Mis Listas
+            </Text>
+            <Text style={{ fontSize: 11.5, color: Colors.textSecondary, marginTop: 2 }}>
+              Armá tus compras frecuentes y agregalas al carrito en 1-click.
+            </Text>
+          </View>
+          <Text style={{ fontSize: 18, color: Colors.primary, fontWeight: 'bold', marginLeft: 8 }}>›</Text>
+        </TouchableOpacity>
+      </View>
 
       {/* Direcciones de Entrega */}
       <View style={styles.card}>
