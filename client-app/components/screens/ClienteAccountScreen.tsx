@@ -86,13 +86,7 @@ export function ClienteAccountScreen() {
   const [deliveryMethodFilter, setDeliveryMethodFilter] = useState<'all' | 'reparto' | 'retiro' | 'whatsapp'>('all');
   const [statusFilter, setStatusFilter] = useState<'all' | 'preparacion' | 'en_camino' | 'entregado' | 'cancelado'>('all');
   const [showMisListas, setShowMisListas] = useState(false);
-  const { lists, fetchLists } = useListsStore();
-
-  useEffect(() => {
-    if (clientData) {
-      fetchLists();
-    }
-  }, [clientData]);
+  const { lists } = useListsStore();
 
   // Coordenadas y mapa para agregar dirección
   const mapContainerRef = useRef<HTMLDivElement>(null);

@@ -61,9 +61,7 @@ export function MisListasScreen({ onBackToAccount }: MisListasScreenProps) {
   const [showMultiListModal, setShowMultiListModal] = useState(false);
 
   useEffect(() => {
-    if (isLoggedIn) {
-      fetchLists();
-    }
+    fetchLists();
   }, [isLoggedIn]);
 
   const handleRefresh = async () => {
@@ -337,10 +335,19 @@ export function MisListasScreen({ onBackToAccount }: MisListasScreenProps) {
           <Text style={styles.sectionHeaderTitle}>Tus Listas ({lists.length})</Text>
         </View>
 
-        {isLoading && lists.length === 0 ? (
+        {!isLoggedIn ? (
+          <View style={styles.notLoggedInCard}>
+            <MaterialCommunityIcons name="account-lock-outline" size={48} color={Colors.primary} />
+            <Text style={styles.notLoggedInTitle}>Iniciá sesión para ver tus listas</Text>
+            <Text style={styles.notLoggedInSub}>
+              Tus listas personalizadas están guardadas en tu cuenta para acceder desde cualquier dispositivo.
+            </Text>
+          </View>
+        ) : isLoading ? (
           <View style={styles.loadingBox}>
             <ActivityIndicator size="large" color={Colors.primary} />
             <Text style={styles.loadingText}>Cargando tus listas...</Text>
+            <Text style={styles.loadingSubtext}>Obteniendo datos actualizados desde el servidor</Text>
           </View>
         ) : lists.length === 0 ? (
           <View style={styles.emptyCard}>
@@ -789,12 +796,45 @@ const styles = StyleSheet.create({
   },
   loadingBox: {
     paddingVertical: 48,
+    paddingHorizontal: 20,
     alignItems: 'center',
-    gap: 12,
+    justifyContent: 'center',
+    backgroundColor: Colors.white,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    gap: 10,
+    marginTop: 8,
   },
   loadingText: {
+    fontSize: FontSize.md,
+    fontWeight: FontWeight.bold,
+    color: Colors.textPrimary,
+  },
+  loadingSubtext: {
     fontSize: FontSize.sm,
     color: Colors.textSecondary,
+    textAlign: 'center',
+  },
+  notLoggedInCard: {
+    backgroundColor: Colors.white,
+    borderRadius: Radius.lg,
+    padding: Spacing.xxl,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: Colors.border,
+    gap: 10,
+    marginTop: 8,
+  },
+  notLoggedInTitle: {
+    fontSize: FontSize.md,
+    fontWeight: FontWeight.bold,
+    color: Colors.textPrimary,
+  },
+  notLoggedInSub: {
+    fontSize: FontSize.sm,
+    color: Colors.textSecondary,
+    textAlign: 'center',
   },
   emptyCard: {
     backgroundColor: Colors.white,

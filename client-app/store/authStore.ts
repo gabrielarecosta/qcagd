@@ -60,7 +60,7 @@ export const useAuthStore = create<AuthState>()(
           clientData: client,
           repartidorData: null,
         });
-        // Cargar el carrito guardado del usuario desde Supabase DB
+        // Cargar el carrito del usuario desde Supabase DB
         try {
           const { useCartStore } = require('./cartStore');
           if (client?.id) {
@@ -271,6 +271,10 @@ export const useAuthStore = create<AuthState>()(
           const { useCartStore } = require('./cartStore');
           useCartStore.setState({ items: [] });
         } catch (_) {}
+        try {
+          const { useListsStore } = require('./listsStore');
+          useListsStore.setState({ lists: [], activeListId: null, isLoading: false });
+        } catch (_) {}
         set({
           isLoggedIn: false,
           userRole: null,
@@ -282,6 +286,14 @@ export const useAuthStore = create<AuthState>()(
     {
       name: 'auth-storage',
       storage: createJSONStorage(() => safeStorage),
+      onRehydrateStorage: () => (state) => {
+        if (state?.isLoggedIn && state?.clientData?.id) {
+          try {
+            const { useCartStore } = require('./cartStore');
+            useCartStore.getState().loadCartForUser(String(state.clientData.id));
+          } catch (_) {}
+        }
+      },
     }
   )
 );

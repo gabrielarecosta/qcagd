@@ -20,11 +20,14 @@ export interface UserList {
 
 export const listService = {
   /**
-   * Trae todas las listas del usuario, con sus items incluidos.
+   * Trae todas las listas del usuario (o array de identificadores posibles), con sus items incluidos.
    */
-  getUserLists: async (userId: string): Promise<UserList[]> => {
+  getUserLists: async (userIdOrIds: string | string[]): Promise<UserList[]> => {
     try {
-      const { data, error } = await supabase
+      const ids = Array.isArray(userIdOrIds) ? userIdOrIds.map(String).filter(Boolean) : [String(userIdOrIds)];
+      if (ids.length === 0) return [];
+
+      let query = supabase
         .from('user_lists')
         .select(`
           id, user_id, nombre, descripcion, created_at, updated_at,
@@ -32,9 +35,15 @@ export const listService = {
             id, list_id, product_id, created_at,
             products (id, codigo, nombre, descripcion, presentacion, precio, unidad, categoria, subcategoria, stock, imagen, destacado, activo, marca)
           )
-        `)
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false });
+        `);
+
+      if (ids.length === 1) {
+        query = query.eq('user_id', ids[0]);
+      } else {
+        query = query.in('user_id', ids);
+      }
+
+      const { data, error } = await query.order('created_at', { ascending: false });
 
       if (error) {
         if (error.code === 'PGRST204' || error.message?.includes('does not exist')) {

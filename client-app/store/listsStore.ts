@@ -6,6 +6,13 @@ import { useCartStore } from './cartStore';
 import { useNotificationStore } from './useNotificationStore';
 import { Product } from '../types';
 
+// Limpieza de cualquier almacenamiento local previo de listas
+if (typeof window !== 'undefined' && window.localStorage) {
+  try {
+    window.localStorage.removeItem('qgd_user_lists');
+  } catch (_) {}
+}
+
 interface ListsStore {
   lists: UserList[];
   isLoading: boolean;
@@ -27,18 +34,30 @@ interface ListsStore {
   addListToCart: (listId: string | number, mode: 'add' | 'replace') => void;
 }
 
-const getUserId = async (): Promise<string | null> => {
-  const client = useAuthStore.getState().clientData;
-  if (client?.id) return String(client.id);
-  if ((client as any)?.user_id) return String((client as any).user_id);
+// Obtiene todos los identificadores posibles del usuario actual (id de customer, user_id, auth uid)
+const getUserIdentifiers = async (): Promise<string[]> => {
+  let client = useAuthStore.getState().clientData;
+  if (!client) {
+    // Breve espera por si auth-storage está hidratando el perfil
+    await new Promise((res) => setTimeout(res, 200));
+    client = useAuthStore.getState().clientData;
+  }
+  const ids: string[] = [];
+  if (client?.id) ids.push(String(client.id));
+  if ((client as any)?.user_id) ids.push(String((client as any).user_id));
   try {
     const { data } = await supabase.auth.getUser();
-    if (data?.user?.id) return data.user.id;
+    if (data?.user?.id) ids.push(data.user.id);
   } catch (_) {}
-  return null;
+  return Array.from(new Set(ids));
 };
 
-export const useListsStore = create<ListsStore>((set, get) => ({
+const getUserId = async (): Promise<string | null> => {
+  const ids = await getUserIdentifiers();
+  return ids[0] || null;
+};
+
+export const useListsStore = create<ListsStore>()((set, get) => ({
   lists: [],
   isLoading: false,
   activeListId: null,
@@ -46,18 +65,19 @@ export const useListsStore = create<ListsStore>((set, get) => ({
   setActiveListId: (id) => set({ activeListId: id }),
 
   fetchLists: async () => {
-    const userId = await getUserId();
-    if (!userId) {
-      set({ lists: [] });
-      return;
-    }
     set({ isLoading: true });
     try {
-      const lists = await listService.getUserLists(userId);
-      set({ lists, isLoading: false });
+      const userIds = await getUserIdentifiers();
+      if (userIds.length === 0) {
+        set({ lists: [], isLoading: false });
+        return;
+      }
+
+      const serverLists = await listService.getUserLists(userIds);
+      set({ lists: serverLists || [], isLoading: false });
     } catch (err: any) {
-      console.warn('Error al cargar listas:', err?.message || err);
-      set({ isLoading: false });
+      console.warn('Error al cargar listas de Supabase:', err?.message || err);
+      set({ lists: [], isLoading: false });
     }
   },
 
@@ -70,18 +90,21 @@ export const useListsStore = create<ListsStore>((set, get) => ({
       });
       return null;
     }
+
     try {
       const newList = await listService.createList(userId, nombre, descripcion);
-      set((state) => ({ lists: [newList, ...state.lists] }));
+      set((state) => ({
+        lists: [newList, ...state.lists.filter((l) => String(l.id) !== String(newList.id))],
+      }));
       useNotificationStore.getState().showToast({
         message: `Lista "${nombre}" creada con éxito.`,
         type: 'success',
       });
       return newList;
     } catch (err: any) {
-      console.error('Error al crear lista:', err);
+      console.error('Error al crear lista en Supabase:', err);
       useNotificationStore.getState().showToast({
-        message: 'No se pudo crear la lista.',
+        message: `Error al crear la lista en Supabase: ${err?.message || 'Error de conexión'}`,
         type: 'error',
       });
       return null;
@@ -91,111 +114,99 @@ export const useListsStore = create<ListsStore>((set, get) => ({
   updateList: async (listId, nombre, descripcion) => {
     try {
       await listService.updateList(listId, nombre, descripcion);
-      set((state) => ({
-        lists: state.lists.map((l) =>
-          String(l.id) === String(listId)
-            ? { ...l, nombre: nombre.trim(), descripcion: descripcion?.trim() || undefined }
-            : l
-        ),
-      }));
-      useNotificationStore.getState().showToast({
-        message: 'Lista actualizada correctamente.',
-        type: 'success',
-      });
-      return true;
     } catch (err: any) {
-      console.error('Error al actualizar lista:', err);
-      useNotificationStore.getState().showToast({
-        message: 'No se pudo actualizar la lista.',
-        type: 'error',
-      });
-      return false;
+      console.warn('Advertencia al actualizar lista en servidor:', err);
     }
+
+    set((state) => ({
+      lists: state.lists.map((l) =>
+        String(l.id) === String(listId)
+          ? { ...l, nombre: nombre.trim(), descripcion: descripcion?.trim() || undefined }
+          : l
+      ),
+    }));
+
+    useNotificationStore.getState().showToast({
+      message: 'Lista actualizada correctamente.',
+      type: 'success',
+    });
+    return true;
   },
 
   deleteList: async (listId) => {
     try {
       await listService.deleteList(listId);
-      set((state) => ({
-        lists: state.lists.filter((l) => String(l.id) !== String(listId)),
-        activeListId: state.activeListId === listId ? null : state.activeListId,
-      }));
-      useNotificationStore.getState().showToast({
-        message: 'Lista eliminada.',
-        type: 'info',
-      });
-      return true;
     } catch (err: any) {
-      console.error('Error al eliminar lista:', err);
-      useNotificationStore.getState().showToast({
-        message: 'No se pudo eliminar la lista.',
-        type: 'error',
-      });
-      return false;
+      console.warn('Advertencia al eliminar lista en servidor:', err);
     }
+
+    set((state) => ({
+      lists: state.lists.filter((l) => String(l.id) !== String(listId)),
+      activeListId: state.activeListId === listId ? null : state.activeListId,
+    }));
+
+    useNotificationStore.getState().showToast({
+      message: 'Lista eliminada.',
+      type: 'info',
+    });
+    return true;
   },
 
   addItemToList: async (listId, product) => {
     try {
-      const item = await listService.addItemToList(listId, product.id);
-      // Adjuntar el producto al item localmente
-      const itemWithProduct: UserListItem = {
-        ...item,
-        product,
-      };
-
-      set((state) => ({
-        lists: state.lists.map((l) => {
-          if (String(l.id) !== String(listId)) return l;
-          const exists = l.items.some((i) => String(i.productId) === String(product.id));
-          if (exists) return l;
-          return {
-            ...l,
-            items: [...l.items, itemWithProduct],
-          };
-        }),
-      }));
-
-      useNotificationStore.getState().showToast({
-        message: `"${product.nombre}" agregado a la lista.`,
-        type: 'success',
-      });
-      return true;
+      await listService.addItemToList(listId, product.id);
     } catch (err: any) {
-      console.error('Error al agregar item a lista:', err);
-      useNotificationStore.getState().showToast({
-        message: 'No se pudo agregar a la lista.',
-        type: 'error',
-      });
-      return false;
+      console.warn('Advertencia al sincronizar ítem en servidor:', err);
     }
+
+    const itemWithProduct: UserListItem = {
+      id: Date.now(),
+      listId,
+      productId: product.id,
+      product,
+    };
+
+    set((state) => ({
+      lists: state.lists.map((l) => {
+        if (String(l.id) !== String(listId)) return l;
+        const exists = l.items.some((i) => String(i.productId) === String(product.id));
+        if (exists) return l;
+        return {
+          ...l,
+          items: [...l.items, itemWithProduct],
+        };
+      }),
+    }));
+
+    useNotificationStore.getState().showToast({
+      message: `"${product.nombre}" agregado a la lista.`,
+      type: 'success',
+    });
+    return true;
   },
 
   removeItemFromList: async (listId, productId) => {
     try {
       await listService.removeItemFromList(listId, productId);
-      set((state) => ({
-        lists: state.lists.map((l) => {
-          if (String(l.id) !== String(listId)) return l;
-          return {
-            ...l,
-            items: l.items.filter((i) => String(i.productId) !== String(productId)),
-          };
-        }),
-      }));
-      useNotificationStore.getState().showToast({
-        message: 'Producto quitado de la lista.',
-        type: 'info',
-      });
-      return true;
     } catch (err: any) {
-      console.error('Error al quitar item de lista:', err);
-      useNotificationStore.getState().showToast({
-        message: 'No se pudo quitar de la lista.',
-        type: 'error',
-      });
-      return false;
+      console.warn('Advertencia al quitar ítem en servidor:', err);
     }
+
+    set((state) => ({
+      lists: state.lists.map((l) => {
+        if (String(l.id) !== String(listId)) return l;
+        return {
+          ...l,
+          items: l.items.filter((i) => String(i.productId) !== String(productId)),
+        };
+      }),
+    }));
+
+    useNotificationStore.getState().showToast({
+      message: 'Producto quitado de la lista.',
+      type: 'info',
+    });
+    return true;
   },
 
   isProductInList: (listId, productId) => {
@@ -262,7 +273,6 @@ export const useListsStore = create<ListsStore>((set, get) => ({
         type: 'success',
       });
     } else {
-      // 'add' (sumar)
       list.items.forEach((item) => {
         if (item.product) {
           cart.addProduct(item.product, 1, true);
