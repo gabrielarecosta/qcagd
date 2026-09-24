@@ -26,6 +26,7 @@ import { OrderCard } from '../OrderCard';
 import { OrderDetailModal } from '../OrderDetailModal';
 import { ChangePasswordModal } from '../ChangePasswordModal';
 import { AppFooter } from '../AppFooter';
+import { APP_VERSION } from '../../constants/version';
 import { branchService } from '@shared/services/branchService';
 import { Branch } from '@shared/types/branch';
 import { geocodeAddress, getLocalityCenter } from '@shared/utils/geo';
@@ -1163,7 +1164,7 @@ export function ClienteAccountScreen() {
       </View>
 
       <View style={styles.versionContainer}>
-        <Text style={styles.versionText}>Química General Deheza · Cliente Final</Text>
+        <Text style={styles.versionText}>Química General Deheza · Cliente Final (v{APP_VERSION})</Text>
       </View>
 
       {/* Footer Legal & Ayuda */}

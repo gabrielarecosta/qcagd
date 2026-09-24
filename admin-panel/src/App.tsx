@@ -21,7 +21,8 @@ import { SystemAdminView } from './views/SystemAdminView';
 import { ResetPasswordView } from './views/ResetPasswordView';
 import { AdminPwaInstallBanner, triggerAdminPwaInstallModal } from './components/AdminPwaInstallBanner';
 import { ChangePasswordModal } from './components/ChangePasswordModal';
-import { VersionFooter } from './components/VersionFooter';
+import { AdminSidebarVersion } from './components/AdminSidebarVersion';
+import { APP_VERSION } from './config/version';
 
 
 type TabType = 
@@ -445,7 +446,9 @@ function App() {
         <div style={{ flex: 1 }}>
           <LoginView />
         </div>
-        <VersionFooter />
+        <div style={{ padding: '12px', textAlign: 'center', fontSize: '12px', color: '#64748b', borderTop: '1px solid #e2e8f0', backgroundColor: '#f8fafc' }}>
+          Química General Deheza · Panel de Administración (v{APP_VERSION})
+        </div>
       </div>
     );
   }
@@ -594,6 +597,9 @@ function App() {
             </button>
           </div>
         )}
+
+        {/* Control de Versiones en el Menú Desplegable / Sidebar abajo del todo */}
+        <AdminSidebarVersion collapsed={sidebarCollapsed} />
       </aside>
 
       {/* Main Panel Content Wrapper */}
@@ -957,9 +963,6 @@ function App() {
         <main className="view-content animate-fade-in" style={{ flex: 1, padding: '32px', overflowY: 'auto' }}>
           {renderActiveView()}
         </main>
-
-        {/* Footer con control de versiones y auto-actualización */}
-        <VersionFooter />
       </div>
 
       <AdminPwaInstallBanner />

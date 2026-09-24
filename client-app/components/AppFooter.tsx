@@ -17,6 +17,7 @@ import { FaqsModal } from './legal/FaqsModal';
 import { TermsModal } from './legal/TermsModal';
 import { ArrepentimientoModal } from './legal/ArrepentimientoModal';
 import { triggerPwaInstallModal } from './PwaInstallBanner';
+import { ClientVersionSection } from './ClientVersionSection';
 
 export function AppFooter() {
   const { width } = useWindowDimensions();
@@ -116,6 +117,11 @@ export function AppFooter() {
           </Text>
         </View>
 
+      </View>
+
+      {/* Control de Versiones y Auto-actualización */}
+      <View style={isDesktop ? { maxWidth: 1200, width: '100%', marginHorizontal: 'auto', paddingHorizontal: Spacing.xl } : { paddingHorizontal: Spacing.xl }}>
+        <ClientVersionSection />
       </View>
 
       {/* Barra de Copyright */}
