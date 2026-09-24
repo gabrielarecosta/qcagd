@@ -200,6 +200,62 @@ app.get('/health', (_req: Request, res: Response): void => {
   });
 });
 
+// GET /api/version - Información de versión para control de auto-actualización y caché
+app.get('/api/version', async (_req: Request, res: Response): Promise<void> => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+
+  const defaultVersionData = {
+    latest_version: '1.3.0',
+    history: [
+      {
+        version: '1.3.0',
+        fecha: '2026-09-23',
+        descripcion: 'Sistema de auto-actualización de caché, ingreso numérico de unidades en carrito y corrección de lista 1 de precios.',
+      },
+      {
+        version: '1.2.0',
+        fecha: '2026-09-20',
+        descripcion: 'Gestión multirramal de sucursales, listas de compras de clientes y panel de logística.',
+      },
+      {
+        version: '1.1.0',
+        fecha: '2026-09-15',
+        descripcion: 'Integración con Mercado Pago, trazado de rutas geográficas y perfiles de usuarios.',
+      },
+      {
+        version: '1.0.0',
+        fecha: '2026-09-01',
+        descripcion: 'Lanzamiento inicial de la plataforma web de clientes y administración.',
+      },
+    ],
+  };
+
+  try {
+    const { data: dbVersions, error } = await supabase
+      .from('system_versions')
+      .select('version, fecha, descripcion, created_at')
+      .order('created_at', { ascending: false });
+
+    if (!error && dbVersions && dbVersions.length > 0) {
+      res.status(200).json({
+        latest_version: dbVersions[0].version,
+        history: dbVersions.map((v) => ({
+          version: v.version,
+          fecha: v.fecha || (v.created_at ? v.created_at.split('T')[0] : '2026-09-23'),
+          descripcion: v.descripcion || '',
+        })),
+      });
+      return;
+    }
+  } catch {
+    // Si la tabla aún no existe o falla la conexión a Supabase, retornar fallback predeterminado
+  }
+
+  res.status(200).json(defaultVersionData);
+});
+
 // 1. GET /api/geocoding/autocomplete
 app.get('/api/geocoding/autocomplete', authMiddleware, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const { text } = req.query;

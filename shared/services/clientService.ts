@@ -41,14 +41,20 @@ export const clientService = {
     return (data || []).map(mapCustomer);
   },
 
-  getById: async (id: string): Promise<Customer | undefined> => {
-    const { data, error } = await supabase
-      .from('customers')
-      .select(CUSTOMER_COLUMNS)
-      .eq('id', id)
-      .is('deleted_at', null)
-      .maybeSingle();
-    if (error) throw error;
+  getById: async (id: string | number): Promise<Customer | undefined> => {
+    const strId = String(id).trim();
+    const isNum = /^\d+$/.test(strId);
+    let query = supabase.from('customers').select(CUSTOMER_COLUMNS).is('deleted_at', null);
+    if (isNum) {
+      query = query.eq('id', Number(strId));
+    } else {
+      query = query.eq('user_id', strId);
+    }
+    const { data, error } = await query.maybeSingle();
+    if (error) {
+      console.warn('Error en clientService.getById:', error.message);
+      return undefined;
+    }
     return data ? mapCustomer(data) : undefined;
   },
 
@@ -183,15 +189,24 @@ export const clientService = {
   },
 
 
-  delete: async (id: string, deletedBy?: string): Promise<boolean> => {
-    const { error } = await supabase
+  delete: async (id: string | number, deletedBy?: string): Promise<boolean> => {
+    const strId = String(id).trim();
+    const isNum = /^\d+$/.test(strId);
+    let query = supabase
       .from('customers')
       .update({
         deleted_at: new Date().toISOString(),
         deleted_by: deletedBy || 'admin',
         activo: false
-      })
-      .eq('id', id);
+      });
+
+    if (isNum) {
+      query = query.eq('id', Number(strId));
+    } else {
+      query = query.eq('user_id', strId);
+    }
+
+    const { error } = await query;
     if (error) throw error;
     return true;
   },
@@ -209,22 +224,25 @@ export const clientService = {
           .order('default_address', { ascending: false })
           .order('created_at', { ascending: true });
 
-        if (!error && data && data.length > 0) {
+        if (!error && data) {
           return data.map(mapAddress);
         }
       }
 
-      if (uuid) {
-        const { data, error } = await supabase
-          .from('customer_addresses')
-          .select('*')
-          .eq('customer_id', uuid)
-          .order('default_address', { ascending: false })
-          .order('created_at', { ascending: true });
+      // Solo si la columna en DB admitiera UUIDs (sin arrojar error si falla)
+      if (uuid && numericId === undefined) {
+        try {
+          const { data, error } = await supabase
+            .from('customer_addresses')
+            .select('*')
+            .eq('customer_id', uuid)
+            .order('default_address', { ascending: false })
+            .order('created_at', { ascending: true });
 
-        if (!error && data) {
-          return data.map(mapAddress);
-        }
+          if (!error && data) {
+            return data.map(mapAddress);
+          }
+        } catch (_) {}
       }
 
       return [];
@@ -346,14 +364,17 @@ const resolveCustomerDbId = async (customerId: string | number): Promise<{ numer
   }
   // Es un UUID
   try {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('customers')
       .select('id, user_id')
-      .or(`user_id.eq.${strId},id.eq.${strId}`)
+      .eq('user_id', strId)
       .maybeSingle();
 
-    if (data?.id && typeof data.id === 'number') {
-      return { numericId: data.id, uuid: strId };
+    if (!error && data?.id) {
+      const parsed = typeof data.id === 'number' ? data.id : parseInt(String(data.id), 10);
+      if (!isNaN(parsed)) {
+        return { numericId: parsed, uuid: strId };
+      }
     }
   } catch (_) {}
   return { uuid: strId };

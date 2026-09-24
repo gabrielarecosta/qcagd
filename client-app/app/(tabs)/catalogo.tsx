@@ -2,6 +2,7 @@ import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react'
 import {
   View,
   Text,
+  TextInput,
   FlatList,
   TouchableOpacity,
   StyleSheet,
@@ -89,6 +90,8 @@ export default function CatalogoScreen() {
   const [selectedCategory, setSelectedCategory] = useState<ProductCategory | 'todos'>('todos');
   const [sortBy, setSortBy] = useState<'relevante' | 'precio-bajo' | 'precio-alto' | 'mas-vendido'>('relevante');
   const [selectedProductDetails, setSelectedProductDetails] = useState<Product | null>(null);
+  const [modalQty, setModalQty] = useState(1);
+  const [modalQtyText, setModalQtyText] = useState('1');
   const [showFilterDropdown, setShowFilterDropdown] = useState(false);
 
   const PAGE_SIZE = 24;
@@ -318,7 +321,11 @@ export default function CatalogoScreen() {
       <ProductCard
         product={item}
         style={styles.productCard}
-        onPress={(p) => setSelectedProductDetails(p)}
+        onPress={(p) => {
+          setModalQty(1);
+          setModalQtyText('1');
+          setSelectedProductDetails(p);
+        }}
       />
     ),
     []
@@ -756,16 +763,81 @@ export default function CatalogoScreen() {
             {isLoggedIn && (
               <View style={styles.modalActionBar}>
                 {selectedProductDetails.precio && selectedProductDetails.precio > 0 ? (
-                  <TouchableOpacity
-                    style={styles.modalBuyButton}
-                    onPress={() => {
-                      addProduct(selectedProductDetails);
-                      setSelectedProductDetails(null);
-                    }}
-                  >
-                    <MaterialCommunityIcons name="cart-plus" size={22} color="#fff" style={{ marginRight: 8 }} />
-                    <Text style={styles.modalBuyButtonText}>Agregar al Pedido</Text>
-                  </TouchableOpacity>
+                  <>
+                    <View style={styles.modalQtyRow}>
+                      <Text style={styles.modalQtyLabel}>Cantidad a agregar:</Text>
+                      <View style={styles.modalQtyControls}>
+                        <TouchableOpacity
+                          style={styles.modalQtyBtn}
+                          onPress={() => {
+                            const next = Math.max(1, modalQty - 1);
+                            setModalQty(next);
+                            setModalQtyText(String(next));
+                          }}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                          accessibilityLabel="Disminuir cantidad"
+                        >
+                          <Text style={styles.modalQtyBtnText}>−</Text>
+                        </TouchableOpacity>
+
+                        <TextInput
+                          style={styles.modalQtyInput}
+                          value={modalQtyText}
+                          onChangeText={(text) => {
+                            const cleaned = text.replace(/[^0-9]/g, '');
+                            setModalQtyText(cleaned);
+                            const parsed = parseInt(cleaned, 10);
+                            if (!isNaN(parsed) && parsed > 0) {
+                              setModalQty(parsed);
+                            }
+                          }}
+                          onBlur={() => {
+                            const parsed = parseInt(modalQtyText, 10);
+                            if (isNaN(parsed) || parsed <= 0) {
+                              setModalQty(1);
+                              setModalQtyText('1');
+                            } else {
+                              setModalQty(parsed);
+                              setModalQtyText(String(parsed));
+                            }
+                          }}
+                          keyboardType="numeric"
+                          selectTextOnFocus
+                          returnKeyType="done"
+                          maxLength={5}
+                        />
+
+                        <TouchableOpacity
+                          style={[styles.modalQtyBtn, styles.modalQtyBtnAdd]}
+                          onPress={() => {
+                            const next = modalQty + 1;
+                            setModalQty(next);
+                            setModalQtyText(String(next));
+                          }}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                          accessibilityLabel="Aumentar cantidad"
+                        >
+                          <Text style={[styles.modalQtyBtnText, styles.modalQtyBtnAddText]}>+</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+
+                    <TouchableOpacity
+                      style={styles.modalBuyButton}
+                      onPress={() => {
+                        const parsed = parseInt(modalQtyText, 10);
+                        const finalQty = (!isNaN(parsed) && parsed > 0) ? parsed : modalQty;
+                        addProduct(selectedProductDetails, finalQty);
+                        setSelectedProductDetails(null);
+                      }}
+                    >
+                      <MaterialCommunityIcons name="cart-plus" size={22} color="#fff" style={{ marginRight: 8 }} />
+                      <Text style={styles.modalBuyButtonText}>
+                        Agregar {modalQty > 1 ? `${modalQty} al Pedido` : 'al Pedido'}
+                        {selectedProductDetails.precio ? ` · ${formatPrice(selectedProductDetails.precio * modalQty)}` : ''}
+                      </Text>
+                    </TouchableOpacity>
+                  </>
                 ) : (
                   <View style={[styles.modalBuyButton, { backgroundColor: '#e2e8f0' }]}>
                     <MaterialCommunityIcons name="tag-off-outline" size={20} color="#94a3b8" style={{ marginRight: 8 }} />
@@ -1472,6 +1544,57 @@ const styles = StyleSheet.create({
     padding: Spacing.lg,
     borderTopWidth: 1,
     borderTopColor: '#f1f5f9',
+    backgroundColor: '#f8fafc',
+  },
+  modalQtyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: Spacing.md,
+  },
+  modalQtyLabel: {
+    fontSize: FontSize.md,
+    fontWeight: FontWeight.semibold,
+    color: Colors.textPrimary,
+  },
+  modalQtyControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: Radius.md,
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: Colors.primary,
+    backgroundColor: '#fff',
+  },
+  modalQtyBtn: {
+    width: 42,
+    height: 42,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: Colors.white,
+  },
+  modalQtyBtnAdd: {
+    backgroundColor: Colors.primary,
+  },
+  modalQtyBtnText: {
+    fontSize: FontSize.xl,
+    fontWeight: FontWeight.bold,
+    color: Colors.primary,
+    lineHeight: 26,
+  },
+  modalQtyBtnAddText: {
+    color: Colors.white,
+  },
+  modalQtyInput: {
+    fontSize: FontSize.lg,
+    fontWeight: FontWeight.bold,
+    color: Colors.primary,
+    minWidth: 54,
+    maxWidth: 90,
+    height: 42,
+    textAlign: 'center',
+    paddingVertical: 2,
+    paddingHorizontal: 6,
     backgroundColor: '#f8fafc',
   },
   modalBuyButton: {

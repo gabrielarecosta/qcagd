@@ -21,6 +21,7 @@ import { SystemAdminView } from './views/SystemAdminView';
 import { ResetPasswordView } from './views/ResetPasswordView';
 import { AdminPwaInstallBanner, triggerAdminPwaInstallModal } from './components/AdminPwaInstallBanner';
 import { ChangePasswordModal } from './components/ChangePasswordModal';
+import { VersionFooter } from './components/VersionFooter';
 
 
 type TabType = 
@@ -439,7 +440,14 @@ function App() {
   const activeUser = currentUser || (isAutoLogin ? { id: '1', nombre: 'Administrador General', email: 'admin@quimicadeheza.com', rol: 'admin', activo: true } : null);
 
   if (!activeUser) {
-    return <LoginView />;
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', width: '100%' }}>
+        <div style={{ flex: 1 }}>
+          <LoginView />
+        </div>
+        <VersionFooter />
+      </div>
+    );
   }
 
   return (
@@ -949,6 +957,9 @@ function App() {
         <main className="view-content animate-fade-in" style={{ flex: 1, padding: '32px', overflowY: 'auto' }}>
           {renderActiveView()}
         </main>
+
+        {/* Footer con control de versiones y auto-actualización */}
+        <VersionFooter />
       </div>
 
       <AdminPwaInstallBanner />

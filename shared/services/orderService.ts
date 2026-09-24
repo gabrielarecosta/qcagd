@@ -129,11 +129,14 @@ export const orderService = {
     let custObj: any = undefined;
     if (o.cliente_id) {
       try {
-        const { data: cData } = await supabase
-          .from('customers')
-          .select('*')
-          .or(`id.eq.${o.cliente_id},user_id.eq.${o.cliente_id}`)
-          .maybeSingle();
+        const isNum = /^\d+$/.test(String(o.cliente_id).trim());
+        let custQuery = supabase.from('customers').select('*');
+        if (isNum) {
+          custQuery = custQuery.eq('id', Number(o.cliente_id));
+        } else {
+          custQuery = custQuery.eq('user_id', String(o.cliente_id).trim());
+        }
+        const { data: cData } = await custQuery.maybeSingle();
         custObj = cData;
       } catch (_) {}
     }

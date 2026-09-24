@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
+  TextInput,
   TouchableOpacity,
   StyleSheet,
   ViewStyle,
@@ -40,6 +41,43 @@ export function ProductCard({ product, style, onPress, delay = 0 }: ProductCardP
   const icon = CATEGORY_ICONS[product.categoria];
   const isInCart = quantity > 0;
   const { animatedStyle } = useEntrance({ delay });
+
+  const [inputVal, setInputVal] = useState(String(quantity));
+
+  useEffect(() => {
+    setInputVal(String(quantity));
+  }, [quantity]);
+
+  const commitQty = () => {
+    const parsed = parseInt(inputVal, 10);
+    if (isNaN(parsed) || parsed <= 0) {
+      if (parsed === 0) {
+        updateQuantity(product.id, 0);
+      } else {
+        setInputVal(String(quantity));
+      }
+    } else if (parsed !== quantity) {
+      updateQuantity(product.id, parsed);
+    }
+  };
+
+  const handleIncrease = () => {
+    const current = parseInt(inputVal, 10);
+    const nextVal = (isNaN(current) ? quantity : current) + 1;
+    setInputVal(String(nextVal));
+    updateQuantity(product.id, nextVal);
+  };
+
+  const handleDecrease = () => {
+    const current = parseInt(inputVal, 10);
+    const nextVal = (isNaN(current) ? quantity : current) - 1;
+    if (nextVal <= 0) {
+      updateQuantity(product.id, 0);
+    } else {
+      setInputVal(String(nextVal));
+      updateQuantity(product.id, nextVal);
+    }
+  };
 
   return (
     <Animated.View style={[animatedStyle, styles.wrapper]}>
@@ -138,21 +176,34 @@ export function ProductCard({ product, style, onPress, delay = 0 }: ProductCardP
                     <Text style={styles.addButtonText}>+ Agregar</Text>
                   </TouchableOpacity>
                 ) : (
-                  <View style={styles.quantityControl}>
+                  <View style={styles.quantityControl} onStartShouldSetResponder={() => true}>
                     <TouchableOpacity
                       style={styles.qtyButton}
-                      onPress={() => updateQuantity(product.id, quantity - 1)}
+                      onPress={handleDecrease}
                       hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                       accessibilityLabel="Quitar uno"
                     >
                       <Text style={styles.qtyButtonText}>−</Text>
                     </TouchableOpacity>
 
-                    <Text style={styles.qtyText}>{quantity}</Text>
+                    <TextInput
+                      style={styles.qtyInput}
+                      value={inputVal}
+                      onChangeText={(text) => {
+                        const cleaned = text.replace(/[^0-9]/g, '');
+                        setInputVal(cleaned);
+                      }}
+                      onBlur={commitQty}
+                      onSubmitEditing={commitQty}
+                      keyboardType="numeric"
+                      selectTextOnFocus
+                      returnKeyType="done"
+                      maxLength={5}
+                    />
 
                     <TouchableOpacity
                       style={[styles.qtyButton, styles.qtyButtonAdd]}
-                      onPress={() => addProduct(product)}
+                      onPress={handleIncrease}
                       hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                       accessibilityLabel="Agregar uno más"
                     >
@@ -380,12 +431,17 @@ const styles = StyleSheet.create({
   qtyButtonAddText: {
     color: Colors.white,
   },
-  qtyText: {
+  qtyInput: {
     fontSize: FontSize.md,
     fontWeight: FontWeight.bold,
     color: Colors.primary,
-    minWidth: 28,
+    minWidth: 38,
+    maxWidth: 60,
+    height: 36,
     textAlign: 'center',
+    paddingVertical: 2,
+    paddingHorizontal: 4,
+    backgroundColor: '#F8FAFC',
   },
   // Sin precio
   sinPrecio: {

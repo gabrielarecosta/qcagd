@@ -9,3 +9,4 @@ export * from './branch';
 export * from './schedule';
 export * from './notification';
 export * from './report';
+export * from './version';

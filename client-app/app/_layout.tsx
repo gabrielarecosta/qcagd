@@ -11,6 +11,7 @@ import { useAuthStore } from '../store/authStore';
 import { useClientRealtimeNotifications } from '../hooks/useClientRealtimeNotifications';
 import { customAlert } from '../utils/alert';
 import { useFonts } from 'expo-font';
+import { versionService } from '@shared/services/versionService';
 
 export default function RootLayout() {
   useClientRealtimeNotifications();
@@ -61,7 +62,26 @@ export default function RootLayout() {
   }, [isLoggedIn, logout, setSessionExpired]);
 
   useEffect(() => {
-    if (Platform.OS !== 'web' || !('serviceWorker' in navigator)) return;
+    if (Platform.OS !== 'web') return;
+
+    // Comprobación proactiva de versión para clientes web
+    versionService.fetchVersionInfo().then((info) => {
+      const CLIENT_APP_VERSION = '1.3.0';
+      if (versionService.isNewerOrDifferent(info.latest_version, CLIENT_APP_VERSION)) {
+        useNotificationStore.getState().showToast({
+          message: `Nueva versión disponible (v${info.latest_version}). Click para actualizar.`,
+          type: 'info',
+          actionLabel: 'Actualizar',
+          onAction: () => {
+            versionService.clearCacheAndReload(info.latest_version, true);
+          },
+        });
+      } else {
+        versionService.cleanFlushParamIfMatched(CLIENT_APP_VERSION, info.latest_version);
+      }
+    }).catch(() => {});
+
+    if (!('serviceWorker' in navigator)) return;
 
     // Registrar Service Worker y monitorear actualizaciones
     navigator.serviceWorker.register('/sw.js').then((registration) => {
@@ -76,8 +96,8 @@ export default function RootLayout() {
               type: 'info',
               actionLabel: 'Actualizar',
               onAction: () => {
-                window.location.reload();
-              }
+                versionService.clearCacheAndReload('latest', true);
+              },
             });
           }
         });

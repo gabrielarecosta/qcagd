@@ -236,4 +236,20 @@ describe('API Server - Geolocated Routing & Optimization Tests', () => {
       expect(res.body.geojson.type).toBe('Feature');
     });
   });
+
+  describe('GET /api/version', () => {
+    it('debe devolver la versión más reciente y el historial con cabeceras anti-caché', async () => {
+      const res = await request(app).get('/api/version');
+
+      expect(res.status).toBe(200);
+      expect(res.headers['cache-control']).toContain('no-store');
+      expect(res.body).toHaveProperty('latest_version');
+      expect(res.body).toHaveProperty('history');
+      expect(Array.isArray(res.body.history)).toBe(true);
+      expect(res.body.history.length).toBeGreaterThan(0);
+      expect(res.body.history[0]).toHaveProperty('version');
+      expect(res.body.history[0]).toHaveProperty('fecha');
+      expect(res.body.history[0]).toHaveProperty('descripcion');
+    });
+  });
 });

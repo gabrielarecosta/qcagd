@@ -18,4 +18,5 @@ export * from './localidadService';
 export * from './branchLocalidadService';
 export * from './processLogService';
 export * from './cartService';
+export * from './versionService';
 

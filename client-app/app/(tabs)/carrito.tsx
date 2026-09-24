@@ -747,6 +747,7 @@ export default function CarritoScreen() {
                 onIncrease={() => updateQuantity(item.producto.id, item.cantidad + 1)}
                 onDecrease={() => updateQuantity(item.producto.id, item.cantidad - 1)}
                 onRemove={() => removeProduct(item.producto.id)}
+                onSetQuantity={(qty) => updateQuantity(item.producto.id, qty)}
               />
             ))}
           </View>
@@ -1438,15 +1439,60 @@ function CartItemRow({
   onIncrease,
   onDecrease,
   onRemove,
+  onSetQuantity,
 }: {
   item: CartItem;
   onIncrease: () => void;
   onDecrease: () => void;
   onRemove: () => void;
+  onSetQuantity?: (qty: number) => void;
 }) {
   const { producto, cantidad } = item;
   const promotions = useCartStore((state) => state.promotions);
   const customerType = useAuthStore((state) => state.clientData?.tipoCliente || 'minorista');
+
+  const [inputVal, setInputVal] = useState(String(cantidad));
+
+  useEffect(() => {
+    setInputVal(String(cantidad));
+  }, [cantidad]);
+
+  const commitQty = () => {
+    const parsed = parseInt(inputVal, 10);
+    if (isNaN(parsed) || parsed <= 0) {
+      if (parsed === 0) {
+        onRemove();
+      } else {
+        setInputVal(String(cantidad));
+      }
+    } else if (parsed !== cantidad) {
+      if (onSetQuantity) {
+        onSetQuantity(parsed);
+      } else {
+        useCartStore.getState().updateQuantity(producto.id, parsed);
+      }
+    }
+  };
+
+  const handleIncrease = () => {
+    const current = parseInt(inputVal, 10);
+    const nextVal = (isNaN(current) ? cantidad : current) + 1;
+    setInputVal(String(nextVal));
+    if (onSetQuantity) onSetQuantity(nextVal);
+    else onIncrease();
+  };
+
+  const handleDecrease = () => {
+    const current = parseInt(inputVal, 10);
+    const nextVal = (isNaN(current) ? cantidad : current) - 1;
+    if (nextVal <= 0) {
+      onRemove();
+    } else {
+      setInputVal(String(nextVal));
+      if (onSetQuantity) onSetQuantity(nextVal);
+      else onDecrease();
+    }
+  };
 
   const calculation = offerService.calculateFinalPrice(
     producto,
@@ -1511,18 +1557,31 @@ function CartItemRow({
         <View style={rowStyles.quantityRow}>
           <TouchableOpacity
             style={rowStyles.qtyBtn}
-            onPress={cantidad === 1 ? onRemove : onDecrease}
+            onPress={handleDecrease}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             accessibilityLabel={cantidad === 1 ? 'Eliminar producto' : 'Disminuir cantidad'}
           >
             <Text style={rowStyles.qtyBtnText}>{cantidad === 1 ? '🗑' : '−'}</Text>
           </TouchableOpacity>
 
-          <Text style={rowStyles.qty}>{cantidad}</Text>
+          <TextInput
+            style={rowStyles.qtyInput}
+            value={inputVal}
+            onChangeText={(text) => {
+              const cleaned = text.replace(/[^0-9]/g, '');
+              setInputVal(cleaned);
+            }}
+            onBlur={commitQty}
+            onSubmitEditing={commitQty}
+            keyboardType="numeric"
+            selectTextOnFocus
+            returnKeyType="done"
+            maxLength={5}
+          />
 
           <TouchableOpacity
             style={[rowStyles.qtyBtn, rowStyles.qtyBtnAdd]}
-            onPress={onIncrease}
+            onPress={handleIncrease}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             accessibilityLabel="Aumentar cantidad"
           >
@@ -1628,12 +1687,17 @@ const rowStyles = StyleSheet.create({
   qtyBtnAddText: {
     color: Colors.white,
   },
-  qty: {
-    fontSize: FontSize.lg,
+  qtyInput: {
+    fontSize: FontSize.md,
     fontWeight: FontWeight.bold,
     color: Colors.textPrimary,
-    minWidth: 34,
+    minWidth: 44,
+    maxWidth: 68,
+    height: 42,
     textAlign: 'center',
+    paddingVertical: 2,
+    paddingHorizontal: 4,
+    backgroundColor: '#F8FAFC',
   },
 });
 
