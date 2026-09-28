@@ -31,6 +31,11 @@ export function UsersView() {
   const [editingUser, setEditingUser] = useState<InternalUser | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [deleteConfirmUser, setDeleteConfirmUser] = useState<{ id: string; nombre: string; step: 1 | 2 } | null>(null);
+  const [visiblePasswords, setVisiblePasswords] = useState<Record<string, boolean>>({});
+  const [copiedUserId, setCopiedUserId] = useState<string | null>(null);
+  const [quickPasswordUser, setQuickPasswordUser] = useState<InternalUser | null>(null);
+  const [quickPasswordValue, setQuickPasswordValue] = useState<string>('');
+  const [showFormPassword, setShowFormPassword] = useState<boolean>(false);
 
   // Form State
   const [formUser, setFormUser] = useState({
@@ -97,6 +102,7 @@ export function UsersView() {
 
   const handleOpenEdit = (u: InternalUser) => {
     setEditingUser(u);
+    setShowFormPassword(false);
     setFormUser({
       nombre: u.nombre,
       email: u.email,
@@ -104,7 +110,7 @@ export function UsersView() {
       branchId: u.branchId || '',
       telefono: u.telefono || '',
       activo: u.activo,
-      password: '',
+      password: u.passwordPlain || '',
       auto: u.auto || '',
       patente: u.patente || '',
       fotoUrl: u.fotoUrl || '',
@@ -114,6 +120,7 @@ export function UsersView() {
 
   const handleOpenCreate = () => {
     setIsCreating(true);
+    setShowFormPassword(false);
     const defaultBranch = activeBranchId !== 'all' ? activeBranchId : (branches[0]?.id || 1);
     setFormUser({
       nombre: '',
@@ -128,6 +135,21 @@ export function UsersView() {
       fotoUrl: '',
       dni: '',
     });
+  };
+
+  const handleQuickUpdatePassword = async (userId: string, newPass: string) => {
+    if (!newPass || newPass.trim().length < 6) {
+      alert('La contraseña debe tener al menos 6 caracteres.');
+      return;
+    }
+    try {
+      await userService.adminUpdateUserPassword(userId, newPass.trim());
+      await fetchUsersOnly();
+      setQuickPasswordUser(null);
+      alert('✅ Contraseña actualizada correctamente.');
+    } catch (err: any) {
+      alert('Error al actualizar contraseña: ' + (err.message || String(err)));
+    }
   };
 
   const handleSaveEdit = async (e: React.FormEvent) => {
@@ -190,20 +212,16 @@ export function UsersView() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-            <h1 className="page-title" style={{ margin: 0 }}>Roles y Permisos de Personal Complejos</h1>
-            <span style={{ backgroundColor: '#ef4444', color: '#ffffff', fontSize: '11px', fontWeight: 800, padding: '3px 8px', borderRadius: '6px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-              📌 MÓDULO ADICIONAL OPCIONAL (COTIZA APARTE)
-            </span>
+            <h1 className="page-title" style={{ margin: 0 }}>👥 Usuarios y Permisos de Personal</h1>
           </div>
-          <p className="page-desc" style={{ marginTop: '4px' }}>Administrar accesos de colaboradores, asignar roles operativos y sectorizar tareas</p>
+          <p className="page-desc" style={{ marginTop: '4px' }}>Administrar accesos de colaboradores, contraseñas de ingreso, asignar roles operativos y sectorizar tareas</p>
         </div>
         <button className="btn btn-primary" onClick={handleOpenCreate}>
           ➕ Registrar Colaborador
         </button>
       </div>
 
-      <ExtraModuleWrapper title="Módulo de Roles y Permisos Complejos" description="La gestión avanzada de roles y permisos con matriz de accesos sectorizados por sucursal se encuentra contemplada como módulo adicional opcional.">
-        {/* Filtros */}
+      {/* Filtros */}
       <div className="card-wrapper" style={{ marginBottom: '20px', padding: '16px' }}>
         <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
           <div style={{ flex: 1, minWidth: '250px' }}>
@@ -244,6 +262,7 @@ export function UsersView() {
                 <th>Rol Asignado</th>
                 <th>Sucursal de Base</th>
                 <th>Contacto</th>
+                <th>Contraseña</th>
                 <th>Estado</th>
                 <th className="text-right">Acciones</th>
               </tr>
@@ -269,6 +288,77 @@ export function UsersView() {
                   <td>{getBranchName(u.branchId)}</td>
                   <td>{u.telefono || '-'}</td>
                   <td>
+                    {u.passwordPlain ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ 
+                          fontFamily: visiblePasswords[u.id] ? 'monospace' : 'inherit', 
+                          fontSize: '13px', 
+                          fontWeight: visiblePasswords[u.id] ? '700' : 'normal',
+                          color: visiblePasswords[u.id] ? '#0f172a' : '#64748b',
+                          backgroundColor: '#f1f5f9',
+                          padding: '3px 8px',
+                          borderRadius: '6px'
+                        }}>
+                          {visiblePasswords[u.id] ? u.passwordPlain : '••••••••'}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setVisiblePasswords(prev => ({ ...prev, [u.id]: !prev[u.id] }))}
+                          title={visiblePasswords[u.id] ? 'Ocultar contraseña' : 'Ver contraseña'}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', fontSize: '14px' }}
+                        >
+                          {visiblePasswords[u.id] ? '🙈' : '👁️'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard.writeText(u.passwordPlain || '');
+                            setCopiedUserId(u.id);
+                            setTimeout(() => setCopiedUserId(null), 2000);
+                          }}
+                          title="Copiar contraseña al portapapeles"
+                          style={{
+                            background: 'none',
+                            border: '1px solid #cbd5e1',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            padding: '2px 6px',
+                            fontSize: '11px',
+                            color: copiedUserId === u.id ? '#16a34a' : '#475569',
+                            backgroundColor: copiedUserId === u.id ? '#f0fdf4' : '#ffffff'
+                          }}
+                        >
+                          {copiedUserId === u.id ? '✓ Copiada' : '📋'}
+                        </button>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ fontSize: '11px', color: '#ea580c', backgroundColor: '#fff7ed', padding: '2px 6px', borderRadius: '4px', fontWeight: '600' }}>
+                          Sin registrar
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setQuickPasswordUser(u);
+                            setQuickPasswordValue('');
+                          }}
+                          style={{
+                            padding: '2px 8px',
+                            fontSize: '11px',
+                            backgroundColor: '#eff6ff',
+                            color: '#2563eb',
+                            border: '1px solid #bfdbfe',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            fontWeight: '600'
+                          }}
+                        >
+                          🔑 Asignar
+                        </button>
+                      </div>
+                    )}
+                  </td>
+                  <td>
                     <span className={`badge ${u.activo ? 'badge-success' : 'badge-error'}`}>
                       {u.activo ? 'Activo' : 'Inactivo'}
                     </span>
@@ -289,7 +379,7 @@ export function UsersView() {
               ))}
               {filteredUsers.length === 0 && (
                 <tr>
-                  <td colSpan={7} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-disabled)' }}>
+                  <td colSpan={8} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-disabled)' }}>
                     No se encontraron colaboradores con los filtros aplicados.
                   </td>
                 </tr>
@@ -298,7 +388,6 @@ export function UsersView() {
           </table>
         </div>
       </div>
-      </ExtraModuleWrapper>
 
       {/* Modal Editar */}
       {editingUser && (
@@ -418,14 +507,28 @@ export function UsersView() {
                 )}
 
                 <div className="form-group" style={{ marginBottom: '16px' }}>
-                  <label className="form-label">Restablecer Contraseña (dejar vacío para mantener actual)</label>
-                  <input 
-                    type="password" 
-                    className="form-input" 
-                    placeholder="Escribí la nueva contraseña..."
-                    value={formUser.password || ''}
-                    onChange={e => setFormUser({ ...formUser, password: e.target.value })}
-                  />
+                  <label className="form-label">Contraseña de Acceso (visible para administradores)</label>
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <input 
+                      type={showFormPassword ? 'text' : 'password'} 
+                      className="form-input" 
+                      placeholder="Escribí la nueva contraseña..."
+                      value={formUser.password || ''}
+                      onChange={e => setFormUser({ ...formUser, password: e.target.value })}
+                      style={{ flex: 1 }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowFormPassword(!showFormPassword)}
+                      style={{ padding: '8px 12px', border: '1px solid #cbd5e1', borderRadius: '6px', background: '#f8fafc', cursor: 'pointer', fontSize: '14px' }}
+                      title={showFormPassword ? 'Ocultar contraseña' : 'Ver contraseña'}
+                    >
+                      {showFormPassword ? '🙈 Ocultar' : '👁️ Ver'}
+                    </button>
+                  </div>
+                  <span style={{ fontSize: '11px', color: '#64748b' }}>
+                    Dejar como está o modificar para actualizar la clave del colaborador.
+                  </span>
                 </div>
 
                 <div className="form-group">
@@ -571,14 +674,25 @@ export function UsersView() {
 
                 <div className="form-group" style={{ marginBottom: '16px' }}>
                   <label className="form-label">Contraseña de Ingreso *</label>
-                  <input 
-                    type="password" 
-                    className="form-input" 
-                    placeholder="Escribí la contraseña de ingreso..."
-                    value={formUser.password || ''}
-                    onChange={e => setFormUser({ ...formUser, password: e.target.value })}
-                    required
-                  />
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <input 
+                      type={showFormPassword ? 'text' : 'password'} 
+                      className="form-input" 
+                      placeholder="Escribí la contraseña de ingreso..."
+                      value={formUser.password || ''}
+                      onChange={e => setFormUser({ ...formUser, password: e.target.value })}
+                      required
+                      style={{ flex: 1 }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowFormPassword(!showFormPassword)}
+                      style={{ padding: '8px 12px', border: '1px solid #cbd5e1', borderRadius: '6px', background: '#f8fafc', cursor: 'pointer', fontSize: '14px' }}
+                      title={showFormPassword ? 'Ocultar contraseña' : 'Ver contraseña'}
+                    >
+                      {showFormPassword ? '🙈 Ocultar' : '👁️ Ver'}
+                    </button>
+                  </div>
                 </div>
 
               </div>
@@ -642,6 +756,57 @@ export function UsersView() {
                   Confirmar baja definitiva
                 </button>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Asignar/Cambiar Contraseña Rápida */}
+      {quickPasswordUser && (
+        <div className="modal-overlay" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0, 0, 0, 0.45)', zIndex: 99999 }}>
+          <div className="modal-content" style={{ backgroundColor: '#fff', borderRadius: '12px', width: '100%', maxWidth: '440px', padding: '24px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
+            <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e2e8f0', paddingBottom: '12px', marginBottom: '16px' }}>
+              <h3 className="card-title" style={{ margin: 0, fontSize: '18px', fontWeight: 'bold', color: '#0f172a' }}>
+                🔑 Asignar Clave a {quickPasswordUser.nombre}
+              </h3>
+              <button type="button" className="btn-close" onClick={() => setQuickPasswordUser(null)} style={{ border: 'none', background: 'none', fontSize: '18px', cursor: 'pointer', color: '#94a3b8' }}>✕</button>
+            </div>
+            <div className="modal-body" style={{ marginBottom: '20px' }}>
+              <p style={{ fontSize: '13px', color: '#64748b', marginTop: 0, marginBottom: '14px', lineHeight: '1.5' }}>
+                Podrás ver esta clave en cualquier momento en el panel para no tener que blanquearla nuevamente si el usuario la olvida.
+              </p>
+              <div className="form-group">
+                <label className="form-label" style={{ fontWeight: '600', fontSize: '13px', color: '#334155', marginBottom: '6px', display: 'block' }}>
+                  Nueva Contraseña:
+                </label>
+                <input
+                  type="text"
+                  className="form-input"
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '14px', boxSizing: 'border-box' }}
+                  value={quickPasswordValue}
+                  onChange={(e) => setQuickPasswordValue(e.target.value)}
+                  placeholder="Ej: deheza2026..."
+                  autoFocus
+                />
+              </div>
+            </div>
+            <div className="modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+              <button 
+                type="button" 
+                className="btn btn-secondary" 
+                style={{ padding: '8px 16px', borderRadius: '6px', border: '1px solid #cbd5e1', cursor: 'pointer', backgroundColor: '#fff', fontSize: '13px' }}
+                onClick={() => setQuickPasswordUser(null)}
+              >
+                Cancelar
+              </button>
+              <button 
+                type="button" 
+                className="btn btn-primary" 
+                style={{ padding: '8px 18px', borderRadius: '6px', border: 'none', backgroundColor: '#2563eb', color: '#fff', fontWeight: '600', cursor: 'pointer', fontSize: '13px' }}
+                onClick={() => handleQuickUpdatePassword(quickPasswordUser.id, quickPasswordValue)}
+              >
+                Guardar Clave
+              </button>
             </div>
           </div>
         </div>

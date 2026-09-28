@@ -16,6 +16,7 @@ export interface InternalUser {
   activo: boolean;
   telefono?: string;
   password?: string;
+  passwordPlain?: string;
   auto?: string;
   patente?: string;
   fotoUrl?: string;

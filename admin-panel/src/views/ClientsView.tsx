@@ -64,6 +64,13 @@ export function ClientsView({ initialSection = 'directorio' }: ClientsViewProps)
   const [newAddrIndicaciones, setNewAddrIndicaciones] = useState('');
   const [addingAddr, setAddingAddr] = useState(false);
 
+  // Estados para Contraseñas
+  const [visiblePasswords, setVisiblePasswords] = useState<Record<string | number, boolean>>({});
+  const [copiedClientId, setCopiedClientId] = useState<string | number | null>(null);
+  const [quickPasswordClient, setQuickPasswordClient] = useState<Customer | null>(null);
+  const [quickPasswordValue, setQuickPasswordValue] = useState<string>('');
+  const [showClientFormPassword, setShowClientFormPassword] = useState<boolean>(false);
+
   // Form State
   const [formClient, setFormClient] = useState<{
     nombre: string;
@@ -81,6 +88,7 @@ export function ClientsView({ initialSection = 'directorio' }: ClientsViewProps)
     ctaCteAutorizada: boolean;
     limiteCredito: number;
     mayoristaAutorizado: boolean;
+    passwordPlain?: string;
   }>({
     nombre: '',
     razonSocial: '',
@@ -95,6 +103,7 @@ export function ClientsView({ initialSection = 'directorio' }: ClientsViewProps)
     ctaCteAutorizada: false,
     limiteCredito: 0,
     mayoristaAutorizado: true,
+    passwordPlain: '',
   });
 
   const fetchAddresses = async (customerId: string | number) => {
@@ -113,6 +122,7 @@ export function ClientsView({ initialSection = 'directorio' }: ClientsViewProps)
     setEditingClient(c);
     setEditingAddressId(null);
     setShowAddAddress(false);
+    setShowClientFormPassword(false);
     setNewAddrText('');
     setNewAddrIndicaciones('');
     setFormClient({
@@ -131,12 +141,14 @@ export function ClientsView({ initialSection = 'directorio' }: ClientsViewProps)
       ctaCteAutorizada: c.ctaCteAutorizada || false,
       limiteCredito: c.limiteCredito || 0,
       mayoristaAutorizado: c.mayoristaAutorizado ?? (c.tipoCliente !== 'mayorista' && c.tipoCliente !== 'sucursal'),
+      passwordPlain: c.passwordPlain || '',
     });
     fetchAddresses(String(c.id));
   };
 
   const handleOpenCreate = () => {
     setIsCreating(true);
+    setShowClientFormPassword(false);
     setFormClient({
       nombre: '',
       razonSocial: '',
@@ -153,6 +165,7 @@ export function ClientsView({ initialSection = 'directorio' }: ClientsViewProps)
       ctaCteAutorizada: false,
       limiteCredito: 0,
       mayoristaAutorizado: true,
+      passwordPlain: '',
     });
   };
 
@@ -208,17 +221,45 @@ export function ClientsView({ initialSection = 'directorio' }: ClientsViewProps)
     }
   };
 
-  const handleSaveEdit = (e: React.FormEvent) => {
+  const handleSaveEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingClient) return;
-    updateClient(editingClient.id, formClient);
-    setEditingClient(null);
+    try {
+      await updateClient(editingClient.id, formClient);
+      if (formClient.passwordPlain && formClient.passwordPlain.trim()) {
+        await clientService.updatePassword(editingClient.id, formClient.passwordPlain.trim());
+      }
+      setEditingClient(null);
+      await fetchClientsOnly();
+    } catch (err: any) {
+      alert('Error al actualizar cliente: ' + (err.message || String(err)));
+    }
   };
 
-  const handleSaveCreate = (e: React.FormEvent) => {
+  const handleSaveCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    createClient(formClient);
-    setIsCreating(false);
+    try {
+      await createClient(formClient);
+      setIsCreating(false);
+      await fetchClientsOnly();
+    } catch (err: any) {
+      alert('Error al registrar cliente: ' + (err.message || String(err)));
+    }
+  };
+
+  const handleQuickUpdateClientPassword = async (clientId: string | number, newPass: string) => {
+    if (!newPass || newPass.trim().length < 4) {
+      alert('La contraseña debe tener al menos 4 caracteres.');
+      return;
+    }
+    try {
+      await clientService.updatePassword(clientId, newPass.trim());
+      await fetchClientsOnly();
+      setQuickPasswordClient(null);
+      alert('✅ Contraseña del cliente actualizada correctamente.');
+    } catch (err: any) {
+      alert('Error al actualizar contraseña: ' + (err.message || String(err)));
+    }
   };
 
   const getBranchName = (bId: string | number) => {
@@ -613,6 +654,7 @@ export function ClientsView({ initialSection = 'directorio' }: ClientsViewProps)
                     <th>Cliente / Razón Social</th>
                     <th>CUIT</th>
                     <th>Contacto</th>
+                    <th>Contraseña</th>
                     <th>Ubicación y Sucursal</th>
                     <th>Segmento & Cta. Cte.</th>
                     <th>Volumen Egresos ($)</th>
@@ -643,6 +685,77 @@ export function ClientsView({ initialSection = 'directorio' }: ClientsViewProps)
                         <td>
                           <div>📞 {c.telefono}</div>
                           {c.email && <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>✉️ {c.email}</div>}
+                        </td>
+                        <td>
+                          {c.passwordPlain ? (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                              <span style={{ 
+                                fontFamily: visiblePasswords[c.id] ? 'monospace' : 'inherit', 
+                                fontSize: '12px', 
+                                fontWeight: visiblePasswords[c.id] ? '700' : 'normal',
+                                color: visiblePasswords[c.id] ? '#0f172a' : '#64748b',
+                                backgroundColor: '#f1f5f9',
+                                padding: '3px 7px',
+                                borderRadius: '6px'
+                              }}>
+                                {visiblePasswords[c.id] ? c.passwordPlain : '••••••••'}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => setVisiblePasswords(prev => ({ ...prev, [c.id]: !prev[c.id] }))}
+                                title={visiblePasswords[c.id] ? 'Ocultar contraseña' : 'Ver contraseña'}
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', fontSize: '13px' }}
+                              >
+                                {visiblePasswords[c.id] ? '🙈' : '👁️'}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  navigator.clipboard.writeText(c.passwordPlain || '');
+                                  setCopiedClientId(c.id);
+                                  setTimeout(() => setCopiedClientId(null), 2000);
+                                }}
+                                title="Copiar contraseña al portapapeles"
+                                style={{
+                                  background: 'none',
+                                  border: '1px solid #cbd5e1',
+                                  borderRadius: '4px',
+                                  cursor: 'pointer',
+                                  padding: '2px 5px',
+                                  fontSize: '11px',
+                                  color: copiedClientId === c.id ? '#16a34a' : '#475569',
+                                  backgroundColor: copiedClientId === c.id ? '#f0fdf4' : '#ffffff'
+                                }}
+                              >
+                                {copiedClientId === c.id ? '✓' : '📋'}
+                              </button>
+                            </div>
+                          ) : (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                              <span style={{ fontSize: '10px', color: '#ea580c', backgroundColor: '#fff7ed', padding: '2px 5px', borderRadius: '4px', fontWeight: '600' }}>
+                                Sin registrar
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setQuickPasswordClient(c);
+                                  setQuickPasswordValue('');
+                                }}
+                                style={{
+                                  padding: '2px 6px',
+                                  fontSize: '10px',
+                                  backgroundColor: '#eff6ff',
+                                  color: '#2563eb',
+                                  border: '1px solid #bfdbfe',
+                                  borderRadius: '4px',
+                                  cursor: 'pointer',
+                                  fontWeight: '600'
+                                }}
+                              >
+                                🔑 Asignar
+                              </button>
+                            </div>
+                          )}
                         </td>
                         <td>
                           <div>{c.direccion}</div>
@@ -684,13 +797,13 @@ export function ClientsView({ initialSection = 'directorio' }: ClientsViewProps)
                   })}
                   {clients.length === 0 ? (
                     <tr>
-                      <td colSpan={9} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-disabled)' }}>
+                      <td colSpan={10} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-disabled)' }}>
                         Todavía no hay clientes registrados.
                       </td>
                     </tr>
                   ) : totalClientsCount === 0 && (
                     <tr>
-                      <td colSpan={9} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-disabled)' }}>
+                      <td colSpan={10} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-disabled)' }}>
                         No se encontraron clientes con los filtros aplicados.
                       </td>
                     </tr>
@@ -1069,6 +1182,27 @@ export function ClientsView({ initialSection = 'directorio' }: ClientsViewProps)
                       onChange={e => setFormClient({ ...formClient, email: e.target.value })}
                     />
                   </div>
+                  <div className="form-group">
+                    <label className="form-label">Contraseña de Acceso (visible para admin)</label>
+                    <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                      <input 
+                        type={showClientFormPassword ? 'text' : 'password'} 
+                        className="form-input" 
+                        value={formClient.passwordPlain || ''}
+                        onChange={e => setFormClient({ ...formClient, passwordPlain: e.target.value })}
+                        placeholder="Contraseña del cliente..."
+                        style={{ flex: 1 }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowClientFormPassword(!showClientFormPassword)}
+                        style={{ padding: '8px 10px', border: '1px solid #cbd5e1', borderRadius: '6px', background: '#f8fafc', cursor: 'pointer', fontSize: '13px' }}
+                        title={showClientFormPassword ? 'Ocultar contraseña' : 'Ver contraseña'}
+                      >
+                        {showClientFormPassword ? '🙈' : '👁️'}
+                      </button>
+                    </div>
+                  </div>
                 </div>
 
                 <div className="form-group" style={{ marginBottom: '16px' }}>
@@ -1398,6 +1532,27 @@ export function ClientsView({ initialSection = 'directorio' }: ClientsViewProps)
                       onChange={e => setFormClient({ ...formClient, email: e.target.value })}
                     />
                   </div>
+                  <div className="form-group">
+                    <label className="form-label">Contraseña Inicial (Opcional)</label>
+                    <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                      <input 
+                        type={showClientFormPassword ? 'text' : 'password'} 
+                        className="form-input" 
+                        placeholder="Ej: clave123..."
+                        value={formClient.passwordPlain || ''}
+                        onChange={e => setFormClient({ ...formClient, passwordPlain: e.target.value })}
+                        style={{ flex: 1 }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowClientFormPassword(!showClientFormPassword)}
+                        style={{ padding: '8px 10px', border: '1px solid #cbd5e1', borderRadius: '6px', background: '#f8fafc', cursor: 'pointer', fontSize: '13px' }}
+                        title={showClientFormPassword ? 'Ocultar contraseña' : 'Ver contraseña'}
+                      >
+                        {showClientFormPassword ? '🙈' : '👁️'}
+                      </button>
+                    </div>
+                  </div>
                 </div>
 
                 <div className="form-group" style={{ marginBottom: '16px' }}>
@@ -1463,6 +1618,56 @@ export function ClientsView({ initialSection = 'directorio' }: ClientsViewProps)
                 <button type="submit" className="btn btn-primary">Registrar Cliente</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      {/* Modal Asignar/Cambiar Contraseña Rápida para Cliente */}
+      {quickPasswordClient && (
+        <div className="modal-overlay" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0, 0, 0, 0.45)', zIndex: 99999 }}>
+          <div className="modal-content" style={{ backgroundColor: '#fff', borderRadius: '12px', width: '100%', maxWidth: '440px', padding: '24px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
+            <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e2e8f0', paddingBottom: '12px', marginBottom: '16px' }}>
+              <h3 className="card-title" style={{ margin: 0, fontSize: '18px', fontWeight: 'bold', color: '#0f172a' }}>
+                🔑 Asignar Clave a {quickPasswordClient.nombre}
+              </h3>
+              <button type="button" className="btn-close" onClick={() => setQuickPasswordClient(null)} style={{ border: 'none', background: 'none', fontSize: '18px', cursor: 'pointer', color: '#94a3b8' }}>✕</button>
+            </div>
+            <div className="modal-body" style={{ marginBottom: '20px' }}>
+              <p style={{ fontSize: '13px', color: '#64748b', marginTop: 0, marginBottom: '14px', lineHeight: '1.5' }}>
+                Podrás ver esta clave en cualquier momento en el panel para decírsela al cliente si la olvida, sin necesidad de blanquearla.
+              </p>
+              <div className="form-group">
+                <label className="form-label" style={{ fontWeight: '600', fontSize: '13px', color: '#334155', marginBottom: '6px', display: 'block' }}>
+                  Nueva Contraseña del Cliente:
+                </label>
+                <input
+                  type="text"
+                  className="form-input"
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '14px', boxSizing: 'border-box' }}
+                  value={quickPasswordValue}
+                  onChange={(e) => setQuickPasswordValue(e.target.value)}
+                  placeholder="Ej: cliente2026..."
+                  autoFocus
+                />
+              </div>
+            </div>
+            <div className="modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+              <button 
+                type="button" 
+                className="btn btn-secondary" 
+                style={{ padding: '8px 16px', borderRadius: '6px', border: '1px solid #cbd5e1', cursor: 'pointer', backgroundColor: '#fff', fontSize: '13px' }}
+                onClick={() => setQuickPasswordClient(null)}
+              >
+                Cancelar
+              </button>
+              <button 
+                type="button" 
+                className="btn btn-primary" 
+                style={{ padding: '8px 18px', borderRadius: '6px', border: 'none', backgroundColor: '#2563eb', color: '#fff', fontWeight: '600', cursor: 'pointer', fontSize: '13px' }}
+                onClick={() => handleQuickUpdateClientPassword(quickPasswordClient.id, quickPasswordValue)}
+              >
+                Guardar Clave
+              </button>
+            </div>
           </div>
         </div>
       )}

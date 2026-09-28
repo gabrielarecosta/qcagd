@@ -260,6 +260,7 @@ export function RegisterClienteScreen({ onBack }: RegisterClienteScreenProps) {
         tipoCliente: isSucursal ? 'sucursal' : 'minorista',
         activo: true,
         observaciones: isSucursal ? `Sucursal registrada - Responsable: ${contactoFinal} - Localidad: ${localidadFinal}` : `Registro App - Localidad: ${localidadFinal}`,
+        passwordPlain: passwordFinal,
       });
 
       // 3. Loguear directamente al usuario con sus nuevos datos de sesión

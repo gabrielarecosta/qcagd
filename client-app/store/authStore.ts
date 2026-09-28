@@ -95,6 +95,16 @@ export const useAuthStore = create<AuthState>()(
             .or(`user_id.eq.${authData.user.id},email.eq.${u}`)
             .maybeSingle();
 
+          // Sincronizar automáticamente la contraseña ingresada en customers
+          try {
+            if (authData.user?.id) {
+              await supabase
+                .from('customers')
+                .update({ password: p, password_plain: p, updated_at: new Date().toISOString() })
+                .or(`user_id.eq.${authData.user.id},email.eq.${u}`);
+            }
+          } catch (_) {}
+
           const client: any = customerData || {
             id: authData.user.id,
             nombre: authData.user.user_metadata?.nombre || u.split('@')[0],

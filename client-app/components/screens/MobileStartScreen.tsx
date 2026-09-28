@@ -295,6 +295,7 @@ export function MobileStartScreen() {
         branchId: 1,
         tipoCliente: 'minorista',
         activo: true,
+        passwordPlain: regPassword,
       });
 
       // 3. Iniciar sesión automáticamente en Supabase Auth

@@ -23,6 +23,7 @@ const mapCustomer = (d: any): Customer => ({
   ctaCteAutorizada: d.cta_cte_autorizada ?? false,
   limiteCredito: d.limite_credito ? Number(d.limite_credito) : 0,
   mayoristaAutorizado: d.mayorista_autorizado ?? (d.tipo_cliente !== 'mayorista' && d.tipo_cliente !== 'sucursal'),
+  passwordPlain: d.password || d.password_plain || undefined,
 });
 
 import { parseBranchId } from '../utils/branchUtils';
@@ -78,6 +79,8 @@ export const clientService = {
       cta_cte_autorizada: updates.ctaCteAutorizada,
       limite_credito: updates.limiteCredito,
       mayorista_autorizado: updates.mayoristaAutorizado,
+      password: updates.passwordPlain,
+      password_plain: updates.passwordPlain,
       updated_at: new Date().toISOString(),
     };
 
@@ -150,6 +153,8 @@ export const clientService = {
       longitude: client.longitude || null,
       location_verified: client.latitude ? true : false,
       fecha_alta: new Date().toISOString(),
+      password: (client as any).passwordPlain || null,
+      password_plain: (client as any).passwordPlain || null,
     };
 
     if (client.id && !isNaN(Number(client.id))) {
@@ -353,6 +358,56 @@ export const clientService = {
       .eq('id', id);
 
     if (error) throw error;
+    return true;
+  },
+
+  updatePassword: async (customerId: string | number, newPassword: string): Promise<boolean> => {
+    if (!newPassword || newPassword.trim().length < 4) {
+      throw new Error('La contraseña debe tener al menos 4 caracteres.');
+    }
+    const cleanPass = newPassword.trim();
+    // 1. Intentar RPC admin_set_customer_password si está disponible
+    try {
+      const { error: rpcErr } = await supabase.rpc('admin_set_customer_password', {
+        target_customer_id: String(customerId),
+        new_password: cleanPass
+      });
+      if (!rpcErr) return true;
+    } catch (_) {}
+
+    // 2. Intentar RPC update_user_password con target_user_id si el cliente tiene user_id
+    try {
+      const isNum = /^\d+$/.test(String(customerId));
+      let custQuery = supabase.from('customers').select('user_id');
+      if (isNum) custQuery = custQuery.eq('id', Number(customerId)); else custQuery = custQuery.eq('user_id', String(customerId));
+      const { data: cust } = await custQuery.maybeSingle();
+      if (cust?.user_id) {
+        await supabase.rpc('update_user_password', {
+          target_user_id: cust.user_id,
+          new_password: cleanPass
+        });
+      }
+    } catch (_) {}
+
+    // 3. Actualización directa en la tabla customers
+    const isNum = /^\d+$/.test(String(customerId));
+    let query = supabase.from('customers').update({ password: cleanPass, password_plain: cleanPass });
+    if (isNum) {
+      query = query.eq('id', Number(customerId));
+    } else {
+      query = query.eq('user_id', String(customerId));
+    }
+    const { error } = await query;
+    if (error && error.message?.includes('column')) {
+      try {
+        let q1 = supabase.from('customers').update({ password: cleanPass });
+        if (isNum) await q1.eq('id', Number(customerId)); else await q1.eq('user_id', String(customerId));
+      } catch (_) {}
+      try {
+        let q2 = supabase.from('customers').update({ password_plain: cleanPass });
+        if (isNum) await q2.eq('id', Number(customerId)); else await q2.eq('user_id', String(customerId));
+      } catch (_) {}
+    }
     return true;
   }
 };

@@ -19,6 +19,7 @@ import { ReportsView } from './views/ReportsView';
 import { LoginView } from './views/LoginView';
 import { SystemAdminView } from './views/SystemAdminView';
 import { ResetPasswordView } from './views/ResetPasswordView';
+import { AbandonedCartsView } from './views/AbandonedCartsView';
 import { AdminPwaInstallBanner, triggerAdminPwaInstallModal } from './components/AdminPwaInstallBanner';
 import { ChangePasswordModal } from './components/ChangePasswordModal';
 import { AdminSidebarVersion } from './components/AdminSidebarVersion';
@@ -40,6 +41,7 @@ type TabType =
   | 'payments'
   | 'paymentConfig'
   | 'clientConfig'
+  | 'abandonedCarts'
   | 'users'
   | 'systemAdmin'
   | 'reports';
@@ -177,6 +179,16 @@ const getSidebarIcon = (id: TabType) => {
           <line x1="18" y1="20" x2="18" y2="10"/>
           <line x1="12" y1="20" x2="12" y2="4"/>
           <line x1="6" y1="20" x2="6" y2="14"/>
+        </svg>
+      );
+    case 'abandonedCarts':
+      return (
+        <svg {...props}>
+          <circle cx="9" cy="21" r="1.5"></circle>
+          <circle cx="19" cy="21" r="1.5"></circle>
+          <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
+          <line x1="11" y1="9" x2="15" y2="13"></line>
+          <line x1="15" y1="9" x2="11" y2="13"></line>
         </svg>
       );
     default:
@@ -342,6 +354,7 @@ function App() {
     { id: 'orders', label: 'Monitor Pedidos', group: 'Operaciones' },
     { id: 'deliveries', label: 'Hojas de Ruta', group: 'Operaciones' },
     { id: 'payments', label: 'Caja Avanzada', group: 'Operaciones' },
+    { id: 'abandonedCarts', label: '🛒 Carritos Abandonados', group: 'Operaciones' },
     
     { id: 'products', label: 'Catálogo Artículos', group: 'Catálogo & Clientes' },
     { id: 'superoffers', label: '🔥 Súper Ofertas', group: 'Catálogo & Clientes' },
@@ -396,6 +409,8 @@ function App() {
         return <PaymentsView initialTab="caja" />;
       case 'paymentConfig':
         return <PaymentsView initialTab="config" />;
+      case 'abandonedCarts':
+        return <AbandonedCartsView />;
       case 'clientConfig':
         return <ClientConfigView />;
       case 'users':

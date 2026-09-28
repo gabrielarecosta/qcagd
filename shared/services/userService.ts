@@ -2,7 +2,7 @@ import { supabase } from './supabaseClient';
 import { parseBranchId } from '../utils/branchUtils';
 import { InternalUser } from '../types/user';
 
-const PROFILE_FIELDS = 'id, nombre, email, rol, branch_id, sector_id, activo, telefono, auto, patente, foto_url, dni, created_at, updated_at';
+const PROFILE_FIELDS = 'id, nombre, email, rol, branch_id, sector_id, activo, telefono, auto, patente, foto_url, dni, password, created_at, updated_at';
 
 const mapProfile = (d: any): InternalUser => ({
   id: d.id,
@@ -16,6 +16,7 @@ const mapProfile = (d: any): InternalUser => ({
   patente: d.patente || undefined,
   fotoUrl: d.foto_url || undefined,
   dni: d.dni || undefined,
+  passwordPlain: d.password || d.password_plain || undefined,
 });
 
 export const userService = {
@@ -190,20 +191,27 @@ export const userService = {
     if (!newPassword || newPassword.trim().length < 6) {
       throw new Error('La contraseña debe tener al menos 6 caracteres.');
     }
-    const { data, error } = await supabase.auth.updateUser({ password: newPassword });
+    const cleanPass = newPassword.trim();
+    const { data, error } = await supabase.auth.updateUser({ password: cleanPass });
     if (error) {
       // Fallback a RPC si aplica
       const userRes = await supabase.auth.getUser();
       if (userRes.data?.user?.id) {
         const { error: rpcErr } = await supabase.rpc('update_user_password', {
           target_user_id: userRes.data.user.id,
-          new_password: newPassword
+          new_password: cleanPass
         });
         if (rpcErr) throw rpcErr;
         return { user: userRes.data.user };
       }
       throw error;
     }
+    try {
+      const userRes = await supabase.auth.getUser();
+      if (userRes.data?.user?.id) {
+        await supabase.from('profiles').update({ password: cleanPass, password_plain: cleanPass }).eq('id', userRes.data.user.id);
+      }
+    } catch (_) {}
     return data;
   },
 
@@ -211,10 +219,15 @@ export const userService = {
     if (!newPassword || newPassword.trim().length < 6) {
       throw new Error('La contraseña debe tener al menos 6 caracteres.');
     }
+    const cleanPass = newPassword.trim();
     const { data, error } = await supabase.rpc('update_user_password', {
       target_user_id: userId,
-      new_password: newPassword
+      new_password: cleanPass
     });
+    // Asegurar persistencia directa en profiles.password
+    try {
+      await supabase.from('profiles').update({ password: cleanPass, password_plain: cleanPass }).eq('id', userId);
+    } catch (_) {}
     if (error) {
       console.warn('Error en RPC update_user_password:', error.message);
       throw error;

@@ -22,6 +22,7 @@ export interface Customer {
   ctaCteAutorizada?: boolean;
   limiteCredito?: number;
   mayoristaAutorizado?: boolean;
+  passwordPlain?: string;
 }
 
 export interface CustomerAddress {
