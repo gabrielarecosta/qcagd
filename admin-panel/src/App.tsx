@@ -24,27 +24,13 @@ import { AdminPwaInstallBanner, triggerAdminPwaInstallModal } from './components
 import { ChangePasswordModal } from './components/ChangePasswordModal';
 import { AdminSidebarVersion } from './components/AdminSidebarVersion';
 import { APP_VERSION } from './config/version';
-
-
-type TabType = 
-  | 'dashboard'
-  | 'branches'
-  | 'products'
-  | 'superoffers'
-  | 'excel'
-  | 'clients'
-  | 'ctaCte'
-  | 'orders'
-  | 'deliveries'
-  | 'logistics'
-  | 'zones'
-  | 'payments'
-  | 'paymentConfig'
-  | 'clientConfig'
-  | 'abandonedCarts'
-  | 'users'
-  | 'systemAdmin'
-  | 'reports';
+import { 
+  TabType, 
+  parseLocationToTab, 
+  navigateToTab, 
+  getTabPath, 
+  getTabTitle 
+} from './router';
 
 
 const getSidebarIcon = (id: TabType) => {
@@ -198,8 +184,7 @@ const getSidebarIcon = (id: TabType) => {
 
 function App() {
   const isAutoLogin = typeof window !== 'undefined' && window.location.search.includes('autologin=1');
-  const urlTab = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('tab') : null;
-  const [activeTab, setActiveTab] = useState<TabType>((urlTab as TabType) || 'dashboard');
+  const [activeTab, setActiveTab] = useState<TabType>(() => parseLocationToTab());
   const [productFilter, setProductFilter] = useState<'all' | 'no-photo'>('all');
   const [showNotifications, setShowNotifications] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -217,6 +202,36 @@ function App() {
       window.location.search.includes('reset=1')
     );
   });
+
+  const handleNavigate = (tab: TabType, replace = false) => {
+    setActiveTab(tab);
+    navigateToTab(tab, { replace, preserveQuery: true });
+  };
+
+  useEffect(() => {
+    const onPopState = () => {
+      const matchedTab = parseLocationToTab();
+      setActiveTab(matchedTab);
+      document.title = getTabTitle(matchedTab);
+    };
+
+    window.addEventListener('popstate', onPopState);
+
+    // Sincronizar título y normalizar URL canónica al cargar/recargar
+    const initialTab = parseLocationToTab();
+    document.title = getTabTitle(initialTab);
+
+    if (!isResetPasswordMode) {
+      const canonicalPath = getTabPath(initialTab);
+      if (window.location.pathname !== canonicalPath || window.location.search.includes('tab=')) {
+        navigateToTab(initialTab, { replace: true, preserveQuery: true });
+      }
+    }
+
+    return () => {
+      window.removeEventListener('popstate', onPopState);
+    };
+  }, [isResetPasswordMode]);
 
   useEffect(() => {
     const { data: authListener } = supabase.auth.onAuthStateChange((event) => {
@@ -377,14 +392,14 @@ function App() {
         return (
           <DashboardView 
             onNavigate={(tab) => {
-              setActiveTab(tab);
+              handleNavigate(tab);
               if (tab !== 'products') {
                 setProductFilter('all');
               }
             }} 
             onFilterProductsNoPhoto={() => {
               setProductFilter('no-photo');
-              setActiveTab('products');
+              handleNavigate('products');
             }}
           />
         );
@@ -423,14 +438,14 @@ function App() {
         return (
           <DashboardView 
             onNavigate={(tab) => {
-              setActiveTab(tab);
+              handleNavigate(tab);
               if (tab !== 'products') {
                 setProductFilter('all');
               }
             }} 
             onFilterProductsNoPhoto={() => {
               setProductFilter('no-photo');
-              setActiveTab('products');
+              handleNavigate('products');
             }}
           />
         );
@@ -438,7 +453,7 @@ function App() {
   };
 
   const handleSearchResultClick = (tab: TabType) => {
-    setActiveTab(tab);
+    handleNavigate(tab);
     setSearchQuery('');
   };
 
@@ -523,7 +538,7 @@ function App() {
                     key={item.id}
                     className={`sidebar-item ${activeTab === item.id ? 'sidebar-item-active' : ''}`}
                     onClick={() => {
-                      setActiveTab(item.id as TabType);
+                      handleNavigate(item.id as TabType);
                       setMobileMenuOpen(false);
                     }}
                     style={{ border: 'none', background: 'none', textAlign: 'left', width: '100%', display: 'flex', alignItems: 'center' }}
