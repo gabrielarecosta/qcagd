@@ -25,6 +25,7 @@ interface CatalogStore {
   categoryNames: Record<string, string>;
   activeCategories: ProductCategory[]; // categorías habilitadas en BD
   isLoading: boolean;
+  loadError: string | null;
   source: string;
   importedFileName?: string;
 
@@ -44,6 +45,8 @@ interface CatalogStore {
   totalProducts: () => number;
 }
 
+let paginatedFetchSequence = 0;
+
 export const useCatalogStore = create<CatalogStore>((set, get) => ({
   products: [],
   totalProductsCount: 0,
@@ -56,18 +59,33 @@ export const useCatalogStore = create<CatalogStore>((set, get) => ({
   categoryNames: {},
   activeCategories: [],
   isLoading: true,
+  loadError: null,
 
   source: 'Supabase',
   importedFileName: undefined,
 
   fetchPaginatedProducts: async (options = {}) => {
-    set({ isLoading: true });
+    const seq = ++paginatedFetchSequence;
+    set({ isLoading: true, loadError: null });
     try {
       const isLoggedIn = useAuthStore.getState().isLoggedIn;
       const res = await productService.getPaginated({
         ...options,
         isPublic: !isLoggedIn,
       });
+
+      // Ignorar respuesta si ya se disparó una búsqueda o paginación más reciente
+      if (seq !== paginatedFetchSequence) {
+        return;
+      }
+
+      if (res.hasError) {
+        set({
+          isLoading: false,
+          loadError: res.errorMessage || 'Error al conectar con el servidor',
+        });
+        return;
+      }
 
       set({
         products: res.data,
@@ -76,10 +94,12 @@ export const useCatalogStore = create<CatalogStore>((set, get) => ({
         totalPagesCount: res.totalPages,
         pageSize: res.pageSize,
         isLoading: false,
+        loadError: null,
       });
-    } catch (e) {
+    } catch (e: any) {
+      if (seq !== paginatedFetchSequence) return;
       console.error('Error fetching paginated products:', e);
-      set({ isLoading: false });
+      set({ isLoading: false, loadError: e?.message || 'Error de conexión al cargar catálogo' });
     }
   },
 

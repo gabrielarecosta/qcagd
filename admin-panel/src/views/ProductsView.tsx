@@ -33,7 +33,19 @@ export function ProductsView({
     bulkUpdatePrices
   } = useAdminStore();
 
+  const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
+  const fetchSeqRef = React.useRef(0);
+
+  // Debounce de 300 ms para la búsqueda general
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      setSearch(searchInput);
+      setCurrentPage(1);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
+
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [photoFilter, setPhotoFilter] = useState<'all' | 'with-photo' | 'no-photo'>(initialFilter);
   const [activeStatusFilter, setActiveStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
@@ -176,6 +188,7 @@ export function ProductsView({
   const itemsPerPage = 30;
 
   const loadPaginatedProducts = async () => {
+    const seq = ++fetchSeqRef.current;
     setIsLoadingProducts(true);
     try {
       const res = await productService.getPaginated({
@@ -192,13 +205,18 @@ export function ProductsView({
         isPublic: false,
       });
 
+      if (seq !== fetchSeqRef.current) return;
+
       setPaginatedProducts(res.data);
       setTotalProductsCount(res.total);
       setTotalPages(res.totalPages || 1);
     } catch (err) {
+      if (seq !== fetchSeqRef.current) return;
       console.error('Error cargando artículos paginados:', err);
     } finally {
-      setIsLoadingProducts(false);
+      if (seq === fetchSeqRef.current) {
+        setIsLoadingProducts(false);
+      }
     }
   };
 
@@ -817,17 +835,48 @@ export function ProductsView({
       <div className="card-wrapper" style={{ marginBottom: '20px', padding: '16px' }}>
         <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
           {/* Búsqueda */}
-          <div style={{ flex: '1 1 220px', minWidth: '200px' }}>
+          <div style={{ flex: '1 1 220px', minWidth: '200px', position: 'relative' }}>
             <input 
               type="text" 
               className="form-input" 
               placeholder="🔍 Buscar por código, nombre..." 
-              value={search} 
-              onChange={e => {
-                setSearch(e.target.value);
-                setCurrentPage(1);
+              value={searchInput} 
+              onChange={e => setSearchInput(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  setSearch(searchInput);
+                  setCurrentPage(1);
+                }
               }}
+              style={{ width: '100%', paddingRight: searchInput ? '32px' : '12px' }}
             />
+            {searchInput.length > 0 && (
+              <button
+                type="button"
+                aria-label="Limpiar búsqueda"
+                onClick={() => {
+                  setSearchInput('');
+                  setSearch('');
+                  setCurrentPage(1);
+                }}
+                style={{
+                  position: 'absolute',
+                  right: '8px',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  background: 'none',
+                  border: 'none',
+                  color: '#94a3b8',
+                  fontSize: '14px',
+                  cursor: 'pointer',
+                  padding: '4px',
+                  lineHeight: 1
+                }}
+              >
+                ✕
+              </button>
+            )}
           </div>
 
           {/* Filtro Categoría */}
@@ -966,13 +1015,13 @@ export function ProductsView({
               </tr>
             </thead>
             <tbody>
-              {isLoadingProducts ? (
+              {isLoadingProducts && paginatedProducts.length === 0 ? (
                 <tr>
                   <td colSpan={10} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-secondary)' }}>
                     ⏳ Cargando productos desde Supabase...
                   </td>
                 </tr>
-              ) : totalProductsCount === 0 ? (
+              ) : totalProductsCount === 0 && !isLoadingProducts ? (
                 <tr>
                   <td colSpan={10} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-disabled)' }}>
                     No se encontraron productos con los filtros aplicados.

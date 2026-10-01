@@ -36,6 +36,8 @@ export interface PaginatedResult<T> {
   page: number;
   pageSize: number;
   totalPages: number;
+  hasError?: boolean;
+  errorMessage?: string;
 }
 
 export interface ProductQueryOptions {
@@ -104,26 +106,44 @@ export const productService = {
       query = query.eq('categoria', options.categoria);
     }
 
-    // 4. Búsqueda por texto (nombre, código, descripción, presentación)
+    // 4. Búsqueda segura por texto (nombre, código, descripción, presentación)
     if (options.search && options.search.trim()) {
-      const q = options.search.trim();
-      query = query.or(`nombre.ilike.%${q}%,codigo.ilike.%${q}%,descripcion.ilike.%${q}%,presentacion.ilike.%${q}%`);
+      const clean = options.search.trim();
+      // Normalizar tildes/acentos (NFD) para que "líquido" encuentre "LIQUIDO" y viceversa
+      const normalized = clean.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      const terms = Array.from(new Set([clean, normalized].filter(Boolean)));
+
+      const clauses: string[] = [];
+      const fields = ['nombre', 'codigo', 'descripcion', 'presentacion'];
+
+      for (const term of terms) {
+        // Sanitizar comillas dobles y escapar comodines % y _ para coincidencia literal
+        const safeTerm = term.replace(/"/g, '').replace(/[%_]/g, '\\$&');
+        if (!safeTerm) continue;
+        for (const f of fields) {
+          clauses.push(`${f}.ilike."%${safeTerm}%"`);
+        }
+      }
+
+      if (clauses.length > 0) {
+        query = query.or(clauses.join(','));
+      }
     }
 
     // Si NO hay filtro de stock en memoria, aplicar ordenamiento y paginación directamente en PostgREST (Supabase)
     if (!isStockFilterActive) {
       if (options.sortBy === 'price' || options.sortBy === 'precio-bajo') {
-        query = query.order('precio', { ascending: true });
+        query = query.order('precio', { ascending: true }).order('id', { ascending: true });
       } else if (options.sortBy === 'precio-alto') {
-        query = query.order('precio', { ascending: false });
+        query = query.order('precio', { ascending: false }).order('id', { ascending: true });
       } else if (options.sortBy === 'code') {
-        query = query.order('codigo', { ascending: sortAsc });
+        query = query.order('codigo', { ascending: sortAsc }).order('id', { ascending: true });
       } else if (options.sortBy === 'category') {
-        query = query.order('categoria', { ascending: sortAsc }).order('nombre', { ascending: true });
+        query = query.order('categoria', { ascending: sortAsc }).order('nombre', { ascending: true }).order('id', { ascending: true });
       } else if (options.sortBy === 'name') {
-        query = query.order('nombre', { ascending: sortAsc });
+        query = query.order('nombre', { ascending: sortAsc }).order('id', { ascending: true });
       } else {
-        query = query.order('destacado', { ascending: false }).order('nombre', { ascending: true });
+        query = query.order('destacado', { ascending: false }).order('nombre', { ascending: true }).order('id', { ascending: true });
       }
 
       const fromIndex = (page - 1) * pageSize;
@@ -137,7 +157,7 @@ export const productService = {
     const { data: rawProducts, count: exactTotalCount, error } = await query;
     if (error) {
       console.error('Error cargando productos en getPaginated:', error.message);
-      return { data: [], total: 0, page, pageSize, totalPages: 0 };
+      return { data: [], total: 0, page, pageSize, totalPages: 0, hasError: true, errorMessage: error.message };
     }
 
     const allMatchedProducts = rawProducts || [];

@@ -251,6 +251,119 @@ export const orderService = {
   },
 
   /**
+   * Confirma la entrega de un pedido validando concurrencia y reglas de negocio
+   */
+  confirmDelivery: async (
+    orderId: string | number,
+    notes?: string,
+    userMail?: string
+  ): Promise<{ success: boolean; alreadyDelivered?: boolean; message?: string; order?: Order }> => {
+    const cleanId = typeof orderId === 'number' ? orderId : (parseInt(String(orderId).replace(/\D/g, ''), 10) || orderId);
+
+    // 1. Intentar llamar al RPC seguro confirm_order_delivery
+    try {
+      const { data: rpcData, error: rpcErr } = await supabase.rpc('confirm_order_delivery', {
+        p_order_id: Number(cleanId),
+        p_notes: notes || null,
+        p_user_email: userMail || null,
+      });
+
+      if (!rpcErr && rpcData) {
+        return {
+          success: rpcData.success,
+          alreadyDelivered: rpcData.already_delivered,
+          message: rpcData.message,
+        };
+      }
+
+      // Si el RPC arrojó error de validación de negocio (ej: pedido cancelado)
+      if (rpcErr && rpcErr.message && !rpcErr.message.includes('function') && !rpcErr.message.includes('schema cache') && !rpcErr.message.includes('404')) {
+        throw new Error(rpcErr.message);
+      }
+    } catch (err: any) {
+      if (err.message && (err.message.includes('cancelado') || err.message.includes('Acceso denegado') || err.message.includes('Transición'))) {
+        throw err;
+      }
+      console.warn('Fallback a confirmación directa de entrega:', err?.message);
+    }
+
+    // 2. Fallback de cliente con validaciones estrictas
+    const { data: currentOrder, error: fetchErr } = await supabase
+      .from('orders')
+      .select('*')
+      .eq('id', cleanId)
+      .single();
+
+    if (fetchErr || !currentOrder) {
+      throw new Error('El pedido especificado no existe o fue eliminado.');
+    }
+
+    if (currentOrder.estado === 'entregado') {
+      return { success: true, alreadyDelivered: true, message: 'El pedido ya se encontraba marcado como entregado.' };
+    }
+
+    if (currentOrder.estado === 'cancelado') {
+      throw new Error('No se puede marcar como entregado un pedido cancelado.');
+    }
+
+    const ALLOWED = ['recibido', 'en_preparacion', 'listo_para_reparto', 'asignado', 'en_reparto'];
+    if (!ALLOWED.includes(currentOrder.estado)) {
+      throw new Error(`No se puede entregar un pedido en estado "${currentOrder.estado}".`);
+    }
+
+    // Proteger cuenta corriente y transferencias pendientes
+    let nextPaymentStatus = currentOrder.payment_status;
+    if (currentOrder.payment_method === 'efectivo') {
+      nextPaymentStatus = 'pagado';
+    } else if (currentOrder.payment_method === 'cuenta_corriente') {
+      nextPaymentStatus = 'cuenta_corriente';
+    }
+
+    if (userMail) {
+      try {
+        await supabase.rpc('set_config', { placeholder: 'app.current_user_email', value: userMail, is_local: false });
+      } catch (_) {}
+    }
+
+    const now = new Date().toISOString();
+    const updatePayload: any = {
+      estado: 'entregado',
+      payment_status: nextPaymentStatus,
+      delivered_at: now,
+      updated_at: now,
+    };
+    if (notes && notes.trim()) {
+      updatePayload.observaciones = currentOrder.observaciones 
+        ? `${currentOrder.observaciones} | ${notes.trim()}`
+        : notes.trim();
+    }
+
+    const { data: updated, error: updateErr } = await supabase
+      .from('orders')
+      .update(updatePayload)
+      .eq('id', cleanId)
+      .select('*')
+      .single();
+
+    if (updateErr) throw updateErr;
+
+    // Sincronizar parada de hoja de ruta si existiera
+    try {
+      await supabase
+        .from('delivery_route_stops')
+        .update({ status: 'entregado', delivered_at: now })
+        .eq('order_id', String(cleanId));
+    } catch (_) {}
+
+    return {
+      success: true,
+      alreadyDelivered: false,
+      message: 'Pedido entregado exitosamente.',
+      order: mapOrder(updated, []),
+    };
+  },
+
+  /**
    * Actualiza la ubicación (pin manual o geocodificado)
    */
   updateOrderCoordinates: async (

@@ -93,6 +93,7 @@ interface AdminStore {
 
   // Pedidos
   updateOrderStatus: (id: string | number, status: OrderStatus, notes?: string, clientNotes?: string) => Promise<void>;
+  confirmOrderDelivery: (id: string | number, notes?: string) => Promise<{ success: boolean; alreadyDelivered?: boolean; message?: string }>;
   updateOrder: (id: string | number, updates: Partial<Order>) => Promise<void>;
   createOrder: (order: Order) => Promise<void>;
 
@@ -663,13 +664,29 @@ export const useAdminStore = create<AdminStore>((set, get) => ({
 
   updateOrderStatus: async (id, status, notes, clientNotes) => {
     const userEmail = get().currentUser?.email || '';
+    const currentOrder = get().orders.find(o => String(o.id) === String(id));
+    let nextPaymentStatus: any = undefined;
+    if (status === 'entregado' && currentOrder) {
+      if (currentOrder.paymentMethod === 'cuenta_corriente') {
+        nextPaymentStatus = 'cuenta_corriente';
+      } else if (currentOrder.paymentMethod === 'efectivo') {
+        nextPaymentStatus = 'pagado';
+      }
+    }
     await orderService.update(String(id), {
       estado: status,
       observaciones: notes,
       observacionesCliente: clientNotes,
-      paymentStatus: status === 'entregado' ? 'pagado' : undefined
+      paymentStatus: nextPaymentStatus
     }, userEmail);
     await get().fetchData();
+  },
+
+  confirmOrderDelivery: async (id, notes) => {
+    const userEmail = get().currentUser?.email || '';
+    const result = await orderService.confirmDelivery(id, notes, userEmail);
+    await get().fetchOrdersOnly();
+    return result;
   },
 
   updateOrder: async (id, updates) => {

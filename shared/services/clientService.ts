@@ -10,6 +10,7 @@ const mapCustomer = (d: any): Customer => ({
   telefono: d.telefono,
   whatsapp: d.whatsapp || undefined,
   email: d.email || undefined,
+  authEmail: d.auth_email || d.email || undefined,
   direccion: d.direccion,
   localidad: d.localidad || undefined,
   branchId: d.branch_id,
@@ -39,7 +40,29 @@ export const clientService = {
     }
     const { data, error } = await query;
     if (error) throw error;
-    return (data || []).map(mapCustomer);
+
+    // Intentar sincronizar con el email real de auth.users si está disponible vía RPC
+    let authMap: Record<string, string> = {};
+    try {
+      const { data: authUsers, error: rpcErr } = await supabase.rpc('get_auth_users_map');
+      if (!rpcErr && Array.isArray(authUsers)) {
+        authUsers.forEach((u: any) => {
+          if (u.user_id && u.email) {
+            authMap[String(u.user_id).toLowerCase()] = u.email;
+          }
+        });
+      }
+    } catch {
+      // Ignorar si aún no fue configurada en Supabase
+    }
+
+    return (data || []).map(d => {
+      const cust = mapCustomer(d);
+      if (cust.userId && authMap[String(cust.userId).toLowerCase()]) {
+        cust.authEmail = authMap[String(cust.userId).toLowerCase()];
+      }
+      return cust;
+    });
   },
 
   getById: async (id: string | number): Promise<Customer | undefined> => {
@@ -56,7 +79,20 @@ export const clientService = {
       console.warn('Error en clientService.getById:', error.message);
       return undefined;
     }
-    return data ? mapCustomer(data) : undefined;
+    if (!data) return undefined;
+    const cust = mapCustomer(data);
+    if (cust.userId) {
+      try {
+        const { data: authUsers } = await supabase.rpc('get_auth_users_map');
+        if (Array.isArray(authUsers)) {
+          const match = authUsers.find((u: any) => String(u.user_id).toLowerCase() === String(cust.userId).toLowerCase());
+          if (match?.email) cust.authEmail = match.email;
+        }
+      } catch {
+        // Fallback a d.auth_email || d.email
+      }
+    }
+    return cust;
   },
 
   update: async (id: string | number, updates: Partial<Customer>): Promise<Customer> => {
@@ -68,6 +104,7 @@ export const clientService = {
       telefono: updates.telefono,
       whatsapp: updates.whatsapp,
       email: updates.email,
+      auth_email: updates.authEmail || updates.email,
       direccion: updates.direccion,
       branch_id: updates.branchId ? parseBranchId(updates.branchId) : undefined,
       tipo_cliente: updates.tipoCliente,
@@ -98,6 +135,7 @@ export const clientService = {
 
     if (error && error.message?.includes('column')) {
       delete dbUpdates.user_id;
+      delete dbUpdates.auth_email;
       delete dbUpdates.cta_cte_autorizada;
       delete dbUpdates.limite_credito;
       delete dbUpdates.mayorista_autorizado;
@@ -143,6 +181,7 @@ export const clientService = {
       telefono: client.telefono,
       whatsapp: client.whatsapp ? client.whatsapp : null,
       email: client.email ? client.email : null,
+      auth_email: (client as any).authEmail || client.email || null,
       direccion: client.direccion || '',
       localidad: client.localidad || null,
       branch_id: branchIdNum,
@@ -167,8 +206,9 @@ export const clientService = {
       .select(CUSTOMER_COLUMNS)
       .single();
 
-    if (error && error.message?.includes('user_id')) {
-      delete dbInsert.user_id;
+    if (error && (error.message?.includes('user_id') || error.message?.includes('auth_email') || error.message?.includes('column'))) {
+      if (error.message?.includes('user_id')) delete dbInsert.user_id;
+      if (error.message?.includes('auth_email') || error.message?.includes('column')) delete dbInsert.auth_email;
       const { data: retryData, error: retryErr } = await supabase
         .from('customers')
         .upsert(dbInsert, { onConflict: 'email' })

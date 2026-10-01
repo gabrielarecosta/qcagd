@@ -15,6 +15,7 @@ import MaterialCommunityIcons from '../icons/MaterialCommunityIcons';
 interface SearchBarProps {
   value: string;
   onChangeText: (text: string) => void;
+  onClear?: () => void;
   placeholder?: string;
   style?: ViewStyle;
   autoFocus?: boolean;
@@ -23,6 +24,7 @@ interface SearchBarProps {
 export function SearchBar({
   value,
   onChangeText,
+  onClear,
   placeholder = 'Buscar producto...',
   style,
   autoFocus = false,
@@ -32,12 +34,17 @@ export function SearchBar({
 
   const handleFocus = () => {
     setFocused(true);
-    Animated.timing(borderAnim, { toValue: 1, duration: 200, useNativeDriver: false }).start();
+    Animated.timing(borderAnim, { toValue: 1, duration: 150, useNativeDriver: false }).start();
   };
 
   const handleBlur = () => {
     setFocused(false);
-    Animated.timing(borderAnim, { toValue: 0, duration: 200, useNativeDriver: false }).start();
+    Animated.timing(borderAnim, { toValue: 0, duration: 150, useNativeDriver: false }).start();
+  };
+
+  const handleClear = () => {
+    onChangeText('');
+    onClear?.();
   };
 
   const animatedBorderColor = borderAnim.interpolate({
@@ -82,15 +89,24 @@ export function SearchBar({
         autoCorrect={false}
         autoCapitalize="none"
         returnKeyType="search"
-        clearButtonMode="while-editing"
+        blurOnSubmit={false}
+        clearButtonMode="never"
+        onSubmitEditing={(e) => {
+          // Prevenir recarga involuntaria de página o envío de formularios
+          e?.preventDefault?.();
+        }}
       />
 
-      {/* Botón limpiar (Android / fallback) */}
+      {/* Botón limpiar accesible */}
       {value.length > 0 && (
         <TouchableOpacity
-          onPress={() => onChangeText('')}
+          onPress={handleClear}
           style={styles.clearButton}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          accessibilityRole="button"
+          accessibilityLabel="Limpiar búsqueda"
+          testID="clear-search-button"
+          activeOpacity={0.7}
         >
           <MaterialCommunityIcons name="close-circle" size={20} color={Colors.textDisabled} />
         </TouchableOpacity>

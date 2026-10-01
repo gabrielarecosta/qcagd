@@ -14,17 +14,36 @@ export function OrdersView() {
     clients, 
     branches, 
     users,
+    currentUser,
     activeBranchId, 
     globalMinOrderAmount,
     updateGlobalMinOrderAmount,
-    fetchOrdersOnly
+    fetchOrdersOnly,
+    confirmOrderDelivery
   } = useAdminStore();
+
+  const ALLOWED_DELIVERY_ORIGIN_STATUSES: OrderStatus[] = [
+    'recibido', 
+    'en_preparacion', 
+    'listo_para_reparto', 
+    'en_reparto',
+    'asignado' as any
+  ];
+
+  const isAuthorizedToDeliver = Boolean(currentUser && currentUser.rol !== 'solo_lectura');
 
   const [search, setSearch] = useState('');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
   const [selectedPaymentStatus, setSelectedPaymentStatus] = useState<string>('all');
   const [localMinAmount, setLocalMinAmount] = useState<string>('');
   const [isSavingMinAmount, setIsSavingMinAmount] = useState(false);
+
+  // Estados para acción y confirmación de Entregado
+  const [orderToDeliver, setOrderToDeliver] = useState<Order | null>(null);
+  const [deliveryNotes, setDeliveryNotes] = useState<string>('');
+  const [isDeliveringId, setIsDeliveringId] = useState<string | number | null>(null);
+  const [deliveryErrorMessage, setDeliveryErrorMessage] = useState<string | null>(null);
+  const [deliverySuccessMessage, setDeliverySuccessMessage] = useState<string | null>(null);
 
   React.useEffect(() => {
     fetchOrdersOnly();
@@ -43,6 +62,31 @@ export function OrdersView() {
       alert('Error al guardar el monto mínimo de compra.');
     } finally {
       setIsSavingMinAmount(false);
+    }
+  };
+
+  const handleExecuteDelivery = async (order: Order, notes?: string) => {
+    if (isDeliveringId) return;
+    setIsDeliveringId(order.id);
+    setDeliveryErrorMessage(null);
+
+    try {
+      const result = await confirmOrderDelivery(order.id, notes);
+      
+      if (result.alreadyDelivered) {
+        setDeliverySuccessMessage(`ℹ️ El pedido #${order.numero} ya figuraba como entregado.`);
+      } else {
+        setDeliverySuccessMessage(`✅ Pedido #${order.numero} marcado como Entregado exitosamente.`);
+      }
+
+      setOrderToDeliver(null);
+      setDeliveryNotes('');
+      setTimeout(() => setDeliverySuccessMessage(null), 5000);
+    } catch (err: any) {
+      console.error('Error al entregar pedido:', err);
+      setDeliveryErrorMessage(err.message || 'No se pudo confirmar la entrega del pedido.');
+    } finally {
+      setIsDeliveringId(null);
     }
   };
   
@@ -205,6 +249,32 @@ export function OrdersView() {
 
   return (
     <div className="view-container">
+      {deliverySuccessMessage && (
+        <div style={{
+          backgroundColor: '#ecfdf5',
+          border: '1px solid #10b981',
+          color: '#065f46',
+          padding: '12px 18px',
+          borderRadius: '8px',
+          marginBottom: '16px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          fontWeight: '600',
+          fontSize: '13.5px',
+          boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
+        }}>
+          <span>{deliverySuccessMessage}</span>
+          <button 
+            type="button" 
+            onClick={() => setDeliverySuccessMessage(null)}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#065f46', fontSize: '16px' }}
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
         <div>
           <h1 className="page-title">Monitor de Pedidos</h1>
@@ -394,7 +464,56 @@ export function OrdersView() {
                       </span>
                     </td>
                     <td className="text-right" onClick={(e) => e.stopPropagation()}>
-                      <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
+                      <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end', alignItems: 'center' }}>
+                        {ALLOWED_DELIVERY_ORIGIN_STATUSES.includes(o.estado) ? (
+                          <button 
+                            type="button"
+                            className="btn btn-success" 
+                            style={{ 
+                              padding: '6px 11px', 
+                              fontSize: '12px', 
+                              background: '#059669', 
+                              color: '#fff', 
+                              border: 'none', 
+                              fontWeight: '700',
+                              borderRadius: '6px',
+                              cursor: (isDeliveringId === o.id || !isAuthorizedToDeliver) ? 'not-allowed' : 'pointer',
+                              opacity: (isDeliveringId === o.id || !isAuthorizedToDeliver) ? 0.65 : 1,
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px'
+                            }}
+                            disabled={isDeliveringId === o.id || !isAuthorizedToDeliver}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setOrderToDeliver(o);
+                              setDeliveryNotes('');
+                              setDeliveryErrorMessage(null);
+                            }}
+                            title={!isAuthorizedToDeliver ? 'Tu rol no tiene permisos para confirmar entregas' : 'Marcar pedido como Entregado'}
+                          >
+                            {isDeliveringId === o.id ? '⏳ Guardando...' : '✓ Entregado'}
+                          </button>
+                        ) : o.estado === 'entregado' ? (
+                          <span 
+                            style={{ 
+                              fontSize: '11px', 
+                              fontWeight: '700', 
+                              color: '#059669', 
+                              backgroundColor: '#ecfdf5', 
+                              border: '1px solid #a7f3d0', 
+                              padding: '5px 8px', 
+                              borderRadius: '6px',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '3px'
+                            }}
+                            title={o.deliveredAt ? `Entregado el: ${new Date(o.deliveredAt).toLocaleString('es-AR')}` : 'Pedido ya entregado'}
+                          >
+                            ✓ Entregado
+                          </span>
+                        ) : null}
+
                         <button 
                           className="btn btn-secondary" 
                           style={{ padding: '6px 10px', fontSize: '12px', background: '#0284c7', color: '#fff', border: 'none', fontWeight: '600' }}
@@ -579,9 +698,160 @@ export function OrdersView() {
               )}
             </div>
 
-            <div className="modal-footer" style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', borderTop: '1px solid #e2e8f0', paddingTop: '12px' }}>
+            <div className="modal-footer" style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', alignItems: 'center', borderTop: '1px solid #e2e8f0', paddingTop: '12px' }}>
+              {isAuthorizedToDeliver && ALLOWED_DELIVERY_ORIGIN_STATUSES.includes(selectedOrder.estado) && (
+                <button
+                  type="button"
+                  className="btn btn-success"
+                  style={{
+                    padding: '8px 16px',
+                    fontSize: '13px',
+                    background: '#059669',
+                    color: '#fff',
+                    border: 'none',
+                    fontWeight: '700',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}
+                  disabled={isDeliveringId === selectedOrder.id}
+                  onClick={() => {
+                    const ord = selectedOrder;
+                    setSelectedOrder(null);
+                    setOrderToDeliver(ord);
+                    setDeliveryNotes('');
+                    setDeliveryErrorMessage(null);
+                  }}
+                >
+                  ✓ Entregado
+                </button>
+              )}
               <button className="btn btn-secondary" onClick={() => setSelectedOrder(null)}>Cerrar</button>
               <button className="btn btn-primary" onClick={() => { handlePrint(selectedOrder); setSelectedOrder(null); }}>🖨️ Imprimir Factura / Remito</button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Modal de Confirmación para Marcar Pedido como Entregado */}
+      {orderToDeliver && createPortal(
+        <div 
+          className="modal-overlay" 
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !isDeliveringId) {
+              setOrderToDeliver(null);
+              setDeliveryNotes('');
+              setDeliveryErrorMessage(null);
+            }
+          }}
+          style={{ zIndex: 10000 }}
+        >
+          <div className="modal-content" style={{ maxWidth: '500px', width: '92%', padding: '24px', borderRadius: '12px', background: '#fff', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+              <div style={{ width: '42px', height: '42px', borderRadius: '50%', background: '#dcfce7', color: '#16a34a', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '22px', flexShrink: 0 }}>
+                ✓
+              </div>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '800', color: '#0f172a' }}>
+                  Confirmar Entrega de Pedido
+                </h3>
+                <span style={{ fontSize: '13px', color: '#64748b' }}>
+                  Pedido #{orderToDeliver.numero}
+                </span>
+              </div>
+            </div>
+
+            {deliveryErrorMessage && (
+              <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', padding: '10px 14px', borderRadius: '8px', fontSize: '13px', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '16px' }}>⚠️</span>
+                <span>{deliveryErrorMessage}</span>
+              </div>
+            )}
+
+            <div style={{ background: '#f8fafc', padding: '14px', borderRadius: '8px', border: '1px solid #e2e8f0', marginBottom: '16px', display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '13px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: '#64748b' }}>Cliente:</span>
+                <strong style={{ color: '#0f172a' }}>{getClientInfo(orderToDeliver.clienteId, orderToDeliver).name}</strong>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: '#64748b' }}>Dirección de Entrega:</span>
+                <span style={{ color: '#0f172a', textAlign: 'right', maxWidth: '250px' }}>{getClientInfo(orderToDeliver.clienteId, orderToDeliver).dir}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px dashed #cbd5e1', paddingTop: '6px' }}>
+                <span style={{ color: '#64748b' }}>Monto Total:</span>
+                <strong style={{ color: '#0f172a', fontSize: '14px' }}>{formatPrice(orderToDeliver.total)}</strong>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: '#64748b' }}>Método de Pago:</span>
+                <span style={{ fontWeight: '600', color: '#0f172a' }}>{getPaymentMethodLabel(orderToDeliver.paymentMethod)}</span>
+              </div>
+
+              {/* Avisos explicativos según la modalidad de pago para evitar efectos duplicados */}
+              {orderToDeliver.paymentMethod === 'cuenta_corriente' && (
+                <div style={{ marginTop: '4px', background: '#eff6ff', border: '1px solid #bfdbfe', color: '#1e40af', padding: '8px 10px', borderRadius: '6px', fontSize: '12px' }}>
+                  ℹ️ <strong>Cuenta Corriente:</strong> El pedido se entregará manteniendo la deuda en la cuenta corriente del cliente (no se marca como pagado automáticamente).
+                </div>
+              )}
+              {orderToDeliver.paymentMethod === 'transferencia' && orderToDeliver.paymentStatus !== 'pagado' && orderToDeliver.paymentStatus !== 'transferencia_confirmada' && (
+                <div style={{ marginTop: '4px', background: '#fffbeb', border: '1px solid #fef3c7', color: '#b45309', padding: '8px 10px', borderRadius: '6px', fontSize: '12px' }}>
+                  ⚠️ <strong>Transferencia pendiente:</strong> Se registrará la entrega física sin alterar la verificación pendiente de la transferencia bancaria.
+                </div>
+              )}
+              {orderToDeliver.paymentMethod === 'efectivo' && (
+                <div style={{ marginTop: '4px', background: '#f0fdf4', border: '1px solid #bbf7d0', color: '#166534', padding: '8px 10px', borderRadius: '6px', fontSize: '12px' }}>
+                  💵 <strong>Cobro en Efectivo:</strong> Al confirmar la entrega, se dará por percibido el efectivo del cliente.
+                </div>
+              )}
+            </div>
+
+            <div style={{ marginBottom: '18px' }}>
+              <label style={{ display: 'block', fontSize: '12.5px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>
+                Notas de Entrega / Receptor (Opcional)
+              </label>
+              <input
+                type="text"
+                className="form-input"
+                style={{ width: '100%', boxSizing: 'border-box' }}
+                placeholder="Ej: Recibido por recepción / portería..."
+                value={deliveryNotes}
+                onChange={(e) => setDeliveryNotes(e.target.value)}
+                disabled={Boolean(isDeliveringId)}
+              />
+            </div>
+
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                disabled={Boolean(isDeliveringId)}
+                onClick={() => {
+                  setOrderToDeliver(null);
+                  setDeliveryNotes('');
+                  setDeliveryErrorMessage(null);
+                }}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="btn btn-success"
+                style={{
+                  background: '#059669',
+                  color: '#fff',
+                  border: 'none',
+                  padding: '9px 20px',
+                  fontWeight: '700',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  cursor: isDeliveringId ? 'not-allowed' : 'pointer'
+                }}
+                disabled={Boolean(isDeliveringId)}
+                onClick={() => handleExecuteDelivery(orderToDeliver, deliveryNotes)}
+              >
+                {isDeliveringId ? '⏳ Confirmando...' : '✓ Confirmar Entrega'}
+              </button>
             </div>
           </div>
         </div>,

@@ -74,6 +74,7 @@ export default function CatalogoScreen() {
     totalPagesCount,
     fetchPaginatedProducts,
     isLoading,
+    loadError,
     source,
     importedFileName,
     superOffers,
@@ -98,8 +99,8 @@ export default function CatalogoScreen() {
   const [currentPage, setCurrentPage] = useState(1);
   const flatListRef = useRef<FlatList>(null);
 
-  // Debounce para búsqueda
-  const query = useDebounce(rawQuery, 200);
+  // Debounce para búsqueda (entre 250 y 350 ms)
+  const query = useDebounce(rawQuery, 300);
 
   // Cargar ofertas y banners accesorios
   useEffect(() => {
@@ -115,15 +116,23 @@ export default function CatalogoScreen() {
     }
   }, [categoria]);
 
-  // Resetear a página 1 cuando cambia el filtro, término de búsqueda u orden
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [query, selectedCategory, sortBy]);
+  // Referencias para detectar cambios en filtros de búsqueda y reiniciar página de forma atómica
+  const prevFilterRef = useRef({ query, selectedCategory, sortBy });
 
   // ⚡ CONSULTA PAGINADA SERVIDOR (Supabase range/limit + exact count)
   useEffect(() => {
+    const prev = prevFilterRef.current;
+    const filterChanged = prev.query !== query || prev.selectedCategory !== selectedCategory || prev.sortBy !== sortBy;
+    prevFilterRef.current = { query, selectedCategory, sortBy };
+
+    // Si cambió el término de búsqueda o filtros, reiniciamos a página 1 en el mismo llamado
+    const targetPage = filterChanged ? 1 : currentPage;
+    if (filterChanged && currentPage !== 1) {
+      setCurrentPage(1);
+    }
+
     fetchPaginatedProducts({
-      page: currentPage,
+      page: targetPage,
       pageSize: PAGE_SIZE,
       search: query,
       categoria: selectedCategory === 'todos' ? undefined : selectedCategory,
@@ -349,6 +358,10 @@ export default function CatalogoScreen() {
                 <SearchBar
                   value={rawQuery}
                   onChangeText={setRawQuery}
+                  onClear={() => {
+                    setRawQuery('');
+                    setCurrentPage(1);
+                  }}
                   placeholder="Buscar por nombre, código o descripción..."
                   style={StyleSheet.flatten([styles.searchBar, { marginBottom: 0 }])}
                 />
@@ -419,6 +432,10 @@ export default function CatalogoScreen() {
                 <SearchBar
                   value={rawQuery}
                   onChangeText={setRawQuery}
+                  onClear={() => {
+                    setRawQuery('');
+                    setCurrentPage(1);
+                  }}
                   placeholder="Buscar..."
                   style={StyleSheet.flatten([styles.searchBar, { marginBottom: 0 }])}
                 />
@@ -533,12 +550,32 @@ export default function CatalogoScreen() {
       )}
 
       {/* ── Lista de productos ── */}
-      {isLoading ? (
+      {loadError ? (
+        <View style={styles.emptyState}>
+          <Text style={styles.emptyIcon}>⚠️</Text>
+          <Text style={styles.emptyTitle}>Error al cargar el catálogo</Text>
+          <Text style={styles.emptySubtitle}>{loadError}</Text>
+          <TouchableOpacity
+            style={[styles.headerRegisterBtn, { marginTop: 16, paddingHorizontal: 24 }]}
+            onPress={() => {
+              fetchPaginatedProducts({
+                page: currentPage,
+                pageSize: PAGE_SIZE,
+                search: query,
+                categoria: selectedCategory === 'todos' ? undefined : selectedCategory,
+                sortBy: sortBy,
+              });
+            }}
+          >
+            <Text style={styles.headerRegisterBtnText}>Reintentar</Text>
+          </TouchableOpacity>
+        </View>
+      ) : isLoading && products.length === 0 ? (
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 }}>
           <ActivityIndicator size="large" color={Colors.primary} />
           <Text style={{ color: Colors.textSecondary, fontSize: 16 }}>Cargando catálogo...</Text>
         </View>
-      ) : totalProductsCount === 0 ? (
+      ) : totalProductsCount === 0 && !isLoading ? (
         <View style={styles.emptyState}>
           <Text style={styles.emptyIcon}>🔍</Text>
           <Text style={styles.emptyTitle}>No encontramos productos</Text>
@@ -547,18 +584,25 @@ export default function CatalogoScreen() {
           </Text>
         </View>
       ) : (
-        <FlatList
-          ref={flatListRef}
-          key={`grid-cols-${numGridColumns}`}
-          data={products}
-          keyExtractor={keyExtractor}
-          renderItem={renderItem}
-          numColumns={numGridColumns}
-          contentContainerStyle={[styles.productList, { paddingBottom: 90 }]}
-          columnWrapperStyle={numGridColumns > 1 ? styles.productRow : undefined}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-          keyboardDismissMode="on-drag"
+        <View style={{ flex: 1, position: 'relative' }}>
+          {isLoading && (
+            <View style={styles.loadingBannerTop}>
+              <ActivityIndicator size="small" color={Colors.primary} />
+              <Text style={styles.loadingBannerText}>Actualizando productos...</Text>
+            </View>
+          )}
+          <FlatList
+            ref={flatListRef}
+            key={`grid-cols-${numGridColumns}`}
+            data={products}
+            keyExtractor={keyExtractor}
+            renderItem={renderItem}
+            numColumns={numGridColumns}
+            contentContainerStyle={[styles.productList, { paddingBottom: 120 }]}
+            columnWrapperStyle={numGridColumns > 1 ? styles.productRow : undefined}
+            showsVerticalScrollIndicator={true}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
 
           ListHeaderComponent={
             selectedCategory !== 'todos' ? (
@@ -692,6 +736,7 @@ export default function CatalogoScreen() {
 
           ListFooterComponent={renderPaginationFooter}
         />
+        </View>
       )}
 
       {/* ── Modal Detalle de Producto ── */}
@@ -888,6 +933,31 @@ const styles = StyleSheet.create({
   },
   searchBar: {
     marginBottom: Spacing.lg,
+  },
+  loadingBannerTop: {
+    position: 'absolute',
+    top: 8,
+    alignSelf: 'center',
+    zIndex: 999,
+    backgroundColor: Colors.white,
+    borderRadius: Radius.full,
+    paddingVertical: 6,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 4,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  loadingBannerText: {
+    fontSize: FontSize.sm,
+    fontWeight: FontWeight.semibold,
+    color: Colors.primary,
   },
 
   // Reorganized Header Styles

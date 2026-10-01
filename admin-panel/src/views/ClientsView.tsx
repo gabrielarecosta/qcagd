@@ -64,9 +64,10 @@ export function ClientsView({ initialSection = 'directorio' }: ClientsViewProps)
   const [newAddrIndicaciones, setNewAddrIndicaciones] = useState('');
   const [addingAddr, setAddingAddr] = useState(false);
 
-  // Estados para Contraseñas
+  // Estados para Contraseñas y Accesos
   const [visiblePasswords, setVisiblePasswords] = useState<Record<string | number, boolean>>({});
   const [copiedClientId, setCopiedClientId] = useState<string | number | null>(null);
+  const [copiedEmailId, setCopiedEmailId] = useState<string | number | null>(null);
   const [quickPasswordClient, setQuickPasswordClient] = useState<Customer | null>(null);
   const [quickPasswordValue, setQuickPasswordValue] = useState<string>('');
   const [showClientFormPassword, setShowClientFormPassword] = useState<boolean>(false);
@@ -129,7 +130,7 @@ export function ClientsView({ initialSection = 'directorio' }: ClientsViewProps)
       nombre: c.nombre || '',
       razonSocial: c.razonSocial || '',
       cuit: c.cuit || '',
-      email: c.email || '',
+      email: c.authEmail || c.email || '',
       telefono: c.telefono || '',
       direccion: c.direccion || '',
       branchId: c.branchId,
@@ -296,6 +297,7 @@ export function ClientsView({ initialSection = 'directorio' }: ClientsViewProps)
         (c.cuit || '').includes(q) ||
         (c.direccion || '').toLowerCase().includes(q) ||
         (c.email || '').toLowerCase().includes(q) ||
+        (c.authEmail || '').toLowerCase().includes(q) ||
         (c.telefono || '').includes(q);
 
       const globalBranchFilter = activeBranchId === 'all' || String(c.branchId) === String(activeBranchId);
@@ -359,8 +361,8 @@ export function ClientsView({ initialSection = 'directorio' }: ClientsViewProps)
       Nombre: c.nombre,
       RazónSocial: c.razonSocial || '',
       CUIT: c.cuit || '',
+      'Email Registro (Auth)': c.authEmail || c.email || '',
       Teléfono: c.telefono,
-      Email: c.email || '',
       Dirección: c.direccion,
       Sucursal: getBranchName(c.branchId),
       Segmento: c.tipoCliente,
@@ -652,6 +654,7 @@ export function ClientsView({ initialSection = 'directorio' }: ClientsViewProps)
                 <thead>
                   <tr>
                     <th>Cliente / Razón Social</th>
+                    <th>Email de Registro</th>
                     <th>CUIT</th>
                     <th>Contacto</th>
                     <th>Contraseña</th>
@@ -679,12 +682,58 @@ export function ClientsView({ initialSection = 'directorio' }: ClientsViewProps)
                             <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{c.razonSocial}</div>
                           )}
                         </td>
+                        <td>
+                          {c.authEmail || c.email ? (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                              <span 
+                                style={{ 
+                                  fontSize: '12px', 
+                                  color: '#0f172a', 
+                                  fontWeight: '600',
+                                  backgroundColor: '#f1f5f9',
+                                  padding: '3px 8px',
+                                  borderRadius: '6px',
+                                  border: '1px solid #e2e8f0',
+                                  wordBreak: 'break-all'
+                                }}
+                                title="Email de registro en auth.users"
+                              >
+                                ✉️ {c.authEmail || c.email}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  navigator.clipboard.writeText(c.authEmail || c.email || '');
+                                  setCopiedEmailId(c.id);
+                                  setTimeout(() => setCopiedEmailId(null), 2000);
+                                }}
+                                title="Copiar email de registro al portapapeles"
+                                style={{
+                                  background: 'none',
+                                  border: '1px solid #cbd5e1',
+                                  borderRadius: '4px',
+                                  cursor: 'pointer',
+                                  padding: '2px 5px',
+                                  fontSize: '11px',
+                                  color: copiedEmailId === c.id ? '#16a34a' : '#475569',
+                                  backgroundColor: copiedEmailId === c.id ? '#f0fdf4' : '#ffffff'
+                                }}
+                              >
+                                {copiedEmailId === c.id ? '✓' : '📋'}
+                              </button>
+                            </div>
+                          ) : (
+                            <span style={{ color: 'var(--text-disabled)', fontSize: '12px' }}>Sin registrar</span>
+                          )}
+                        </td>
                         <td style={{ fontFamily: 'monospace', fontSize: '13px' }}>
                           {c.cuit || <span style={{ color: 'var(--text-disabled)' }}>Sin CUIT</span>}
                         </td>
                         <td>
-                          <div>📞 {c.telefono}</div>
-                          {c.email && <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>✉️ {c.email}</div>}
+                          <div>📞 {c.telefono || <span style={{ color: 'var(--text-disabled)' }}>Sin teléfono</span>}</div>
+                          {c.whatsapp && c.whatsapp !== c.telefono && (
+                            <div style={{ fontSize: '11px', color: '#16a34a', marginTop: '2px' }}>💬 {c.whatsapp}</div>
+                          )}
                         </td>
                         <td>
                           {c.passwordPlain ? (
@@ -797,13 +846,13 @@ export function ClientsView({ initialSection = 'directorio' }: ClientsViewProps)
                   })}
                   {clients.length === 0 ? (
                     <tr>
-                      <td colSpan={10} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-disabled)' }}>
+                      <td colSpan={11} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-disabled)' }}>
                         Todavía no hay clientes registrados.
                       </td>
                     </tr>
                   ) : totalClientsCount === 0 && (
                     <tr>
-                      <td colSpan={10} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-disabled)' }}>
+                      <td colSpan={11} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-disabled)' }}>
                         No se encontraron clientes con los filtros aplicados.
                       </td>
                     </tr>
@@ -1174,10 +1223,11 @@ export function ClientsView({ initialSection = 'directorio' }: ClientsViewProps)
 
                 <div className="form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
                   <div className="form-group">
-                    <label className="form-label">Email (Opcional)</label>
+                    <label className="form-label">Email de Registro (auth.users / Acceso)</label>
                     <input 
                       type="email" 
                       className="form-input" 
+                      placeholder="usuario@ejemplo.com"
                       value={formClient.email}
                       onChange={e => setFormClient({ ...formClient, email: e.target.value })}
                     />
@@ -1523,11 +1573,11 @@ export function ClientsView({ initialSection = 'directorio' }: ClientsViewProps)
 
                 <div className="form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
                   <div className="form-group">
-                    <label className="form-label">Email (Opcional)</label>
+                    <label className="form-label">Email de Registro (auth.users / Acceso)</label>
                     <input 
                       type="email" 
                       className="form-input" 
-                      placeholder="ejemplo@correo.com"
+                      placeholder="usuario@ejemplo.com"
                       value={formClient.email}
                       onChange={e => setFormClient({ ...formClient, email: e.target.value })}
                     />
