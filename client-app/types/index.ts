@@ -18,6 +18,8 @@ export interface Product {
   subcategoria?: string;
   stock?: number;
   imagen?: string;
+  imagenSecundaria?: string;
+  imagenes?: string[];
   destacado?: boolean;
   activo: boolean;
   marca?: string;

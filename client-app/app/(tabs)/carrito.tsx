@@ -14,6 +14,7 @@ import {
   Platform,
   Linking,
   ActivityIndicator,
+  Image,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Colors } from '../../constants/Colors';
@@ -26,7 +27,9 @@ import { useNotificationStore } from '../../store/useNotificationStore';
 import { CartItem, CATEGORY_ICONS, Order, CustomerAddress } from '../../types';
 import { formatPrice as fmtPrice } from '../../utils/formatters';
 import { Button } from '../../components/ui/Button';
-import MaterialCommunityIcons from '../../components/icons/MaterialCommunityIcons';import { customAlert } from '../../utils/alert';
+import MaterialCommunityIcons from '../../components/icons/MaterialCommunityIcons';
+import { customAlert } from '../../utils/alert';
+import { HoverImagePreview } from '../../components/ui/HoverImagePreview';
 import { offerService } from '@shared/services/offerService';
 import { deliverySlotService } from '@shared/services/deliverySlotService';
 import { companySettingsService } from '@shared/services/companySettingsService';
@@ -733,7 +736,8 @@ export default function CarritoScreen() {
         <ScrollView
           style={{ flex: 1 }}
           contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
+          showsVerticalScrollIndicator={true}
+          persistentScrollbar={true}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
         >
@@ -1505,9 +1509,26 @@ function CartItemRow({
 
   return (
     <View style={rowStyles.container}>
-      {/* Ícono de categoría */}
+      {/* Foto del producto con hover preview o ícono de categoría si no tiene imagen */}
       <View style={rowStyles.iconContainer}>
-        <MaterialCommunityIcons name={icon as any} size={28} color={Colors.primary} />
+        {producto.imagen ? (
+          <HoverImagePreview
+            imageUri={producto.imagen}
+            name={producto.nombre}
+            price={producto.precio}
+            presentation={producto.presentacion}
+            codigo={producto.codigo}
+            style={{ width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' }}
+          >
+            <Image
+              source={{ uri: producto.imagen }}
+              style={rowStyles.productImage}
+              resizeMode="contain"
+            />
+          </HoverImagePreview>
+        ) : (
+          <MaterialCommunityIcons name={icon as any} size={28} color={Colors.primary} />
+        )}
       </View>
 
       {/* Info del producto */}
@@ -1622,6 +1643,12 @@ const rowStyles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     flexShrink: 0,
+    overflow: 'hidden',
+  },
+  productImage: {
+    width: 56,
+    height: 56,
+    borderRadius: Radius.md,
   },
   icon: {
     fontSize: 28,

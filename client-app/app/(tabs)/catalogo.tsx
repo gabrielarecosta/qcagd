@@ -91,6 +91,7 @@ export default function CatalogoScreen() {
   const [selectedCategory, setSelectedCategory] = useState<ProductCategory | 'todos'>('todos');
   const [sortBy, setSortBy] = useState<'relevante' | 'precio-bajo' | 'precio-alto' | 'mas-vendido'>('relevante');
   const [selectedProductDetails, setSelectedProductDetails] = useState<Product | null>(null);
+  const [detailActiveImgIndex, setDetailActiveImgIndex] = useState(0);
   const [modalQty, setModalQty] = useState(1);
   const [modalQtyText, setModalQtyText] = useState('1');
   const [showFilterDropdown, setShowFilterDropdown] = useState(false);
@@ -333,6 +334,7 @@ export default function CatalogoScreen() {
         onPress={(p) => {
           setModalQty(1);
           setModalQtyText('1');
+          setDetailActiveImgIndex(0);
           setSelectedProductDetails(p);
         }}
       />
@@ -749,13 +751,45 @@ export default function CatalogoScreen() {
 
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalScrollContent}>
               {/* Image box */}
-              <View style={styles.modalImageWrapper}>
-                {selectedProductDetails.imagen ? (
-                  <Image source={{ uri: selectedProductDetails.imagen }} style={styles.modalImage} resizeMode="contain" />
-                ) : (
-                  <MaterialCommunityIcons name={CATEGORY_ICONS[selectedProductDetails.categoria] as any} size={88} color={Colors.primary} />
-                )}
-              </View>
+              {(() => {
+                const productImgs = [
+                  selectedProductDetails.imagen,
+                  selectedProductDetails.imagenSecundaria,
+                  ...(selectedProductDetails.imagenes || [])
+                ].filter((v, i, a): v is string => !!v && v.trim() !== '' && a.indexOf(v) === i);
+                const currentImg = productImgs[detailActiveImgIndex] || productImgs[0];
+
+                return (
+                  <View style={{ alignItems: 'center', marginBottom: 12 }}>
+                    <View style={styles.modalImageWrapper}>
+                      {currentImg ? (
+                        <Image source={{ uri: currentImg }} style={styles.modalImage} resizeMode="contain" />
+                      ) : (
+                        <MaterialCommunityIcons name={CATEGORY_ICONS[selectedProductDetails.categoria] as any} size={88} color={Colors.primary} />
+                      )}
+                    </View>
+                    {productImgs.length > 1 && (
+                      <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
+                        {productImgs.map((imgUri, idx) => (
+                          <TouchableOpacity
+                            key={idx}
+                            onPress={() => setDetailActiveImgIndex(idx)}
+                            style={{
+                              borderWidth: detailActiveImgIndex === idx ? 2 : 1,
+                              borderColor: detailActiveImgIndex === idx ? Colors.primary : '#cbd5e1',
+                              borderRadius: 8,
+                              padding: 2,
+                              backgroundColor: '#fff',
+                            }}
+                          >
+                            <Image source={{ uri: imgUri }} style={{ width: 44, height: 44, borderRadius: 6 }} resizeMode="contain" />
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    )}
+                  </View>
+                );
+              })()}
 
               {/* Text detail */}
               <View style={styles.modalTextDetails}>

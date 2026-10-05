@@ -23,6 +23,7 @@ import { AddToListModal } from '../ui/AddToListModal';
 import { Product } from '../../types';
 import { supabase } from '@shared/services/supabaseClient';
 import MaterialCommunityIcons from '../icons/MaterialCommunityIcons';
+import { HoverImagePreview } from '../ui/HoverImagePreview';
 
 interface MisListasScreenProps {
   onBackToAccount?: () => void;
@@ -272,11 +273,19 @@ export function MisListasScreen({ onBackToAccount }: MisListasScreenProps) {
                         {previewItems.map((it, idx) => (
                           <View key={it.id || idx} style={styles.previewThumbBox}>
                             {it.product?.imagen ? (
-                              <Image
-                                source={{ uri: it.product.imagen }}
-                                style={styles.previewThumbImg}
-                                resizeMode="contain"
-                              />
+                              <HoverImagePreview
+                                imageUri={it.product.imagen}
+                                name={it.product.nombre}
+                                price={it.product.precio}
+                                presentation={it.product.presentacion}
+                                codigo={it.product.codigo}
+                              >
+                                <Image
+                                  source={{ uri: it.product.imagen }}
+                                  style={styles.previewThumbImg}
+                                  resizeMode="contain"
+                                />
+                              </HoverImagePreview>
                             ) : (
                               <MaterialCommunityIcons name="cube-outline" size={18} color={Colors.primary} />
                             )}
@@ -442,7 +451,15 @@ export function MisListasScreen({ onBackToAccount }: MisListasScreenProps) {
                       <View key={prod.id} style={styles.resultItemRow}>
                         {/* Foto pequeña */}
                         {prod.imagen ? (
-                          <Image source={{ uri: prod.imagen }} style={styles.resultThumb} resizeMode="contain" />
+                          <HoverImagePreview
+                            imageUri={prod.imagen}
+                            name={prod.nombre}
+                            price={prod.precio}
+                            presentation={prod.presentacion}
+                            codigo={prod.codigo}
+                          >
+                            <Image source={{ uri: prod.imagen }} style={styles.resultThumb} resizeMode="contain" />
+                          </HoverImagePreview>
                         ) : (
                           <View style={styles.resultThumbPlaceholder}>
                             <MaterialCommunityIcons name="cube-outline" size={20} color={Colors.primary} />

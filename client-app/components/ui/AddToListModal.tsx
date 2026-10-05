@@ -17,6 +17,7 @@ import { Product } from '../../types';
 import { useListsStore } from '../../store/listsStore';
 import { useAuthStore } from '../../store/authStore';
 import MaterialCommunityIcons from '../icons/MaterialCommunityIcons';
+import { HoverImagePreview } from './HoverImagePreview';
 
 interface AddToListModalProps {
   visible: boolean;
@@ -94,7 +95,15 @@ export function AddToListModal({ visible, product, onClose }: AddToListModalProp
           {/* Product info banner */}
           <View style={styles.productBanner}>
             {product.imagen ? (
-              <Image source={{ uri: product.imagen }} style={styles.productThumb} resizeMode="contain" />
+              <HoverImagePreview
+                imageUri={product.imagen}
+                name={product.nombre}
+                price={product.precio}
+                presentation={product.presentacion}
+                codigo={product.codigo}
+              >
+                <Image source={{ uri: product.imagen }} style={styles.productThumb} resizeMode="contain" />
+              </HoverImagePreview>
             ) : (
               <View style={styles.productThumbPlaceholder}>
                 <MaterialCommunityIcons name="cube-outline" size={22} color={Colors.primary} />

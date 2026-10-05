@@ -19,6 +19,8 @@ const mapProduct = (d: any, rate: number = 1000, isPublic: boolean = false): Pro
     precioMayorista: isPublic ? undefined : (d.precio_mayorista ? Number(d.precio_mayorista) : undefined),
     descripcion: d.descripcion || undefined,
     imagen: d.imagen || undefined,
+    imagenSecundaria: d.imagen_secundaria || (d.imagenes && d.imagenes[1]) || undefined,
+    imagenes: d.imagenes && Array.isArray(d.imagenes) && d.imagenes.length > 0 ? d.imagenes : ([d.imagen, d.imagen_secundaria].filter(Boolean)),
     activo: d.activo,
     visibleEnApp: d.visible_en_app,
     destacado: d.destacado || false,
@@ -80,7 +82,7 @@ export const productService = {
     const isStockFilterActive = options.stockFilter && options.stockFilter !== 'all';
 
     const selectCols = isPublic
-      ? 'id, codigo, nombre, categoria, subcategoria, presentacion, unidad, descripcion, imagen, activo, visible_en_app, destacado, created_at, updated_at'
+      ? 'id, codigo, nombre, categoria, subcategoria, presentacion, unidad, descripcion, imagen, imagen_secundaria, imagenes, activo, visible_en_app, destacado, created_at, updated_at'
       : '*';
 
     let query = supabase
@@ -284,7 +286,7 @@ export const productService = {
 
       const { data: chunk, error: prodErr } = await supabase
         .from('products')
-        .select(isPublic ? 'id, codigo, nombre, categoria, subcategoria, presentacion, unidad, descripcion, imagen, activo, visible_en_app, destacado, created_at, updated_at, deleted_at, deleted_by' : '*')
+        .select(isPublic ? 'id, codigo, nombre, categoria, subcategoria, presentacion, unidad, descripcion, imagen, imagen_secundaria, imagenes, activo, visible_en_app, destacado, created_at, updated_at, deleted_at, deleted_by' : '*')
         .is('deleted_at', null)
         .range(fromRange, toRange);
 
@@ -445,6 +447,8 @@ export const productService = {
       precio_mayorista: product.precioMayorista,
       descripcion: product.descripcion,
       imagen: product.imagen,
+      imagen_secundaria: product.imagenSecundaria || (product.imagenes && product.imagenes[1]) || null,
+      imagenes: product.imagenes || ([product.imagen, product.imagenSecundaria].filter(Boolean)),
       activo: product.activo ?? true,
       visible_en_app: product.visibleEnApp ?? true,
       destacado: product.destacado ?? false,
@@ -499,6 +503,8 @@ export const productService = {
       precio_mayorista: updates.precioMayorista,
       descripcion: updates.descripcion,
       imagen: updates.imagen,
+      imagen_secundaria: updates.imagenSecundaria !== undefined ? updates.imagenSecundaria : (updates.imagenes && updates.imagenes[1] ? updates.imagenes[1] : undefined),
+      imagenes: updates.imagenes !== undefined ? updates.imagenes : (updates.imagen !== undefined || updates.imagenSecundaria !== undefined ? [updates.imagen || '', updates.imagenSecundaria || ''].filter(Boolean) : undefined),
       activo: updates.activo,
       visible_en_app: updates.visibleEnApp,
       destacado: updates.destacado,

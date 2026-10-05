@@ -27,8 +27,8 @@ import { CATEGORY_ICONS, CATEGORY_LABELS, ProductCategory, Product, Order } from
 import MaterialCommunityIcons from '../../components/icons/MaterialCommunityIcons';
 import { useEntrance } from '../../hooks/useEntrance';
 import { DesktopStartScreen } from '../../components/screens/DesktopStartScreen';
-import { MobileStartScreen } from '../../components/screens/MobileStartScreen';
 import { AppFooter } from '../../components/AppFooter';
+import { HoverImagePreview } from '../../components/ui/HoverImagePreview';
 
 
 const QUICK_CATEGORIES: ProductCategory[] = ['limpieza', 'quimicos', 'perfumeria', 'descartables', 'piscina', 'industrial', 'hogar', 'institucional'];
@@ -552,7 +552,15 @@ export default function HomeScreen() {
                       <View key={it.id} style={styles.modalProductRow}>
                         <View style={styles.modalProductImgContainer}>
                           {product.imagen ? (
-                            <Image source={{ uri: product.imagen }} style={styles.modalProductImg} resizeMode="cover" />
+                            <HoverImagePreview
+                              imageUri={product.imagen}
+                              name={product.nombre}
+                              price={product.precio}
+                              presentation={product.presentacion}
+                              codigo={product.codigo}
+                            >
+                              <Image source={{ uri: product.imagen }} style={styles.modalProductImg} resizeMode="cover" />
+                            </HoverImagePreview>
                           ) : (
                             <MaterialCommunityIcons name={(CATEGORY_ICONS[product.categoria as ProductCategory] as any) || 'package-variant'} size={24} color={Colors.primary} />
                           )}

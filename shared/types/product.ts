@@ -20,6 +20,8 @@ export interface Product {
   precioMayorista?: number;
   descripcion?: string;
   imagen?: string;
+  imagenSecundaria?: string;
+  imagenes?: string[];
   activo: boolean;
   visibleEnApp?: boolean;
   destacado?: boolean;
