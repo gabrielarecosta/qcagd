@@ -20,6 +20,7 @@ import { useCartStore } from '../../store/cartStore';
 import { Product } from '../../types';
 import { supabase } from '@shared/services/supabaseClient';
 import MaterialCommunityIcons from '../icons/MaterialCommunityIcons';
+import { HoverImagePreview } from '../ui/HoverImagePreview';
 
 interface ListaDetalleScreenProps {
   listId: string | number;
@@ -300,7 +301,15 @@ export function ListaDetalleScreen({ listId, onBack }: ListaDetalleScreenProps) 
                     return (
                       <View key={prod.id} style={styles.resultItemRow}>
                         {prod.imagen ? (
-                          <Image source={{ uri: prod.imagen }} style={styles.resultThumb} resizeMode="contain" />
+                          <HoverImagePreview
+                            imageUri={prod.imagen}
+                            name={prod.nombre}
+                            price={prod.precio}
+                            presentation={prod.presentacion}
+                            codigo={prod.codigo}
+                          >
+                            <Image source={{ uri: prod.imagen }} style={styles.resultThumb} resizeMode="contain" />
+                          </HoverImagePreview>
                         ) : (
                           <View style={styles.resultThumbPlaceholder}>
                             <MaterialCommunityIcons name="cube-outline" size={20} color={Colors.primary} />
@@ -363,7 +372,15 @@ export function ListaDetalleScreen({ listId, onBack }: ListaDetalleScreenProps) 
                 <View key={item.id} style={styles.productRow}>
                   {/* Imagen */}
                   {p.imagen ? (
-                    <Image source={{ uri: p.imagen }} style={styles.productImg} resizeMode="contain" />
+                    <HoverImagePreview
+                      imageUri={p.imagen}
+                      name={p.nombre}
+                      price={p.precio}
+                      presentation={p.presentacion}
+                      codigo={p.codigo}
+                    >
+                      <Image source={{ uri: p.imagen }} style={styles.productImg} resizeMode="contain" />
+                    </HoverImagePreview>
                   ) : (
                     <View style={styles.placeholderImg}>
                       <MaterialCommunityIcons name="cube-outline" size={26} color={Colors.primary} />

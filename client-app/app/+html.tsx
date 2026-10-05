@@ -58,16 +58,48 @@ export default function Root({ children }: PropsWithChildren) {
             user-drag: none;
           }
 
+          /* Scrollbar global estilizado y visible */
           ::-webkit-scrollbar {
-            width: 4px;
-            height: 4px;
+            width: 7px;
+            height: 7px;
           }
           ::-webkit-scrollbar-track {
-            background: transparent;
+            background: #F1F5F9;
+            border-radius: 6px;
           }
           ::-webkit-scrollbar-thumb {
-            background: rgba(148, 163, 184, 0.4);
-            border-radius: 4px;
+            background: #CBD5E1;
+            border-radius: 6px;
+          }
+          ::-webkit-scrollbar-thumb:hover {
+            background: #94A3B8;
+          }
+
+          /* Barra de desplazamiento siempre visible y destacada para la ventana de Mis Pedidos */
+          [data-cart-scroll="true"],
+          [data-testid="cart-preview-scroll"] {
+            overflow-y: scroll !important;
+            scrollbar-width: thin !important;
+            scrollbar-color: #94A3B8 #F1F5F9 !important;
+          }
+          [data-cart-scroll="true"]::-webkit-scrollbar,
+          [data-testid="cart-preview-scroll"]::-webkit-scrollbar {
+            width: 7px !important;
+            display: block !important;
+          }
+          [data-cart-scroll="true"]::-webkit-scrollbar-track,
+          [data-testid="cart-preview-scroll"]::-webkit-scrollbar-track {
+            background: #F1F5F9 !important;
+            border-radius: 6px !important;
+          }
+          [data-cart-scroll="true"]::-webkit-scrollbar-thumb,
+          [data-testid="cart-preview-scroll"]::-webkit-scrollbar-thumb {
+            background: #94A3B8 !important;
+            border-radius: 6px !important;
+          }
+          [data-cart-scroll="true"]::-webkit-scrollbar-thumb:hover,
+          [data-testid="cart-preview-scroll"]::-webkit-scrollbar-thumb:hover {
+            background: #64748B !important;
           }
         `}</style>
       </head>

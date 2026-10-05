@@ -22,6 +22,7 @@ import { CATEGORY_ICONS } from '../types';
 import MaterialCommunityIcons from './icons/MaterialCommunityIcons';
 import { useEntrance } from '../hooks/useEntrance';
 import { AddToListModal } from './ui/AddToListModal';
+import { HoverImagePreview } from './ui/HoverImagePreview';
 
 interface ProductCardProps {
   product: Product;
@@ -89,11 +90,20 @@ export function ProductCard({ product, style, onPress, delay = 0 }: ProductCardP
         {/* Imagen/placeholder con gradiente suave */}
         <View style={[styles.imageContainer, isInCart && styles.imageContainerInCart]}>
           {product.imagen ? (
-            <Image
-              source={{ uri: product.imagen }}
-              style={styles.productImage}
-              resizeMode="contain"
-            />
+            <HoverImagePreview
+              imageUri={product.imagen}
+              name={product.nombre}
+              price={product.precio}
+              presentation={product.presentacion}
+              codigo={product.codigo}
+              style={{ width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' }}
+            >
+              <Image
+                source={{ uri: product.imagen }}
+                style={styles.productImage}
+                resizeMode="contain"
+              />
+            </HoverImagePreview>
           ) : (
             <MaterialCommunityIcons name={icon as any} size={44} color={Colors.primary} />
           )}

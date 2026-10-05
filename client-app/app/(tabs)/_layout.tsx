@@ -8,6 +8,8 @@ import { Badge } from '../../components/ui/Badge';
 import { useAuthStore } from '../../store/authStore';
 import { Radius, Spacing } from '../../constants/Spacing';
 import MaterialCommunityIcons from '../../components/icons/MaterialCommunityIcons';import { formatPrice as fmtPrice } from '../../utils/formatters';
+import { CATEGORY_ICONS, ProductCategory } from '../../types';
+import { HoverImagePreview } from '../../components/ui/HoverImagePreview';
 
 // Módulos de pantalla para el flujo de autenticación bloqueado
 import { LoginClienteScreen } from '../../components/screens/LoginClienteScreen';
@@ -187,24 +189,70 @@ export default function TabsLayout() {
                         </View>
                       ) : (
                         <>
-                          <ScrollView style={{ maxHeight: 220 }} contentContainerStyle={{ paddingHorizontal: 12 }}>
-                            {items.map((item) => (
-                              <TouchableOpacity
-                                key={item.producto.id}
-                                style={desktopStyles.cartPreviewItem}
-                                onPress={() => {
-                                  setShowCartPreview(false);
-                                  router.push('/(tabs)/carrito');
-                                }}
-                              >
-                                <Text style={desktopStyles.cartPreviewItemName} numberOfLines={1}>
-                                  {item.producto.nombre}
-                                </Text>
-                                <Text style={desktopStyles.cartPreviewItemDetails}>
-                                  {item.cantidad} u. × {fmtPrice(item.producto.precio)}
-                                </Text>
-                              </TouchableOpacity>
-                            ))}
+                          <ScrollView
+                            style={[
+                              desktopStyles.cartPreviewScroll,
+                              Platform.OS === 'web' && ({
+                                maxHeight: 240,
+                                overflowY: 'scroll',
+                                scrollbarWidth: 'thin',
+                                scrollbarColor: '#94A3B8 #F1F5F9',
+                              } as any),
+                            ]}
+                            contentContainerStyle={desktopStyles.cartPreviewScrollContent}
+                            showsVerticalScrollIndicator={true}
+                            persistentScrollbar={true}
+                            // @ts-ignore
+                            dataSet={{ cartScroll: 'true', testid: 'cart-preview-scroll' }}
+                          >
+                            {items.map((item) => {
+                              const iconName = (CATEGORY_ICONS as any)?.[item.producto.categoria] || 'package-variant';
+                              return (
+                                <TouchableOpacity
+                                  key={item.producto.id}
+                                  style={desktopStyles.cartPreviewItem}
+                                  onPress={() => {
+                                    setShowCartPreview(false);
+                                    router.push('/(tabs)/carrito');
+                                  }}
+                                  activeOpacity={0.7}
+                                >
+                                  <View style={desktopStyles.cartPreviewItemImgWrap}>
+                                    {item.producto.imagen ? (
+                                      <HoverImagePreview
+                                        imageUri={item.producto.imagen}
+                                        name={item.producto.nombre}
+                                        price={item.producto.precio}
+                                        presentation={item.producto.presentacion}
+                                        codigo={item.producto.codigo}
+                                        style={{ width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' }}
+                                      >
+                                        <Image
+                                          source={{ uri: item.producto.imagen }}
+                                          style={desktopStyles.cartPreviewItemImg}
+                                          resizeMode="contain"
+                                        />
+                                      </HoverImagePreview>
+                                    ) : (
+                                      <MaterialCommunityIcons
+                                        name={iconName as any}
+                                        size={22}
+                                        color={Colors.primary}
+                                      />
+                                    )}
+                                  </View>
+
+                                  <View style={{ flex: 1, minWidth: 0, justifyContent: 'center' }}>
+                                    <Text style={desktopStyles.cartPreviewItemName} numberOfLines={1}>
+                                      {item.producto.nombre}
+                                    </Text>
+                                    <Text style={desktopStyles.cartPreviewItemDetails}>
+                                      {item.cantidad} u. × {fmtPrice(item.producto.precio)}
+                                    </Text>
+                                  </View>
+                                </TouchableOpacity>
+                              );
+                            })}
                           </ScrollView>
 
                           <View style={desktopStyles.cartPreviewFooter}>
@@ -675,13 +723,40 @@ const desktopStyles = StyleSheet.create({
     color: Colors.textSecondary,
     fontSize: 14,
   },
+  cartPreviewScroll: {
+    maxHeight: 240,
+  },
+  cartPreviewScrollContent: {
+    paddingLeft: 14,
+    paddingRight: 10,
+    paddingBottom: 6,
+  },
   cartPreviewItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingVertical: 8,
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(0,0,0,0.03)',
+    gap: 10,
+  },
+  cartPreviewItemImgWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: Radius.md,
+    backgroundColor: '#F8FAFC',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+    flexShrink: 0,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  cartPreviewItemImg: {
+    width: 44,
+    height: 44,
   },
   cartPreviewItemName: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: FontWeight.semibold,
     color: Colors.textPrimary,
     marginBottom: 2,

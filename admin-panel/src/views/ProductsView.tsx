@@ -253,9 +253,11 @@ export function ProductsView({
     unidad: 'U',
     destacado: false,
     imagen: '',
+    imagenSecundaria: '',
     descripcion: '',
   });
 
+  const [activePhotoSlot, setActivePhotoSlot] = useState<1 | 2>(1);
   const [isUploading, setIsUploading] = useState(false);
   const [imageTab, setImageTab] = useState<'url' | 'upload'>('upload');
 
@@ -330,6 +332,8 @@ export function ProductsView({
   const handleOpenEdit = async (p: Product) => {
     setEditingProduct(p);
     setStockReason('Ajuste de emergencia');
+    const primaryImg = p.imagen || (p.imagenes && p.imagenes[0]) || '';
+    const secondaryImg = p.imagenSecundaria || (p.imagenes && p.imagenes[1]) || '';
     setFormProduct({
       codigo: p.codigo,
       nombre: p.nombre,
@@ -338,9 +342,11 @@ export function ProductsView({
       precio: p.precio,
       unidad: p.unidad,
       destacado: p.destacado || false,
-      imagen: p.imagen || '',
+      imagen: primaryImg,
+      imagenSecundaria: secondaryImg,
       descripcion: p.descripcion || '',
     });
+    setActivePhotoSlot(1);
 
     // Cargar stocks actuales por sucursal directamente desde Supabase
     const perBranch = await productService.getProductStocksAllBranches(String(p.id));
@@ -363,21 +369,22 @@ export function ProductsView({
       unidad: 'U',
       destacado: false,
       imagen: '',
+      imagenSecundaria: '',
       descripcion: '',
     });
-
+    setActivePhotoSlot(1);
 
     const stockMap: Record<string, { stock: number; stockMinimo: number }> = {};
     setFormStocks(stockMap);
   };
 
-  const handleUploadProductImage = async (file: File) => {
+  const handleUploadProductImage = async (file: File, targetSlot: 1 | 2 = activePhotoSlot) => {
     if (!file) return;
     setIsUploading(true);
     try {
       const prodCode = formProduct.codigo || (editingProduct ? editingProduct.codigo : `prod_${Date.now()}`);
       const ext = file.name.split('.').pop() || 'jpg';
-      const path = `products/${prodCode}_${Date.now()}.${ext}`;
+      const path = `products/${prodCode}_slot${targetSlot}_${Date.now()}.${ext}`;
 
       // Subir al bucket 'app-assets' en la carpeta 'products/'
       let { error: upErr } = await supabase.storage
@@ -403,7 +410,11 @@ export function ProductsView({
         if (fallbackRes.error) throw upErr;
 
         const { data: fallbackUrl } = supabase.storage.from('imagenes').getPublicUrl(path);
-        setFormProduct(prev => ({ ...prev, imagen: fallbackUrl.publicUrl }));
+        setFormProduct(prev => (
+          targetSlot === 1
+            ? { ...prev, imagen: fallbackUrl.publicUrl }
+            : { ...prev, imagenSecundaria: fallbackUrl.publicUrl }
+        ));
         return;
       }
 
@@ -411,7 +422,11 @@ export function ProductsView({
         .from('app-assets')
         .getPublicUrl(path);
 
-      setFormProduct(prev => ({ ...prev, imagen: urlData.publicUrl }));
+      setFormProduct(prev => (
+        targetSlot === 1
+          ? { ...prev, imagen: urlData.publicUrl }
+          : { ...prev, imagenSecundaria: urlData.publicUrl }
+      ));
     } catch (err: any) {
       alert('Error al subir imagen a Supabase Storage (app-assets/products): ' + (err.message || String(err)));
     } finally {
@@ -419,7 +434,7 @@ export function ProductsView({
     }
   };
 
-  const handleUploadImageFromUrl = async (imageUrl: string) => {
+  const handleUploadImageFromUrl = async (imageUrl: string, targetSlot: 1 | 2 = activePhotoSlot) => {
     if (!imageUrl || !imageUrl.trim()) {
       alert('Por favor ingrese una URL válida de imagen.');
       return;
@@ -464,7 +479,7 @@ export function ProductsView({
       else if (contentType.includes('gif')) ext = 'gif';
 
       const prodCode = formProduct.codigo || (editingProduct ? editingProduct.codigo : `prod_${Date.now()}`);
-      const path = `products/${prodCode}_${Date.now()}.${ext}`;
+      const path = `products/${prodCode}_slot${targetSlot}_${Date.now()}.${ext}`;
 
       // Subir al bucket 'app-assets' en la carpeta 'products/'
       let { error: upErr } = await supabase.storage
@@ -488,8 +503,12 @@ export function ProductsView({
         if (fallbackRes.error) throw upErr;
 
         const { data: fallbackUrl } = supabase.storage.from('imagenes').getPublicUrl(path);
-        setFormProduct(prev => ({ ...prev, imagen: fallbackUrl.publicUrl }));
-        alert('✅ Imagen guardada exitosamente en el bucket de Supabase!');
+        setFormProduct(prev => (
+          targetSlot === 1
+            ? { ...prev, imagen: fallbackUrl.publicUrl }
+            : { ...prev, imagenSecundaria: fallbackUrl.publicUrl }
+        ));
+        alert('✅ Foto ' + targetSlot + ' guardada exitosamente en el bucket de Supabase!');
         return;
       }
 
@@ -497,8 +516,12 @@ export function ProductsView({
         .from('app-assets')
         .getPublicUrl(path);
 
-      setFormProduct(prev => ({ ...prev, imagen: urlData.publicUrl }));
-      alert('✅ ¡Imagen descargada y guardada exitosamente en "app-assets/products"!');
+      setFormProduct(prev => (
+        targetSlot === 1
+          ? { ...prev, imagen: urlData.publicUrl }
+          : { ...prev, imagenSecundaria: urlData.publicUrl }
+      ));
+      alert('✅ ¡Foto ' + targetSlot + ' descargada y guardada exitosamente en "app-assets/products"!');
     } catch (err: any) {
       alert('Error al descargar y guardar la imagen en app-assets/products: ' + (err.message || String(err)));
     } finally {
@@ -510,6 +533,10 @@ export function ProductsView({
     e.preventDefault();
     if (!editingProduct) return;
 
+    const img1 = formProduct.imagen?.trim() || '';
+    const img2 = formProduct.imagenSecundaria?.trim() || '';
+    const imgsList = [img1, img2].filter(Boolean);
+
     updateProduct(String(editingProduct.id), {
       codigo: formProduct.codigo,
       nombre: formProduct.nombre,
@@ -518,7 +545,9 @@ export function ProductsView({
       precio: formProduct.precio,
       unidad: formProduct.unidad,
       destacado: formProduct.destacado,
-      imagen: formProduct.imagen || undefined,
+      imagen: img1 || (imgsList[0] || undefined),
+      imagenSecundaria: img2 || (imgsList[1] || undefined),
+      imagenes: imgsList,
       descripcion: formProduct.descripcion || undefined,
       activo: true,
     });
@@ -535,6 +564,10 @@ export function ProductsView({
       initialStocks[bId] = sVal.stock;
     });
 
+    const img1 = formProduct.imagen?.trim() || '';
+    const img2 = formProduct.imagenSecundaria?.trim() || '';
+    const imgsList = [img1, img2].filter(Boolean);
+
     createProduct({
       codigo: formProduct.codigo,
       nombre: formProduct.nombre,
@@ -543,7 +576,10 @@ export function ProductsView({
       precio: formProduct.precio,
       unidad: formProduct.unidad,
       destacado: formProduct.destacado,
-      imagen: formProduct.imagen || undefined,
+      imagen: img1 || (imgsList[0] || undefined),
+      imagenSecundaria: img2 || (imgsList[1] || undefined),
+      imagenes: imgsList,
+      descripcion: formProduct.descripcion || undefined,
       activo: true,
     }, initialStocks);
 
@@ -1030,7 +1066,8 @@ export function ProductsView({
               ) : (
                 paginatedProducts.map(p => {
                   const stockInfo = getProductStockInfo(p.id, activeBranchId, p.stock, p.stockMinimo);
-                  const hasPhoto = !!(p.imagen && p.imagen.trim() !== '');
+                  const pImgs = [p.imagen, p.imagenSecundaria, ...(p.imagenes || [])].filter((v, i, a) => !!v && v.trim() !== '' && a.indexOf(v) === i);
+                  const photoCount = pImgs.length;
                   return (
                     <tr key={p.id}>
                       <td style={{ width: '40px' }}>
@@ -1056,9 +1093,13 @@ export function ProductsView({
                         )}
                       </td>
                       <td style={{ textAlign: 'center' }}>
-                        {hasPhoto ? (
-                          <span style={{ background: '#059669', color: '#ffffff', padding: '3px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
-                            🖼️ Sí
+                        {photoCount >= 2 ? (
+                          <span style={{ background: '#059669', color: '#ffffff', padding: '3px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold', display: 'inline-flex', alignItems: 'center', gap: '3px' }} title={`${photoCount} fotos cargadas`}>
+                            🖼️ {photoCount} fotos
+                          </span>
+                        ) : photoCount === 1 ? (
+                          <span style={{ background: '#0284c7', color: '#ffffff', padding: '3px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                            🖼️ 1 foto
                           </span>
                         ) : (
                           <span style={{ background: '#334155', color: '#94a3b8', padding: '3px 8px', borderRadius: '12px', fontSize: '11px', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
@@ -1251,34 +1292,105 @@ export function ProductsView({
 
                 {/* Dual Image Uploader */}
                 <div className="form-group" style={{ marginBottom: '20px', borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '16px' }}>
-                  <label className="form-label" style={{ color: '#fbbf24', fontSize: '13px', fontWeight: '700', marginBottom: '8px', display: 'block' }}>📸 Imagen del Producto</label>
-                  
-                  {/* Tabs */}
-                  <div style={{ display: 'flex', gap: '0', marginBottom: '12px', border: '1px solid #334155', borderRadius: '6px', overflow: 'hidden' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                    <label className="form-label" style={{ color: '#fbbf24', fontSize: '13px', fontWeight: '700', margin: 0 }}>
+                      📸 Fotos del Producto (Permite hasta 2 fotos)
+                    </label>
+                    <span style={{ fontSize: '11px', color: '#94a3b8' }}>
+                      {[formProduct.imagen, formProduct.imagenSecundaria].filter(Boolean).length}/2 cargadas
+                    </span>
+                  </div>
+
+                  {/* Selector de Foto 1 / Foto 2 */}
+                  <div style={{ display: 'flex', gap: '8px', marginBottom: '14px' }}>
                     <button
                       type="button"
-                      onClick={() => setImageTab('upload')}
-                      style={{ flex: 1, padding: '8px', border: 'none', cursor: 'pointer', fontWeight: '700', fontSize: '11px', background: imageTab === 'upload' ? '#fbbf24' : '#1e293b', color: imageTab === 'upload' ? '#0f172a' : '#94a3b8', transition: 'all 0.15s' }}
+                      onClick={() => setActivePhotoSlot(1)}
+                      style={{
+                        flex: 1,
+                        padding: '10px 12px',
+                        borderRadius: '8px',
+                        border: activePhotoSlot === 1 ? '2px solid #fbbf24' : '1px solid #334155',
+                        background: activePhotoSlot === 1 ? 'rgba(251, 191, 36, 0.15)' : '#0f172a',
+                        color: activePhotoSlot === 1 ? '#fbbf24' : '#94a3b8',
+                        fontWeight: '700',
+                        fontSize: '12px',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '6px',
+                        transition: 'all 0.15s'
+                      }}
                     >
-                      📁 Subir Archivo
+                      <span>⭐ Foto 1 (Principal)</span>
+                      {formProduct.imagen ? (
+                        <span style={{ background: '#059669', color: '#fff', fontSize: '10px', padding: '1px 6px', borderRadius: '10px' }}>✓ Lista</span>
+                      ) : (
+                        <span style={{ background: '#475569', color: '#cbd5e1', fontSize: '10px', padding: '1px 6px', borderRadius: '10px' }}>Vacía</span>
+                      )}
                     </button>
+
                     <button
                       type="button"
-                      onClick={() => setImageTab('url')}
-                      style={{ flex: 1, padding: '8px', border: 'none', cursor: 'pointer', fontWeight: '700', fontSize: '11px', background: imageTab === 'url' ? '#fbbf24' : '#1e293b', color: imageTab === 'url' ? '#0f172a' : '#94a3b8', borderLeft: '1px solid #334155', transition: 'all 0.15s' }}
+                      onClick={() => setActivePhotoSlot(2)}
+                      style={{
+                        flex: 1,
+                        padding: '10px 12px',
+                        borderRadius: '8px',
+                        border: activePhotoSlot === 2 ? '2px solid #38bdf8' : '1px solid #334155',
+                        background: activePhotoSlot === 2 ? 'rgba(56, 189, 248, 0.15)' : '#0f172a',
+                        color: activePhotoSlot === 2 ? '#38bdf8' : '#94a3b8',
+                        fontWeight: '700',
+                        fontSize: '12px',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '6px',
+                        transition: 'all 0.15s'
+                      }}
                     >
-                      🔗 URL Externa
+                      <span>🖼️ Foto 2 (Secundaria)</span>
+                      {formProduct.imagenSecundaria ? (
+                        <span style={{ background: '#059669', color: '#fff', fontSize: '10px', padding: '1px 6px', borderRadius: '10px' }}>✓ Lista</span>
+                      ) : (
+                        <span style={{ background: '#475569', color: '#cbd5e1', fontSize: '10px', padding: '1px 6px', borderRadius: '10px' }}>Vacía</span>
+                      )}
                     </button>
                   </div>
 
-                  {/* Upload via Storage or Camera */}
-                  {imageTab === 'upload' && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {/* Active Slot Upload Area */}
+                  <div style={{ background: '#0b1322', border: '1px solid #334155', borderRadius: '10px', padding: '12px', marginBottom: '14px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                      <span style={{ fontSize: '12px', fontWeight: '700', color: activePhotoSlot === 1 ? '#fbbf24' : '#38bdf8' }}>
+                        {activePhotoSlot === 1 ? 'Cargando Foto 1 (Principal)' : 'Cargando Foto 2 (Secundaria)'}
+                      </span>
+                      {/* Upload Method Tabs */}
+                      <div style={{ display: 'flex', border: '1px solid #334155', borderRadius: '6px', overflow: 'hidden' }}>
+                        <button
+                          type="button"
+                          onClick={() => setImageTab('upload')}
+                          style={{ padding: '4px 10px', border: 'none', cursor: 'pointer', fontWeight: '700', fontSize: '11px', background: imageTab === 'upload' ? '#3b82f6' : '#1e293b', color: '#fff' }}
+                        >
+                          📁 Archivo / Cámara
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setImageTab('url')}
+                          style={{ padding: '4px 10px', border: 'none', cursor: 'pointer', fontWeight: '700', fontSize: '11px', background: imageTab === 'url' ? '#3b82f6' : '#1e293b', color: '#fff', borderLeft: '1px solid #334155' }}
+                        >
+                          🔗 Link Externo
+                        </button>
+                      </div>
+                    </div>
+
+                    {imageTab === 'upload' ? (
                       <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                         <label
                           style={{
                             flex: 1,
-                            minWidth: '140px',
+                            minWidth: '130px',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
@@ -1303,7 +1415,7 @@ export function ProductsView({
                             disabled={isUploading}
                             onChange={(e) => {
                               const file = e.target.files?.[0];
-                              if (file) handleUploadProductImage(file);
+                              if (file) handleUploadProductImage(file, activePhotoSlot);
                             }}
                           />
                         </label>
@@ -1311,7 +1423,7 @@ export function ProductsView({
                         <label
                           style={{
                             flex: 1,
-                            minWidth: '140px',
+                            minWidth: '130px',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
@@ -1335,72 +1447,126 @@ export function ProductsView({
                             disabled={isUploading}
                             onChange={(e) => {
                               const file = e.target.files?.[0];
-                              if (file) handleUploadProductImage(file);
+                              if (file) handleUploadProductImage(file, activePhotoSlot);
                             }}
                           />
                         </label>
                       </div>
-
-                      {isUploading && (
-                        <div style={{ fontSize: '12px', color: '#38BDF8', textAlign: 'center', padding: '6px', fontWeight: '700' }}>
-                          ⏳ Subiendo imagen a Supabase Storage...
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <input
+                            type="text"
+                            className="form-input"
+                            style={{ background: '#0f172a', border: '1px solid #334155', color: '#fff', borderRadius: '6px', flex: 1, padding: '8px 12px', fontSize: '13px' }}
+                            placeholder={`Pegar enlace directo a imagen para Foto ${activePhotoSlot}...`}
+                            value={activePhotoSlot === 1 ? formProduct.imagen : formProduct.imagenSecundaria}
+                            onChange={e => {
+                              const val = e.target.value;
+                              if (activePhotoSlot === 1) {
+                                setFormProduct({ ...formProduct, imagen: val });
+                              } else {
+                                setFormProduct({ ...formProduct, imagenSecundaria: val });
+                              }
+                            }}
+                          />
+                          {((activePhotoSlot === 1 && formProduct.imagen && !formProduct.imagen.includes('supabase.co/storage')) ||
+                            (activePhotoSlot === 2 && formProduct.imagenSecundaria && !formProduct.imagenSecundaria.includes('supabase.co/storage'))) && (
+                            <button
+                              type="button"
+                              onClick={() => handleUploadImageFromUrl(activePhotoSlot === 1 ? formProduct.imagen : formProduct.imagenSecundaria, activePhotoSlot)}
+                              disabled={isUploading}
+                              style={{
+                                background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                                color: '#fff',
+                                border: 'none',
+                                borderRadius: '6px',
+                                padding: '8px 14px',
+                                fontSize: '12px',
+                                fontWeight: '700',
+                                cursor: isUploading ? 'not-allowed' : 'pointer',
+                                whiteSpace: 'nowrap'
+                              }}
+                            >
+                              {isUploading ? '⏳ Guardando...' : '⬇️ Guardar en Bucket'}
+                            </button>
+                          )}
                         </div>
-                      )}
-                    </div>
-                  )}
+                        <span style={{ fontSize: '11px', color: '#94a3b8' }}>
+                          💡 Podes dejar la URL externa directa o presionar <b>"Guardar en Bucket"</b> para alojarla en Supabase Storage.
+                        </span>
+                      </div>
+                    )}
 
-                  {/* URL Input */}
-                  {imageTab === 'url' && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                      <div style={{ display: 'flex', gap: '8px' }}>
-                        <input
-                          type="text"
-                          className="form-input"
-                          style={{ background: '#0f172a', border: '1px solid #334155', color: '#fff', borderRadius: '6px', flex: 1, padding: '8px 12px' }}
-                          placeholder="https://example.com/foto.jpg"
-                          value={formProduct.imagen}
-                          onChange={e => setFormProduct({ ...formProduct, imagen: e.target.value })}
-                        />
-                        {formProduct.imagen && !formProduct.imagen.includes('supabase.co/storage') && (
+                    {isUploading && (
+                      <div style={{ fontSize: '12px', color: '#38BDF8', textAlign: 'center', padding: '8px 0 0 0', fontWeight: '700' }}>
+                        ⏳ Subiendo / Guardando imagen en Supabase Storage...
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Previsualización en paralelo de ambas fotos */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    {/* Tarjeta Foto 1 */}
+                    <div style={{ border: activePhotoSlot === 1 ? '1.5px solid #fbbf24' : '1px solid #334155', borderRadius: '8px', padding: '8px', background: '#0f172a', position: 'relative' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                        <span style={{ fontSize: '11px', fontWeight: '700', color: '#fbbf24' }}>⭐ Foto 1 (Principal)</span>
+                        {formProduct.imagen && (
                           <button
                             type="button"
-                            onClick={() => handleUploadImageFromUrl(formProduct.imagen)}
-                            disabled={isUploading}
-                            style={{
-                              background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
-                              color: '#fff',
-                              border: 'none',
-                              borderRadius: '6px',
-                              padding: '8px 14px',
-                              fontSize: '12px',
-                              fontWeight: '700',
-                              cursor: isUploading ? 'not-allowed' : 'pointer',
-                              whiteSpace: 'nowrap'
-                            }}
+                            onClick={() => setFormProduct({ ...formProduct, imagen: '' })}
+                            title="Quitar Foto 1"
+                            style={{ background: 'rgba(239, 68, 68, 0.2)', border: '1px solid rgba(239, 68, 68, 0.4)', color: '#ef4444', borderRadius: '4px', padding: '1px 6px', fontSize: '10px', cursor: 'pointer', fontWeight: '700' }}
                           >
-                            {isUploading ? '⏳ Guardando...' : '⬇️ Guardar en Bucket'}
+                            Quitar ✕
                           </button>
                         )}
                       </div>
-                      <span style={{ fontSize: '11px', color: '#94a3b8' }}>
-                        💡 Ingresa una URL externa y presiona <b>"Guardar en Bucket"</b> para alojarla en Supabase Storage.
-                      </span>
+                      {formProduct.imagen ? (
+                        <div style={{ height: '110px', borderRadius: '6px', overflow: 'hidden', background: '#020617', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <img src={formProduct.imagen} alt="Foto 1" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+                        </div>
+                      ) : (
+                        <div
+                          onClick={() => setActivePhotoSlot(1)}
+                          style={{ height: '110px', borderRadius: '6px', border: '1px dashed #334155', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#64748b', fontSize: '11px', gap: '4px' }}
+                        >
+                          <span style={{ fontSize: '20px' }}>📷</span>
+                          <span>+ Cargar Foto 1</span>
+                        </div>
+                      )}
                     </div>
-                  )}
 
-                  {/* Live preview */}
-                  {formProduct.imagen && (
-                    <div style={{ marginTop: '12px', border: '1px solid #334155', borderRadius: '8px', overflow: 'hidden', position: 'relative', height: '140px' }}>
-                      <img src={formProduct.imagen} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'contain', background: '#0f172a' }} />
-                      <button
-                        type="button"
-                        onClick={() => setFormProduct({ ...formProduct, imagen: '' })}
-                        style={{ position: 'absolute', top: '8px', right: '8px', background: 'rgba(220,38,38,0.85)', color: '#fff', border: 'none', borderRadius: '50%', width: '22px', height: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
-                      >
-                        ✕
-                      </button>
+                    {/* Tarjeta Foto 2 */}
+                    <div style={{ border: activePhotoSlot === 2 ? '1.5px solid #38bdf8' : '1px solid #334155', borderRadius: '8px', padding: '8px', background: '#0f172a', position: 'relative' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                        <span style={{ fontSize: '11px', fontWeight: '700', color: '#38bdf8' }}>🖼️ Foto 2 (Secundaria)</span>
+                        {formProduct.imagenSecundaria && (
+                          <button
+                            type="button"
+                            onClick={() => setFormProduct({ ...formProduct, imagenSecundaria: '' })}
+                            title="Quitar Foto 2"
+                            style={{ background: 'rgba(239, 68, 68, 0.2)', border: '1px solid rgba(239, 68, 68, 0.4)', color: '#ef4444', borderRadius: '4px', padding: '1px 6px', fontSize: '10px', cursor: 'pointer', fontWeight: '700' }}
+                          >
+                            Quitar ✕
+                          </button>
+                        )}
+                      </div>
+                      {formProduct.imagenSecundaria ? (
+                        <div style={{ height: '110px', borderRadius: '6px', overflow: 'hidden', background: '#020617', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <img src={formProduct.imagenSecundaria} alt="Foto 2" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+                        </div>
+                      ) : (
+                        <div
+                          onClick={() => setActivePhotoSlot(2)}
+                          style={{ height: '110px', borderRadius: '6px', border: '1px dashed #334155', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#64748b', fontSize: '11px', gap: '4px' }}
+                        >
+                          <span style={{ fontSize: '20px' }}>🖼️</span>
+                          <span>+ Cargar Foto 2</span>
+                        </div>
+                      )}
                     </div>
-                  )}
+                  </div>
                 </div>
 
                 {/* Información sobre Sincronización de Stock */}
@@ -1677,125 +1843,283 @@ export function ProductsView({
                   })}
                 </div>
 
-                {/* Imagen en Crear Producto */}
+                {/* Imagen en Crear Producto - Dual Uploader */}
                 <div className="form-group" style={{ marginBottom: '20px', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '16px' }}>
-                  <label className="form-label" style={{ color: '#38bdf8', fontSize: '13px', fontWeight: '700', marginBottom: '8px', display: 'block' }}>📸 Imagen del Producto (Opcional)</label>
-                  
-                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '10px' }}>
-                    <label
-                      style={{
-                        flex: 1,
-                        minWidth: '140px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '6px',
-                        padding: '10px 14px',
-                        backgroundColor: '#059669',
-                        color: '#ffffff',
-                        borderRadius: '8px',
-                        fontWeight: '700',
-                        fontSize: '12px',
-                        cursor: isUploading ? 'not-allowed' : 'pointer',
-                        textAlign: 'center'
-                      }}
-                    >
-                      <span>📷 Tomar Foto</span>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        capture="environment"
-                        style={{ display: 'none' }}
-                        disabled={isUploading}
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) handleUploadProductImage(file);
-                        }}
-                      />
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                    <label className="form-label" style={{ color: '#38bdf8', fontSize: '13px', fontWeight: '700', margin: 0 }}>
+                      📸 Fotos del Producto (Permite hasta 2 fotos)
                     </label>
-
-                    <label
-                      style={{
-                        flex: 1,
-                        minWidth: '140px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '6px',
-                        padding: '10px 14px',
-                        backgroundColor: '#1D4ED8',
-                        color: '#ffffff',
-                        borderRadius: '8px',
-                        fontWeight: '700',
-                        fontSize: '12px',
-                        cursor: isUploading ? 'not-allowed' : 'pointer',
-                        textAlign: 'center'
-                      }}
-                    >
-                      <span>🖼️ Elegir de Galería</span>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        style={{ display: 'none' }}
-                        disabled={isUploading}
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) handleUploadProductImage(file);
-                        }}
-                      />
-                    </label>
+                    <span style={{ fontSize: '11px', color: '#94a3b8' }}>
+                      {[formProduct.imagen, formProduct.imagenSecundaria].filter(Boolean).length}/2 cargadas
+                    </span>
                   </div>
 
-                  {/* URL Externa opcional */}
-                  <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
-                    <input
-                      type="text"
-                      className="form-input"
-                      style={{ background: '#0f172a', border: '1px solid #334155', color: '#fff', borderRadius: '6px', flex: 1, padding: '8px 12px', fontSize: '13px' }}
-                      placeholder="O pegar URL de imagen: https://ejemplo.com/foto.jpg"
-                      value={formProduct.imagen}
-                      onChange={e => setFormProduct({ ...formProduct, imagen: e.target.value })}
-                    />
-                    {formProduct.imagen && !formProduct.imagen.includes('supabase.co/storage') && (
-                      <button
-                        type="button"
-                        onClick={() => handleUploadImageFromUrl(formProduct.imagen)}
-                        disabled={isUploading}
-                        style={{
-                          background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
-                          color: '#fff',
-                          border: 'none',
-                          borderRadius: '6px',
-                          padding: '8px 14px',
-                          fontSize: '12px',
-                          fontWeight: '700',
-                          cursor: isUploading ? 'not-allowed' : 'pointer',
-                          whiteSpace: 'nowrap'
-                        }}
-                      >
-                        {isUploading ? '⏳ Guardando...' : '⬇️ Guardar en Bucket'}
-                      </button>
+                  {/* Selector de Foto 1 / Foto 2 */}
+                  <div style={{ display: 'flex', gap: '8px', marginBottom: '14px' }}>
+                    <button
+                      type="button"
+                      onClick={() => setActivePhotoSlot(1)}
+                      style={{
+                        flex: 1,
+                        padding: '10px 12px',
+                        borderRadius: '8px',
+                        border: activePhotoSlot === 1 ? '2px solid #38bdf8' : '1px solid #334155',
+                        background: activePhotoSlot === 1 ? 'rgba(56, 189, 248, 0.15)' : '#0f172a',
+                        color: activePhotoSlot === 1 ? '#38bdf8' : '#94a3b8',
+                        fontWeight: '700',
+                        fontSize: '12px',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '6px',
+                        transition: 'all 0.15s'
+                      }}
+                    >
+                      <span>⭐ Foto 1 (Principal)</span>
+                      {formProduct.imagen ? (
+                        <span style={{ background: '#059669', color: '#fff', fontSize: '10px', padding: '1px 6px', borderRadius: '10px' }}>✓ Lista</span>
+                      ) : (
+                        <span style={{ background: '#475569', color: '#cbd5e1', fontSize: '10px', padding: '1px 6px', borderRadius: '10px' }}>Vacía</span>
+                      )}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setActivePhotoSlot(2)}
+                      style={{
+                        flex: 1,
+                        padding: '10px 12px',
+                        borderRadius: '8px',
+                        border: activePhotoSlot === 2 ? '2px solid #38bdf8' : '1px solid #334155',
+                        background: activePhotoSlot === 2 ? 'rgba(56, 189, 248, 0.15)' : '#0f172a',
+                        color: activePhotoSlot === 2 ? '#38bdf8' : '#94a3b8',
+                        fontWeight: '700',
+                        fontSize: '12px',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '6px',
+                        transition: 'all 0.15s'
+                      }}
+                    >
+                      <span>🖼️ Foto 2 (Secundaria)</span>
+                      {formProduct.imagenSecundaria ? (
+                        <span style={{ background: '#059669', color: '#fff', fontSize: '10px', padding: '1px 6px', borderRadius: '10px' }}>✓ Lista</span>
+                      ) : (
+                        <span style={{ background: '#475569', color: '#cbd5e1', fontSize: '10px', padding: '1px 6px', borderRadius: '10px' }}>Vacía</span>
+                      )}
+                    </button>
+                  </div>
+
+                  {/* Active Slot Upload Area */}
+                  <div style={{ background: '#0b1322', border: '1px solid #334155', borderRadius: '10px', padding: '12px', marginBottom: '14px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                      <span style={{ fontSize: '12px', fontWeight: '700', color: '#38bdf8' }}>
+                        {activePhotoSlot === 1 ? 'Cargando Foto 1 (Principal)' : 'Cargando Foto 2 (Secundaria)'}
+                      </span>
+                      {/* Upload Method Tabs */}
+                      <div style={{ display: 'flex', border: '1px solid #334155', borderRadius: '6px', overflow: 'hidden' }}>
+                        <button
+                          type="button"
+                          onClick={() => setImageTab('upload')}
+                          style={{ padding: '4px 10px', border: 'none', cursor: 'pointer', fontWeight: '700', fontSize: '11px', background: imageTab === 'upload' ? '#3b82f6' : '#1e293b', color: '#fff' }}
+                        >
+                          📁 Archivo / Cámara
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setImageTab('url')}
+                          style={{ padding: '4px 10px', border: 'none', cursor: 'pointer', fontWeight: '700', fontSize: '11px', background: imageTab === 'url' ? '#3b82f6' : '#1e293b', color: '#fff', borderLeft: '1px solid #334155' }}
+                        >
+                          🔗 Link Externo
+                        </button>
+                      </div>
+                    </div>
+
+                    {imageTab === 'upload' ? (
+                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                        <label
+                          style={{
+                            flex: 1,
+                            minWidth: '130px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '6px',
+                            padding: '10px 14px',
+                            backgroundColor: '#059669',
+                            color: '#ffffff',
+                            borderRadius: '8px',
+                            fontWeight: '700',
+                            fontSize: '12px',
+                            cursor: isUploading ? 'not-allowed' : 'pointer',
+                            textAlign: 'center',
+                            boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                          }}
+                        >
+                          <span>📷 Tomar Foto</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            capture="environment"
+                            style={{ display: 'none' }}
+                            disabled={isUploading}
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) handleUploadProductImage(file, activePhotoSlot);
+                            }}
+                          />
+                        </label>
+
+                        <label
+                          style={{
+                            flex: 1,
+                            minWidth: '130px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '6px',
+                            padding: '10px 14px',
+                            backgroundColor: '#1D4ED8',
+                            color: '#ffffff',
+                            borderRadius: '8px',
+                            fontWeight: '700',
+                            fontSize: '12px',
+                            cursor: isUploading ? 'not-allowed' : 'pointer',
+                            textAlign: 'center',
+                            boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                          }}
+                        >
+                          <span>🖼️ Elegir de Galería</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            style={{ display: 'none' }}
+                            disabled={isUploading}
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) handleUploadProductImage(file, activePhotoSlot);
+                            }}
+                          />
+                        </label>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <input
+                            type="text"
+                            className="form-input"
+                            style={{ background: '#0f172a', border: '1px solid #334155', color: '#fff', borderRadius: '6px', flex: 1, padding: '8px 12px', fontSize: '13px' }}
+                            placeholder={`Pegar enlace directo a imagen para Foto ${activePhotoSlot}...`}
+                            value={activePhotoSlot === 1 ? formProduct.imagen : formProduct.imagenSecundaria}
+                            onChange={e => {
+                              const val = e.target.value;
+                              if (activePhotoSlot === 1) {
+                                setFormProduct({ ...formProduct, imagen: val });
+                              } else {
+                                setFormProduct({ ...formProduct, imagenSecundaria: val });
+                              }
+                            }}
+                          />
+                          {((activePhotoSlot === 1 && formProduct.imagen && !formProduct.imagen.includes('supabase.co/storage')) ||
+                            (activePhotoSlot === 2 && formProduct.imagenSecundaria && !formProduct.imagenSecundaria.includes('supabase.co/storage'))) && (
+                            <button
+                              type="button"
+                              onClick={() => handleUploadImageFromUrl(activePhotoSlot === 1 ? formProduct.imagen : formProduct.imagenSecundaria, activePhotoSlot)}
+                              disabled={isUploading}
+                              style={{
+                                background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                                color: '#fff',
+                                border: 'none',
+                                borderRadius: '6px',
+                                padding: '8px 14px',
+                                fontSize: '12px',
+                                fontWeight: '700',
+                                cursor: isUploading ? 'not-allowed' : 'pointer',
+                                whiteSpace: 'nowrap'
+                              }}
+                            >
+                              {isUploading ? '⏳ Guardando...' : '⬇️ Guardar en Bucket'}
+                            </button>
+                          )}
+                        </div>
+                        <span style={{ fontSize: '11px', color: '#94a3b8' }}>
+                          💡 Podes dejar la URL externa directa o presionar <b>"Guardar en Bucket"</b> para alojarla en Supabase Storage.
+                        </span>
+                      </div>
+                    )}
+
+                    {isUploading && (
+                      <div style={{ fontSize: '12px', color: '#38BDF8', textAlign: 'center', padding: '8px 0 0 0', fontWeight: '700' }}>
+                        ⏳ Subiendo / Guardando imagen en Supabase Storage...
+                      </div>
                     )}
                   </div>
 
-                  {isUploading && (
-                    <div style={{ fontSize: '12px', color: '#38BDF8', textAlign: 'center', padding: '6px', fontWeight: '700' }}>
-                      ⏳ Subiendo / Guardando imagen en "app-assets/products"...
+                  {/* Previsualización en paralelo de ambas fotos */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    {/* Tarjeta Foto 1 */}
+                    <div style={{ border: activePhotoSlot === 1 ? '1.5px solid #38bdf8' : '1px solid #334155', borderRadius: '8px', padding: '8px', background: '#0f172a', position: 'relative' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                        <span style={{ fontSize: '11px', fontWeight: '700', color: '#38bdf8' }}>⭐ Foto 1 (Principal)</span>
+                        {formProduct.imagen && (
+                          <button
+                            type="button"
+                            onClick={() => setFormProduct({ ...formProduct, imagen: '' })}
+                            title="Quitar Foto 1"
+                            style={{ background: 'rgba(239, 68, 68, 0.2)', border: '1px solid rgba(239, 68, 68, 0.4)', color: '#ef4444', borderRadius: '4px', padding: '1px 6px', fontSize: '10px', cursor: 'pointer', fontWeight: '700' }}
+                          >
+                            Quitar ✕
+                          </button>
+                        )}
+                      </div>
+                      {formProduct.imagen ? (
+                        <div style={{ height: '110px', borderRadius: '6px', overflow: 'hidden', background: '#020617', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <img src={formProduct.imagen} alt="Foto 1" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+                        </div>
+                      ) : (
+                        <div
+                          onClick={() => setActivePhotoSlot(1)}
+                          style={{ height: '110px', borderRadius: '6px', border: '1px dashed #334155', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#64748b', fontSize: '11px', gap: '4px' }}
+                        >
+                          <span style={{ fontSize: '20px' }}>📷</span>
+                          <span>+ Cargar Foto 1</span>
+                        </div>
+                      )}
                     </div>
-                  )}
 
-                  {formProduct.imagen && (
-                    <div style={{ marginTop: '10px', border: '1px solid #334155', borderRadius: '8px', overflow: 'hidden', position: 'relative', height: '120px' }}>
-                      <img src={formProduct.imagen} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'contain', background: '#0f172a' }} />
-                      <button
-                        type="button"
-                        onClick={() => setFormProduct({ ...formProduct, imagen: '' })}
-                        style={{ position: 'absolute', top: '8px', right: '8px', background: 'rgba(220,38,38,0.85)', color: '#fff', border: 'none', borderRadius: '50%', width: '22px', height: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
-                      >
-                        ✕
-                      </button>
+                    {/* Tarjeta Foto 2 */}
+                    <div style={{ border: activePhotoSlot === 2 ? '1.5px solid #38bdf8' : '1px solid #334155', borderRadius: '8px', padding: '8px', background: '#0f172a', position: 'relative' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                        <span style={{ fontSize: '11px', fontWeight: '700', color: '#38bdf8' }}>🖼️ Foto 2 (Secundaria)</span>
+                        {formProduct.imagenSecundaria && (
+                          <button
+                            type="button"
+                            onClick={() => setFormProduct({ ...formProduct, imagenSecundaria: '' })}
+                            title="Quitar Foto 2"
+                            style={{ background: 'rgba(239, 68, 68, 0.2)', border: '1px solid rgba(239, 68, 68, 0.4)', color: '#ef4444', borderRadius: '4px', padding: '1px 6px', fontSize: '10px', cursor: 'pointer', fontWeight: '700' }}
+                          >
+                            Quitar ✕
+                          </button>
+                        )}
+                      </div>
+                      {formProduct.imagenSecundaria ? (
+                        <div style={{ height: '110px', borderRadius: '6px', overflow: 'hidden', background: '#020617', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <img src={formProduct.imagenSecundaria} alt="Foto 2" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+                        </div>
+                      ) : (
+                        <div
+                          onClick={() => setActivePhotoSlot(2)}
+                          style={{ height: '110px', borderRadius: '6px', border: '1px dashed #334155', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#64748b', fontSize: '11px', gap: '4px' }}
+                        >
+                          <span style={{ fontSize: '20px' }}>🖼️</span>
+                          <span>+ Cargar Foto 2</span>
+                        </div>
+                      )}
                     </div>
-                  )}
+                  </div>
                 </div>
                 <button type="button" className="btn btn-secondary" onClick={() => setIsCreating(false)}>Cancelar</button>
                 <button type="submit" className="btn btn-primary">Crear Producto</button>
@@ -1822,13 +2146,21 @@ export function ProductsView({
               
               {/* Imagen y Datos Principales */}
               <div style={{ display: 'flex', gap: '20px', marginBottom: '20px', flexWrap: 'wrap' }}>
-                <div style={{ width: '140px', height: '140px', borderRadius: '12px', background: '#0f172a', border: '1px solid #334155', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 }}>
-                  {viewingProduct.imagen ? (
-                    <img src={viewingProduct.imagen} alt={viewingProduct.nombre} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-                  ) : (
-                    <div style={{ textAlign: 'center', color: '#64748b', fontSize: '12px' }}>
-                      <span style={{ fontSize: '32px', display: 'block', marginBottom: '4px' }}>📷</span>
-                      Sin foto
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', flexShrink: 0 }}>
+                  <div style={{ width: '140px', height: '140px', borderRadius: '12px', background: '#0f172a', border: '1px solid #334155', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                    {viewingProduct.imagen ? (
+                      <img src={viewingProduct.imagen} alt={viewingProduct.nombre} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                    ) : (
+                      <div style={{ textAlign: 'center', color: '#64748b', fontSize: '12px' }}>
+                        <span style={{ fontSize: '32px', display: 'block', marginBottom: '4px' }}>📷</span>
+                        Sin foto
+                      </div>
+                    )}
+                  </div>
+                  {viewingProduct.imagenSecundaria && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#0f172a', padding: '4px 8px', borderRadius: '6px', border: '1px solid #334155' }}>
+                      <img src={viewingProduct.imagenSecundaria} alt="Foto 2" style={{ width: '32px', height: '32px', borderRadius: '4px', objectFit: 'contain' }} />
+                      <span style={{ fontSize: '11px', color: '#38bdf8', fontWeight: '700' }}>Foto 2 (Secundaria)</span>
                     </div>
                   )}
                 </div>
