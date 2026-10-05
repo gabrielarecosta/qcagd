@@ -1,4 +1,5 @@
 import { VersionInfo, VersionHistoryItem } from '../types/version';
+import { supabase } from './supabaseClient';
 export type { VersionInfo, VersionHistoryItem };
 
 const ATTEMPT_STORAGE_KEY = 'version_update_attempt';
@@ -7,7 +8,7 @@ const ATTEMPT_COOLDOWN_MS = 60000; // 1 minuto de enfriamiento contra bucles
 
 export const versionService = {
   /**
-   * Compara dos versiones semánticas (ej. "1.3.0" vs "1.2.0").
+   * Compara dos versiones semánticas (ej. "1.4.0" vs "1.3.0").
    * Retorna > 0 si v1 > v2, < 0 si v1 < v2, y 0 si son iguales.
    */
   compareVersions(v1: string, v2: string): number {
@@ -42,10 +43,31 @@ export const versionService = {
   },
 
   /**
-   * Consume el endpoint de versión.
-   * Prioriza el backend `/api/version` y cuenta con fallback a `/version.json` estático.
+   * Consume la información de versión.
+   * Prioriza la base de datos Supabase (tiempo real y centralizado),
+   * con fallbacks al backend `/api/version` y a `/version.json` estático.
    */
   async fetchVersionInfo(backendUrl = 'https://api.quimicagd.com.ar'): Promise<VersionInfo> {
+    // 1. Intentar consultar directamente la base de datos Supabase
+    try {
+      const { data: dbVersions, error } = await supabase
+        .from('system_versions')
+        .select('version, fecha, descripcion, created_at')
+        .order('created_at', { ascending: false });
+
+      if (!error && dbVersions && dbVersions.length > 0) {
+        return {
+          latest_version: dbVersions[0].version,
+          history: dbVersions.map(v => ({
+            version: v.version,
+            fecha: v.fecha || (v.created_at ? v.created_at.split('T')[0] : '2026-10-05'),
+            descripcion: v.descripcion || '',
+          })),
+        };
+      }
+    } catch (_) {}
+
+    // 2. Fallbacks a endpoint de backend y /version.json local
     const timestamp = Date.now();
     const endpointsToTry: string[] = [];
 
@@ -87,8 +109,13 @@ export const versionService = {
 
     // Fallback seguro si la red o los servidores no responden
     return {
-      latest_version: '1.3.0',
+      latest_version: '1.4.0',
       history: [
+        {
+          version: '1.4.0',
+          fecha: '2026-10-05',
+          descripcion: 'Resolución de errores en stock. Visualización de carrito y fotos mejorada.',
+        },
         {
           version: '1.3.0',
           fecha: '2026-09-23',
@@ -96,6 +123,28 @@ export const versionService = {
         },
       ],
     };
+  },
+
+  /**
+   * Publica o actualiza una versión en la base de datos (Supabase).
+   */
+  async publishNewVersion(version: string, descripcion: string, fecha?: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      const { error } = await supabase
+        .from('system_versions')
+        .upsert({
+          version: version.trim(),
+          descripcion: descripcion.trim(),
+          fecha: fecha || new Date().toISOString().split('T')[0],
+        }, { onConflict: 'version' });
+
+      if (error) {
+        return { success: false, error: error.message };
+      }
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err?.message || String(err) };
+    }
   },
 
   /**

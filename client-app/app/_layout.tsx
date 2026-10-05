@@ -12,6 +12,7 @@ import { useClientRealtimeNotifications } from '../hooks/useClientRealtimeNotifi
 import { customAlert } from '../utils/alert';
 import { useFonts } from 'expo-font';
 import { versionService } from '@shared/services/versionService';
+import { APP_VERSION } from '../constants/version';
 
 export default function RootLayout() {
   useClientRealtimeNotifications();
@@ -66,8 +67,7 @@ export default function RootLayout() {
 
     // Comprobación proactiva de versión para clientes web
     versionService.fetchVersionInfo().then((info) => {
-      const CLIENT_APP_VERSION = '1.3.0';
-      if (versionService.isNewerOrDifferent(info.latest_version, CLIENT_APP_VERSION)) {
+      if (versionService.isNewerOrDifferent(info.latest_version, APP_VERSION)) {
         useNotificationStore.getState().showToast({
           message: `Nueva versión disponible (v${info.latest_version}). Click para actualizar.`,
           type: 'info',
@@ -77,7 +77,7 @@ export default function RootLayout() {
           },
         });
       } else {
-        versionService.cleanFlushParamIfMatched(CLIENT_APP_VERSION, info.latest_version);
+        versionService.cleanFlushParamIfMatched(APP_VERSION, info.latest_version);
       }
     }).catch(() => {});
 
