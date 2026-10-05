@@ -207,8 +207,13 @@ app.get('/api/version', async (_req: Request, res: Response): Promise<void> => {
   res.setHeader('Expires', '0');
 
   const defaultVersionData = {
-    latest_version: '1.3.0',
+    latest_version: '1.4.0',
     history: [
+      {
+        version: '1.4.0',
+        fecha: '2026-10-05',
+        descripcion: 'Resolución de errores en stock. Visualización de carrito y fotos mejorada.',
+      },
       {
         version: '1.3.0',
         fecha: '2026-09-23',

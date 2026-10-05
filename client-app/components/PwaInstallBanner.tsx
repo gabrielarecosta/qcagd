@@ -8,7 +8,6 @@ import {
   Modal,
   Image,
 } from 'react-native';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 // Helper global para gatillar el modal de instalación desde cualquier componente
 export const triggerPwaInstallModal = () => {
@@ -34,7 +33,7 @@ export const getBrowserDetails = (): BrowserDetails => {
       isStandalone: false,
       isIos: false,
       isAndroid: false,
-      isDesktop: false,
+      isDesktop: true,
       isInAppBrowser: false,
       inAppName: '',
       browserType: 'desktop',
@@ -44,16 +43,16 @@ export const getBrowserDetails = (): BrowserDetails => {
 
   const ua = window.navigator.userAgent || '';
 
-  // 1. Standalone / Instalada
+  // 1. Modo Standalone (ya instalado y abierto como PWA)
   const isStandaloneMedia = window.matchMedia('(display-mode: standalone)').matches;
   const isIosStandalone = (window.navigator as any).standalone === true;
   const isAndroidApp = document.referrer.includes('android-app://');
   const isStandalone = isStandaloneMedia || isIosStandalone || isAndroidApp;
 
-  // 2. SO
+  // 2. SO & Detección Desktop/PC
   const isIos = /iphone|ipad|ipod/i.test(ua) && !(window as any).MSStream;
   const isAndroid = /android/i.test(ua);
-  const isDesktop = !isIos && !isAndroid;
+  const isDesktop = (!isIos && !isAndroid) || (typeof window !== 'undefined' && window.innerWidth >= 768);
 
   // 3. In-App Webviews (Instagram, FB, WhatsApp, TikTok, etc.)
   let isInAppBrowser = false;
@@ -151,19 +150,20 @@ export const PwaInstallBanner: React.FC = () => {
       return;
     }
 
-    // Verificar si el usuario descartó el banner hace poco (3 días)
-    const dismissedAt = localStorage.getItem('qgd_pwa_dismissed_at');
-    let wasRecentlyDismissed = false;
-    if (dismissedAt) {
-      const daysSinceDismissed = (Date.now() - parseInt(dismissedAt, 10)) / (1000 * 60 * 60 * 24);
-      if (daysSinceDismissed < 3) {
-        wasRecentlyDismissed = true;
-      }
+    // 1. Quitar el cartel de PC / Desktop: nunca mostrar en computadoras
+    if (details.isDesktop || window.innerWidth >= 768) {
+      setShowBanner(false);
+      return;
     }
 
-    if (!wasRecentlyDismissed) {
-      setShowBanner(true);
+    // 2. Verificar decisión guardada en LocalStorage: no mostrar si el usuario ya decidió (no quiere o ya instaló)
+    const decision = localStorage.getItem('qgd_pwa_decision');
+    if (decision === 'dismissed' || decision === 'installed' || localStorage.getItem('qgd_pwa_installed') === 'true') {
+      setShowBanner(false);
+      return;
     }
+
+    setShowBanner(true);
   }, []);
 
   useEffect(() => {
@@ -171,11 +171,18 @@ export const PwaInstallBanner: React.FC = () => {
 
     if (Platform.OS !== 'web' || typeof window === 'undefined') return;
 
-    // Escuchar evento de prompt nativo de PWA (Android Chrome, Edge, Desktop)
+    // Escuchar evento de prompt nativo de PWA
     const handleBeforeInstallPrompt = (e: Event) => {
       e.preventDefault();
       setDeferredPrompt(e);
-      setShowBanner(true);
+
+      // Si está en PC o ya tomó una decisión, NO mostrar el cartel
+      const details = getBrowserDetails();
+      const isDesktopOrTablet = details.isDesktop || window.innerWidth >= 768;
+      const decision = localStorage.getItem('qgd_pwa_decision');
+      if (!isDesktopOrTablet && !decision && localStorage.getItem('qgd_pwa_installed') !== 'true') {
+        setShowBanner(true);
+      }
     };
 
     // Escuchar evento de app instalada
@@ -184,6 +191,7 @@ export const PwaInstallBanner: React.FC = () => {
       setShowGuideModal(false);
       setDeferredPrompt(null);
       if (typeof localStorage !== 'undefined') {
+        localStorage.setItem('qgd_pwa_decision', 'installed');
         localStorage.setItem('qgd_pwa_installed', 'true');
       }
     };
@@ -205,11 +213,22 @@ export const PwaInstallBanner: React.FC = () => {
   }, [initDetection]);
 
   const handleInstallClick = () => {
-    // Si tenemos el prompt nativo (1-click install en Android / Desktop Chrome)
+    // Si tenemos el prompt nativo (1-click install en Android)
     if (deferredPrompt) {
       deferredPrompt.prompt();
       deferredPrompt.userChoice.then((choiceResult: { outcome: string }) => {
         if (choiceResult.outcome === 'accepted') {
+          if (typeof localStorage !== 'undefined') {
+            localStorage.setItem('qgd_pwa_decision', 'installed');
+            localStorage.setItem('qgd_pwa_installed', 'true');
+          }
+          setShowBanner(false);
+          setShowGuideModal(false);
+        } else {
+          // El usuario canceló la instalación
+          if (typeof localStorage !== 'undefined') {
+            localStorage.setItem('qgd_pwa_decision', 'dismissed');
+          }
           setShowBanner(false);
           setShowGuideModal(false);
         }
@@ -224,7 +243,15 @@ export const PwaInstallBanner: React.FC = () => {
   const handleDismissBanner = () => {
     setShowBanner(false);
     if (typeof window !== 'undefined') {
+      localStorage.setItem('qgd_pwa_decision', 'dismissed');
       localStorage.setItem('qgd_pwa_dismissed_at', Date.now().toString());
+    }
+  };
+
+  const handleCloseGuideModal = () => {
+    setShowGuideModal(false);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('qgd_pwa_decision', 'dismissed');
     }
   };
 
@@ -256,7 +283,8 @@ export const PwaInstallBanner: React.FC = () => {
     } catch (_) {}
   };
 
-  if (!browserDetails || browserDetails.isStandalone) {
+  // Si está en desktop/PC o en modo standalone, no renderizar nada
+  if (!browserDetails || browserDetails.isStandalone || browserDetails.isDesktop) {
     return null;
   }
 
@@ -264,7 +292,7 @@ export const PwaInstallBanner: React.FC = () => {
 
   return (
     <>
-      {/* Banner flotante inferior */}
+      {/* Banner flotante inferior (solo móviles) */}
       {showBanner && (
         <View style={styles.bannerContainer}>
           <View style={styles.bannerContent}>
@@ -284,7 +312,7 @@ export const PwaInstallBanner: React.FC = () => {
                 {deferredPrompt
                   ? '⚡ Instalá en 1-click sin entrar al AppStore'
                   : isInAppBrowser
-                  ? `Abrí en Chrome/Safari para instalar la app`
+                  ? 'Abrí en Chrome/Safari para instalar la app'
                   : 'Accedé más rápido desde tu pantalla de inicio'}
               </Text>
             </View>
@@ -296,7 +324,6 @@ export const PwaInstallBanner: React.FC = () => {
               onPress={handleInstallClick}
               activeOpacity={0.8}
             >
-              <MaterialCommunityIcons name="download" size={18} color="#FFFFFF" />
               <Text style={styles.installButtonText}>
                 {deferredPrompt ? 'Instalar' : 'Ver cómo'}
               </Text>
@@ -306,8 +333,9 @@ export const PwaInstallBanner: React.FC = () => {
               style={styles.closeButton}
               onPress={handleDismissBanner}
               activeOpacity={0.7}
+              accessibilityLabel="Cerrar"
             >
-              <MaterialCommunityIcons name="close" size={20} color="#94A3B8" />
+              <Text style={styles.closeButtonLetter}>✕</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -318,15 +346,16 @@ export const PwaInstallBanner: React.FC = () => {
         visible={showGuideModal}
         transparent
         animationType="fade"
-        onRequestClose={() => setShowGuideModal(false)}
+        onRequestClose={handleCloseGuideModal}
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
             <TouchableOpacity
               style={styles.modalCloseIcon}
-              onPress={() => setShowGuideModal(false)}
+              onPress={handleCloseGuideModal}
+              accessibilityLabel="Cerrar modal"
             >
-              <MaterialCommunityIcons name="close" size={22} color="#64748B" />
+              <Text style={styles.modalCloseLetter}>✕</Text>
             </TouchableOpacity>
 
             <Image
@@ -338,7 +367,7 @@ export const PwaInstallBanner: React.FC = () => {
             <Text style={styles.modalTitle}>Instalar Tienda QGD</Text>
 
             <View style={styles.modalBrowserBadge}>
-              <MaterialCommunityIcons name="cellphone-link" size={16} color="#1A56DB" />
+              <Text style={{ fontSize: 13, marginRight: 4 }}>📱</Text>
               <Text style={styles.modalBrowserBadgeText}>{browserLabel}</Text>
             </View>
 
@@ -346,7 +375,7 @@ export const PwaInstallBanner: React.FC = () => {
             {isInAppBrowser && (
               <View style={styles.guideContainer}>
                 <View style={styles.warningBox}>
-                  <MaterialCommunityIcons name="alert-circle-outline" size={20} color="#D97706" />
+                  <Text style={{ fontSize: 16, marginRight: 6 }}>⚠️</Text>
                   <Text style={styles.warningText}>
                     Estás navegando dentro de <Text style={styles.boldText}>{inAppName}</Text>. Los navegadores internos de redes sociales impiden la instalación directa.
                   </Text>
@@ -386,13 +415,8 @@ export const PwaInstallBanner: React.FC = () => {
                   onPress={handleCopyLink}
                   activeOpacity={0.8}
                 >
-                  <MaterialCommunityIcons
-                    name={copiedLink ? "check-circle" : "content-copy"}
-                    size={18}
-                    color="#FFFFFF"
-                  />
                   <Text style={styles.copyLinkButtonText}>
-                    {copiedLink ? '¡Enlace copiado!' : 'Copiar enlace de la App'}
+                    {copiedLink ? '✓ ¡Enlace copiado!' : '📋 Copiar enlace de la App'}
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -408,9 +432,7 @@ export const PwaInstallBanner: React.FC = () => {
                     <Text style={styles.stepBadgeText}>1</Text>
                   </View>
                   <Text style={styles.stepText}>
-                    Tocá el botón <Text style={styles.boldText}>Compartir</Text>{' '}
-                    <MaterialCommunityIcons name="export-variant" size={18} color="#1A56DB" />{' '}
-                    arriba a la derecha (junto a la dirección web).
+                    Tocá el botón <Text style={styles.boldText}>Compartir [↗]</Text> arriba a la derecha (junto a la dirección web).
                   </Text>
                 </View>
 
@@ -419,9 +441,7 @@ export const PwaInstallBanner: React.FC = () => {
                     <Text style={styles.stepBadgeText}>2</Text>
                   </View>
                   <Text style={styles.stepText}>
-                    Desplazate hacia abajo y elegí{' '}
-                    <Text style={styles.boldText}>"Agregar a la pantalla de inicio"</Text>{' '}
-                    <MaterialCommunityIcons name="plus-box-outline" size={18} color="#1A56DB" />.
+                    Desplazate hacia abajo y elegí <Text style={styles.boldText}>"Agregar a la pantalla de inicio" [+]</Text>.
                   </Text>
                 </View>
 
@@ -446,9 +466,7 @@ export const PwaInstallBanner: React.FC = () => {
                     <Text style={styles.stepBadgeText}>1</Text>
                   </View>
                   <Text style={styles.stepText}>
-                    Tocá el botón <Text style={styles.boldText}>Compartir</Text>{' '}
-                    <MaterialCommunityIcons name="export-variant" size={18} color="#1A56DB" />{' '}
-                    en el menú inferior central de Safari.
+                    Tocá el botón <Text style={styles.boldText}>Compartir [↗]</Text> en el menú inferior central de Safari.
                   </Text>
                 </View>
 
@@ -457,9 +475,7 @@ export const PwaInstallBanner: React.FC = () => {
                     <Text style={styles.stepBadgeText}>2</Text>
                   </View>
                   <Text style={styles.stepText}>
-                    Desplazate hacia abajo y seleccioná{' '}
-                    <Text style={styles.boldText}>"Agregar a inicio"</Text>{' '}
-                    <MaterialCommunityIcons name="plus-box-outline" size={18} color="#1A56DB" />.
+                    Desplazate hacia abajo y seleccioná <Text style={styles.boldText}>"Agregar a inicio" [+]</Text>.
                   </Text>
                 </View>
 
@@ -484,8 +500,7 @@ export const PwaInstallBanner: React.FC = () => {
                     <Text style={styles.stepBadgeText}>1</Text>
                   </View>
                   <Text style={styles.stepText}>
-                    Tocá el menú de tu navegador o el icono <Text style={styles.boldText}>Compartir</Text>{' '}
-                    <MaterialCommunityIcons name="export-variant" size={18} color="#1A56DB" />.
+                    Tocá el menú de tu navegador o el icono <Text style={styles.boldText}>Compartir [↗]</Text>.
                   </Text>
                 </View>
 
@@ -494,8 +509,7 @@ export const PwaInstallBanner: React.FC = () => {
                     <Text style={styles.stepBadgeText}>2</Text>
                   </View>
                   <Text style={styles.stepText}>
-                    Seleccioná <Text style={styles.boldText}>"Agregar a pantalla de inicio"</Text>{' '}
-                    o abrilo en Safari / Chrome.
+                    Seleccioná <Text style={styles.boldText}>"Agregar a pantalla de inicio" [+]</Text> o abrilo en Safari / Chrome.
                   </Text>
                 </View>
 
@@ -523,14 +537,13 @@ export const PwaInstallBanner: React.FC = () => {
                   onPress={handleInstallClick}
                   activeOpacity={0.8}
                 >
-                  <MaterialCommunityIcons name="download-outline" size={22} color="#FFFFFF" />
-                  <Text style={styles.directInstallBtnText}>Instalar App Ahora</Text>
+                  <Text style={styles.directInstallBtnText}>📥 Instalar App Ahora</Text>
                 </TouchableOpacity>
               </View>
             )}
 
-            {/* CASO 6: Android sin prompt nativo directo (Firefox, Opera, o prompt denegado) */}
-            {!deferredPrompt && (browserType.startsWith('android_') || browserType === 'desktop') && !isInAppBrowser && (
+            {/* CASO 6: Android sin prompt nativo directo */}
+            {!deferredPrompt && !isInAppBrowser && (
               <View style={styles.guideContainer}>
                 <Text style={styles.sectionHeaderTitle}>Instalar desde el menú del navegador:</Text>
 
@@ -539,7 +552,7 @@ export const PwaInstallBanner: React.FC = () => {
                     <Text style={styles.stepBadgeText}>1</Text>
                   </View>
                   <Text style={styles.stepText}>
-                    Tocá el menú de <Text style={styles.boldText}>tres puntos ⋮</Text> (o las barras del menú de tu navegador).
+                    Tocá el menú de <Text style={styles.boldText}>tres puntos ⋮</Text> en tu navegador.
                   </Text>
                 </View>
 
@@ -548,9 +561,7 @@ export const PwaInstallBanner: React.FC = () => {
                     <Text style={styles.stepBadgeText}>2</Text>
                   </View>
                   <Text style={styles.stepText}>
-                    Seleccioná <Text style={styles.boldText}>"Instalar aplicación"</Text> o{' '}
-                    <Text style={styles.boldText}>"Agregar a la pantalla principal"</Text>{' '}
-                    <MaterialCommunityIcons name="plus-box-outline" size={18} color="#1A56DB" />.
+                    Seleccioná <Text style={styles.boldText}>"Instalar aplicación"</Text> o <Text style={styles.boldText}>"Agregar a la pantalla principal" [+]</Text>.
                   </Text>
                 </View>
 
@@ -567,10 +578,7 @@ export const PwaInstallBanner: React.FC = () => {
 
             <TouchableOpacity
               style={styles.modalUnderstandButton}
-              onPress={() => {
-                setShowGuideModal(false);
-                handleDismissBanner();
-              }}
+              onPress={handleCloseGuideModal}
             >
               <Text style={styles.modalUnderstandText}>Entendido</Text>
             </TouchableOpacity>
@@ -598,9 +606,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.35,
     shadowRadius: 10,
     elevation: 10,
+    zIndex: 99999,
     borderWidth: 1,
-    borderColor: '#334155',
-    zIndex: 9999,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   bannerContent: {
     flexDirection: 'row',
@@ -624,8 +632,8 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
   bannerTitle: {
-    color: '#F8FAFC',
-    fontSize: 14,
+    color: '#FFFFFF',
+    fontSize: 14.5,
     fontWeight: '700',
   },
   browserTag: {
@@ -634,7 +642,7 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: '#475569',
+    borderColor: '#334155',
   },
   browserTagText: {
     color: '#38BDF8',
@@ -649,16 +657,16 @@ const styles = StyleSheet.create({
   actionsContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 8,
   },
   installButton: {
     backgroundColor: '#1A56DB',
-    paddingHorizontal: 12,
+    paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 10,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
+    justifyContent: 'center',
   },
   installButtonText: {
     color: '#FFFFFF',
@@ -667,6 +675,16 @@ const styles = StyleSheet.create({
   },
   closeButton: {
     padding: 6,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  closeButtonLetter: {
+    color: '#94A3B8',
+    fontSize: 16,
+    fontWeight: '700',
+    lineHeight: 18,
+    paddingHorizontal: 4,
   },
 
   // Modal styles
@@ -693,10 +711,18 @@ const styles = StyleSheet.create({
   },
   modalCloseIcon: {
     position: 'absolute',
-    top: 16,
-    right: 16,
-    padding: 4,
+    top: 14,
+    right: 14,
+    padding: 6,
     zIndex: 10,
+    borderRadius: 8,
+  },
+  modalCloseLetter: {
+    color: '#64748B',
+    fontSize: 18,
+    fontWeight: '700',
+    lineHeight: 20,
+    paddingHorizontal: 4,
   },
   modalAppIcon: {
     width: 60,
