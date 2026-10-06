@@ -22,7 +22,7 @@ export const useOrderStore = create<OrderStore>((set, get) => ({
   fetchOrders: async (clienteId, repartidorId) => {
     set({ isLoading: true });
     try {
-      const data = await orderService.getAll() as any[];
+      const data = await orderService.getAll(undefined, { includeItems: true }) as any[];
       let filtered = data;
       if (clienteId) {
         filtered = filtered.filter(o => o.clienteId === clienteId);

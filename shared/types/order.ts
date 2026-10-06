@@ -16,6 +16,7 @@ export interface Order {
   branchId: string | number; // Sucursal que lo procesa
   fecha: string;
   items: OrderItem[];
+  itemsCount?: number;
   total: number;
   estado: OrderStatus;
   observaciones?: string; // Internas

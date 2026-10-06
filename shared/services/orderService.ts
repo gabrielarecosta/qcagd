@@ -26,6 +26,13 @@ const mapOrder = (o: any, items: any[] = [], customerObj?: any): Order => {
   const resolvedPhone = o.customer_phone || cust.telefono || cust.whatsapp || undefined;
   const resolvedAddress = o.original_address || cust.direccion || undefined;
 
+  let rawCount: number | undefined = undefined;
+  if (Array.isArray(o.order_items) && o.order_items[0]?.count !== undefined) {
+    rawCount = Number(o.order_items[0].count);
+  } else if (items && items.length > 0) {
+    rawCount = items.length;
+  }
+
   return {
     id: o.id,
     numero: o.numero,
@@ -33,6 +40,7 @@ const mapOrder = (o: any, items: any[] = [], customerObj?: any): Order => {
     branchId: o.branch_id,
     fecha: o.fecha,
     items: items.map(mapOrderItem),
+    itemsCount: rawCount,
     total: Number(o.total),
     estado: o.estado as OrderStatus,
     observaciones: o.observaciones || undefined,
@@ -75,8 +83,8 @@ const mapOrder = (o: any, items: any[] = [], customerObj?: any): Order => {
 import { parseBranchId } from '../utils/branchUtils';
 
 export const orderService = {
-  getAll: async (branchId?: string | number): Promise<Order[]> => {
-    let query = supabase.from('orders').select('*').is('deleted_at', null);
+  getAll: async (branchId?: string | number, options?: { includeItems?: boolean }): Promise<Order[]> => {
+    let query = supabase.from('orders').select('*, order_items(count)').is('deleted_at', null);
     const bId = parseBranchId(branchId);
     if (bId !== undefined) {
       query = query.eq('branch_id', bId);
@@ -100,22 +108,40 @@ export const orderService = {
       console.warn('Advertencia cargando clientes:', e);
     }
 
-    const orderIds = ordersData.map((o: any) => o.id);
-    const { data: itemsData, error: itemsErr } = await supabase
-      .from('order_items')
-      .select('*')
-      .in('order_id', orderIds);
+    if (options?.includeItems) {
+      const orderIds = ordersData.map((o: any) => o.id);
+      const { data: itemsData, error: itemsErr } = await supabase
+        .from('order_items')
+        .select('*')
+        .in('order_id', orderIds);
 
-    if (itemsErr) throw itemsErr;
+      if (itemsErr) throw itemsErr;
 
+      return ordersData.map((o: any) => {
+        const items = (itemsData || []).filter((item: any) => String(item.order_id) === String(o.id));
+        const custObj = custMap.get(String(o.cliente_id));
+        return mapOrder(o, items, custObj);
+      });
+    }
+
+    // Por defecto no cargamos los items de todas las órdenes en bloque
     return ordersData.map((o: any) => {
-      const items = (itemsData || []).filter((item: any) => item.order_id === o.id);
       const custObj = custMap.get(String(o.cliente_id));
-      return mapOrder(o, items, custObj);
+      return mapOrder(o, [], custObj);
     });
   },
 
-  getById: async (id: string): Promise<Order | undefined> => {
+  getOrderItems: async (orderId: string | number): Promise<OrderItem[]> => {
+    const { data: itemsData, error: itemsErr } = await supabase
+      .from('order_items')
+      .select('*')
+      .eq('order_id', orderId);
+
+    if (itemsErr) throw itemsErr;
+    return (itemsData || []).map(mapOrderItem);
+  },
+
+  getById: async (id: string | number): Promise<Order | undefined> => {
     const { data: o, error: orderErr } = await supabase
       .from('orders')
       .select('*')

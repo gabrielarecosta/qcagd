@@ -19,6 +19,7 @@ export function OrdersView() {
     globalMinOrderAmount,
     updateGlobalMinOrderAmount,
     fetchOrdersOnly,
+    fetchOrderItems,
     confirmOrderDelivery
   } = useAdminStore();
 
@@ -93,6 +94,26 @@ export function OrdersView() {
   // Modals / Details State
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
+  const [isLoadingItems, setIsLoadingItems] = useState(false);
+  const [isPrintingId, setIsPrintingId] = useState<string | number | null>(null);
+
+  const handleOpenOrderDetail = async (order: Order) => {
+    setSelectedOrder(order);
+
+    if (order.items && order.items.length > 0) {
+      return;
+    }
+
+    setIsLoadingItems(true);
+    try {
+      const items = await fetchOrderItems(order.id);
+      setSelectedOrder(prev => (prev && String(prev.id) === String(order.id) ? { ...prev, items } : prev));
+    } catch (err) {
+      console.error('Error al cargar artículos del pedido:', err);
+    } finally {
+      setIsLoadingItems(false);
+    }
+  };
 
   // Filtrado de pedidos
   const filteredOrders = useMemo(() => {
@@ -134,90 +155,104 @@ export function OrdersView() {
   const getItemPrice = (item: any) => Number(item?.precioUnitario || item?.precio_unitario || item?.producto?.precio || 0);
   const getItemQty = (item: any) => Number(item?.cantidad || 0);
 
-  const handlePrint = (order: Order) => {
-    const client = getClientInfo(order.clienteId, order);
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) return;
+  const handlePrint = async (order: Order) => {
+    setIsPrintingId(order.id);
+    try {
+      let itemsList = order.items || [];
+      if (itemsList.length === 0) {
+        itemsList = await fetchOrderItems(order.id);
+      }
+      const client = getClientInfo(order.clienteId, order);
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) return;
 
-    const itemsList = order.items || [];
-    const itemsRows = itemsList.map(item => `
-      <tr>
-        <td style="padding: 8px; border-bottom: 1px solid #ddd;">${getItemCode(item)}</td>
-        <td style="padding: 8px; border-bottom: 1px solid #ddd;">${getItemName(item)}${getItemPresentation(item) ? ` - ${getItemPresentation(item)}` : ''}</td>
-        <td style="padding: 8px; border-bottom: 1px solid #ddd; text-align: center;">${getItemQty(item)}</td>
-        <td style="padding: 8px; border-bottom: 1px solid #ddd; text-align: right;">${formatPrice(getItemPrice(item))}</td>
-        <td style="padding: 8px; border-bottom: 1px solid #ddd; text-align: right;">${formatPrice(getItemPrice(item) * getItemQty(item))}</td>
-      </tr>
-    `).join('');
+      const itemsRows = itemsList.map(item => `
+        <tr>
+          <td style="padding: 8px; border-bottom: 1px solid #ddd;">${getItemCode(item)}</td>
+          <td style="padding: 8px; border-bottom: 1px solid #ddd;">${getItemName(item)}${getItemPresentation(item) ? ` - ${getItemPresentation(item)}` : ''}</td>
+          <td style="padding: 8px; border-bottom: 1px solid #ddd; text-align: center;">${getItemQty(item)}</td>
+          <td style="padding: 8px; border-bottom: 1px solid #ddd; text-align: right;">${formatPrice(getItemPrice(item))}</td>
+          <td style="padding: 8px; border-bottom: 1px solid #ddd; text-align: right;">${formatPrice(getItemPrice(item) * getItemQty(item))}</td>
+        </tr>
+      `).join('');
 
-    printWindow.document.write(`
-      <html>
-        <head>
-          <title>Remito - Pedido ${order.numero}</title>
-          <style>
-            body { font-family: 'Courier New', Courier, monospace; margin: 40px; color: #000; }
-            .header { text-align: center; border-bottom: 2px dashed #000; padding-bottom: 10px; margin-bottom: 20px; }
-            .details { margin-bottom: 20px; font-size: 14px; }
-            .table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-            .total { text-align: right; margin-top: 20px; font-size: 16px; font-weight: bold; }
-            .footer { border-top: 2px dashed #000; margin-top: 40px; padding-top: 20px; font-size: 12px; text-align: center; }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <h2>QUIMICA & DISTRIBUIDORA</h2>
-            <p>Sucursal: ${getBranchName(order.branchId)}</p>
-            <p>PEDIDO Nro: ${order.numero}</p>
-            <p>Fecha: ${new Date(order.fecha).toLocaleString()}</p>
-          </div>
-          <div class="details">
-            <p><strong>Cliente:</strong> ${client.name}</p>
-            <p><strong>CUIT:</strong> ${client.cuit}</p>
-            <p><strong>Dirección:</strong> ${client.dir}</p>
-            <p><strong>Teléfono:</strong> ${client.tel}</p>
-            <p><strong>Método de Pago:</strong> ${getPaymentMethodLabel(order.paymentMethod)} (${getPaymentStatusLabel(order.paymentStatus)})</p>
-            ${order.outOfStockPreference ? `<p><strong>Ante falta de stock:</strong> ${order.outOfStockPreference === 'reemplazar' ? '🔄 Elegir artículo similar por el cliente' : '📞 Llamar al cliente para consultar'}</p>` : ''}
-            ${order.abonaCon ? `<p><strong>Abona con:</strong> ${formatPrice(order.abonaCon)} | <strong>Vuelto:</strong> ${formatPrice(order.cambioEstimado || 0)}</p>` : ''}
-            ${order.observacionesCliente ? `<p><strong>Notas Cliente:</strong> ${order.observacionesCliente}</p>` : ''}
-          </div>
-          <table class="table">
-            <thead>
-              <tr style="border-bottom: 1px solid #000;">
-                <th style="text-align: left; padding: 8px;">Cod</th>
-                <th style="text-align: left; padding: 8px;">Detalle</th>
-                <th style="text-align: center; padding: 8px;">Cant</th>
-                <th style="text-align: right; padding: 8px;">P.Unit</th>
-                <th style="text-align: right; padding: 8px;">Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${itemsRows}
-            </tbody>
-          </table>
-          <div class="total">
-            TOTAL DEL PEDIDO: ${formatPrice(order.total)}
-          </div>
-          <div class="footer">
-            <p>¡Gracias por su compra!</p>
-            <p>Firma de Recepción: ________________________________</p>
-          </div>
-        </body>
-      </html>
-    `);
-    printWindow.document.close();
-    printWindow.print();
+      printWindow.document.write(`
+        <html>
+          <head>
+            <title>Remito - Pedido ${order.numero}</title>
+            <style>
+              body { font-family: 'Courier New', Courier, monospace; margin: 40px; color: #000; }
+              .header { text-align: center; border-bottom: 2px dashed #000; padding-bottom: 10px; margin-bottom: 20px; }
+              .details { margin-bottom: 20px; font-size: 14px; }
+              .table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+              .total { text-align: right; margin-top: 20px; font-size: 16px; font-weight: bold; }
+              .footer { border-top: 2px dashed #000; margin-top: 40px; padding-top: 20px; font-size: 12px; text-align: center; }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <h2>QUIMICA & DISTRIBUIDORA</h2>
+              <p>Sucursal: ${getBranchName(order.branchId)}</p>
+              <p>PEDIDO Nro: ${order.numero}</p>
+              <p>Fecha: ${new Date(order.fecha).toLocaleString()}</p>
+            </div>
+            <div class="details">
+              <p><strong>Cliente:</strong> ${client.name}</p>
+              <p><strong>CUIT:</strong> ${client.cuit}</p>
+              <p><strong>Dirección:</strong> ${client.dir}</p>
+              <p><strong>Teléfono:</strong> ${client.tel}</p>
+              <p><strong>Método de Pago:</strong> ${getPaymentMethodLabel(order.paymentMethod)} (${getPaymentStatusLabel(order.paymentStatus)})</p>
+              ${order.outOfStockPreference ? `<p><strong>Ante falta de stock:</strong> ${order.outOfStockPreference === 'reemplazar' ? '🔄 Elegir artículo similar por el cliente' : '📞 Llamar al cliente para consultar'}</p>` : ''}
+              ${order.abonaCon ? `<p><strong>Abona con:</strong> ${formatPrice(order.abonaCon)} | <strong>Vuelto:</strong> ${formatPrice(order.cambioEstimado || 0)}</p>` : ''}
+              ${order.observacionesCliente ? `<p><strong>Notas Cliente:</strong> ${order.observacionesCliente}</p>` : ''}
+            </div>
+            <table class="table">
+              <thead>
+                <tr style="border-bottom: 1px solid #000;">
+                  <th style="text-align: left; padding: 8px;">Cod</th>
+                  <th style="text-align: left; padding: 8px;">Detalle</th>
+                  <th style="text-align: center; padding: 8px;">Cant</th>
+                  <th style="text-align: right; padding: 8px;">P.Unit</th>
+                  <th style="text-align: right; padding: 8px;">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${itemsRows}
+              </tbody>
+            </table>
+            <div class="total">
+              TOTAL DEL PEDIDO: ${formatPrice(order.total)}
+            </div>
+            <div class="footer">
+              <p>¡Gracias por su compra!</p>
+              <p>Firma de Recepción: ________________________________</p>
+            </div>
+          </body>
+        </html>
+      `);
+      printWindow.document.close();
+      printWindow.print();
+    } catch (err) {
+      console.error('Error al imprimir pedido:', err);
+      alert('Error al obtener los artículos para imprimir.');
+    } finally {
+      setIsPrintingId(null);
+    }
   };
 
   const handleExportOrders = () => {
     const dataToExport = filteredOrders.map(o => {
       const client = getClientInfo(o.clienteId, o);
+      const articulosStr = (o.items && o.items.length > 0)
+        ? o.items.map(it => `${it.producto?.nombre || (it as any).nombre || 'Producto'} (${it.cantidad})`).join(', ')
+        : (o.itemsCount !== undefined ? `${o.itemsCount} producto(s)` : '-');
       return {
         Número: o.numero,
         Fecha: `${new Date(o.fecha).toLocaleDateString()} ${new Date(o.fecha).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} hs`,
         Sucursal: getBranchName(o.branchId),
         Cliente: client.name,
         Dirección: client.dir,
-        Artículos: o.items.map(it => `${it.producto.nombre} (${it.cantidad})`).join(', '),
+        Artículos: articulosStr,
         Total: o.total,
         MetodoPago: getPaymentMethodLabel(o.paymentMethod),
         EstadoPago: getPaymentStatusLabel(o.paymentStatus),
@@ -388,7 +423,7 @@ export function OrdersView() {
                 return (
                   <tr 
                     key={o.id}
-                    onClick={() => setSelectedOrder(o)}
+                    onClick={() => handleOpenOrderDetail(o)}
                     style={{ cursor: 'pointer', transition: 'background-color 0.15s' }}
                     title="Hacé click para ver la dirección, sucursal y detalle completo de la compra"
                   >
@@ -423,7 +458,11 @@ export function OrdersView() {
                     </td>
                     <td>
                       <div style={{ fontSize: '13px' }}>
-                        <strong>{(o.items || []).reduce((acc, it) => acc + (Number(it?.cantidad) || 0), 0)}</strong> ítems
+                        <strong>
+                          {o.items && o.items.length > 0
+                            ? o.items.reduce((acc, it) => acc + (Number(it?.cantidad) || 0), 0)
+                            : (o.itemsCount ?? 0)}
+                        </strong> {((o.items && o.items.length > 0 ? o.items.length : (o.itemsCount ?? 0)) === 1 ? 'ítem' : 'ítems')}
                       </div>
                     </td>
                     <td style={{ fontWeight: 'bold', fontSize: '14px', color: 'var(--text-primary)' }}>
@@ -475,7 +514,7 @@ export function OrdersView() {
                               background: '#059669', 
                               color: '#fff', 
                               border: 'none', 
-                              fontWeight: '700',
+                              fontWeight: '700', 
                               borderRadius: '6px',
                               cursor: (isDeliveringId === o.id || !isAuthorizedToDeliver) ? 'not-allowed' : 'pointer',
                               opacity: (isDeliveringId === o.id || !isAuthorizedToDeliver) ? 0.65 : 1,
@@ -517,16 +556,17 @@ export function OrdersView() {
                         <button 
                           className="btn btn-secondary" 
                           style={{ padding: '6px 10px', fontSize: '12px', background: '#0284c7', color: '#fff', border: 'none', fontWeight: '600' }}
-                          onClick={() => setSelectedOrder(o)}
+                          onClick={() => handleOpenOrderDetail(o)}
                         >
                           👁️ Detalle
                         </button>
                         <button 
                           className="btn btn-primary" 
-                          style={{ padding: '6px 10px', fontSize: '12px', background: '#3b82f6' }}
+                          style={{ padding: '6px 10px', fontSize: '12px', background: '#3b82f6', opacity: isPrintingId === o.id ? 0.7 : 1 }}
+                          disabled={isPrintingId === o.id}
                           onClick={() => handlePrint(o)}
                         >
-                          🖨️ Imprimir
+                          {isPrintingId === o.id ? '⏳' : '🖨️'} Imprimir
                         </button>
                       </div>
                     </td>
@@ -626,37 +666,51 @@ export function OrdersView() {
               </div>
 
               {/* Detalle de Artículos Comprados */}
-              <h3 style={{ fontSize: '14px', marginBottom: '8px', borderBottom: '1px solid #eee', paddingBottom: '4px', fontWeight: 'bold' }}>🛒 Detalle de los Artículos de la Compra</h3>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', borderBottom: '1px solid #eee', paddingBottom: '4px' }}>
+                <h3 style={{ fontSize: '14px', margin: 0, fontWeight: 'bold' }}>🛒 Detalle de los Artículos de la Compra</h3>
+                {isLoadingItems && (
+                  <span style={{ fontSize: '12px', color: '#0284c7', fontWeight: '500' }}>
+                    ⏳ Cargando artículos...
+                  </span>
+                )}
+              </div>
               <div style={{ maxHeight: '220px', overflowY: 'auto', marginBottom: '16px', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
-                <table className="admin-table" style={{ fontSize: '13px' }}>
-                  <thead>
-                    <tr style={{ background: '#f8fafc' }}>
-                      <th style={{ padding: '8px' }}>Código</th>
-                      <th style={{ padding: '8px' }}>Artículo / Descripción</th>
-                      <th style={{ padding: '8px', textAlign: 'center' }}>Cant.</th>
-                      <th style={{ padding: '8px', textAlign: 'right' }}>P. Unitario</th>
-                      <th style={{ padding: '8px', textAlign: 'right' }}>Subtotal</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(selectedOrder.items || []).map((item, idx) => (
-                      <tr key={idx}>
-                        <td style={{ fontFamily: 'monospace', padding: '8px', fontWeight: 'bold' }}>{getItemCode(item)}</td>
-                        <td style={{ padding: '8px' }}>{getItemName(item)} {getItemPresentation(item) ? `(${getItemPresentation(item)})` : ''}</td>
-                        <td style={{ textAlign: 'center', padding: '8px', fontWeight: 'bold' }}>{getItemQty(item)}</td>
-                        <td style={{ textAlign: 'right', padding: '8px' }}>{formatPrice(getItemPrice(item))}</td>
-                        <td style={{ textAlign: 'right', padding: '8px', fontWeight: 'bold' }}>{formatPrice(getItemPrice(item) * getItemQty(item))}</td>
+                {isLoadingItems ? (
+                  <div style={{ textAlign: 'center', padding: '32px 16px', color: '#0284c7' }}>
+                    <div style={{ fontSize: '14px', fontWeight: 'bold' }}>Cargando artículos del pedido #{selectedOrder.numero}...</div>
+                    <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>Consultando base de datos</div>
+                  </div>
+                ) : (
+                  <table className="admin-table" style={{ fontSize: '13px' }}>
+                    <thead>
+                      <tr style={{ background: '#f8fafc' }}>
+                        <th style={{ padding: '8px' }}>Código</th>
+                        <th style={{ padding: '8px' }}>Artículo / Descripción</th>
+                        <th style={{ padding: '8px', textAlign: 'center' }}>Cant.</th>
+                        <th style={{ padding: '8px', textAlign: 'right' }}>P. Unitario</th>
+                        <th style={{ padding: '8px', textAlign: 'right' }}>Subtotal</th>
                       </tr>
-                    ))}
-                    {(!selectedOrder.items || selectedOrder.items.length === 0) && (
-                      <tr>
-                        <td colSpan={5} style={{ textAlign: 'center', padding: '16px', color: 'var(--text-disabled)' }}>
-                          No hay artículos registrados para este pedido.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {(selectedOrder.items || []).map((item, idx) => (
+                        <tr key={idx}>
+                          <td style={{ fontFamily: 'monospace', padding: '8px', fontWeight: 'bold' }}>{getItemCode(item)}</td>
+                          <td style={{ padding: '8px' }}>{getItemName(item)} {getItemPresentation(item) ? `(${getItemPresentation(item)})` : ''}</td>
+                          <td style={{ textAlign: 'center', padding: '8px', fontWeight: 'bold' }}>{getItemQty(item)}</td>
+                          <td style={{ textAlign: 'right', padding: '8px' }}>{formatPrice(getItemPrice(item))}</td>
+                          <td style={{ textAlign: 'right', padding: '8px', fontWeight: 'bold' }}>{formatPrice(getItemPrice(item) * getItemQty(item))}</td>
+                        </tr>
+                      ))}
+                      {(!selectedOrder.items || selectedOrder.items.length === 0) && (
+                        <tr>
+                          <td colSpan={5} style={{ textAlign: 'center', padding: '24px', color: 'var(--text-disabled)' }}>
+                            No hay artículos registrados para este pedido.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                )}
               </div>
 
               {/* Forma de Pago y Monto Total */}
