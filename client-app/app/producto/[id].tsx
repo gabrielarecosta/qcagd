@@ -33,6 +33,7 @@ import { useNotificationStore } from '../../store/useNotificationStore';
 import { productService } from '@shared/services/productService';
 import { AddToListModal } from '../../components/ui/AddToListModal';
 import { AppFooter } from '../../components/AppFooter';
+import { AppTopNavbar } from '../../components/ui/AppTopNavbar';
 
 export default function ProductDetailScreen() {
   const router = useRouter();
@@ -289,6 +290,7 @@ export default function ProductDetailScreen() {
   if (loading) {
     return (
       <SafeAreaView style={styles.safeArea}>
+        <AppTopNavbar activeRoute="/catalogo" />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={Colors.primary} />
           <Text style={styles.loadingText}>Cargando información del producto...</Text>
@@ -300,6 +302,7 @@ export default function ProductDetailScreen() {
   if (error || !product) {
     return (
       <SafeAreaView style={styles.safeArea}>
+        <AppTopNavbar activeRoute="/catalogo" />
         <View style={styles.topNav}>
           <TouchableOpacity style={styles.backButton} onPress={() => router.back()} activeOpacity={0.7}>
             <MaterialCommunityIcons name="arrow-left" size={22} color={Colors.textPrimary} />
@@ -329,7 +332,10 @@ export default function ProductDetailScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      {/* ── BARRA SUPERIOR DE NAVEGACIÓN ── */}
+      {/* ── MENÚ PRINCIPAL SUPERIOR (Catálogo, Mis Pedidos, Mis Listas, etc.) ── */}
+      <AppTopNavbar activeRoute="/catalogo" />
+
+      {/* ── BARRA SECUNDARIA DE NAVEGACIÓN Y BREADCRUMBS ── */}
       <View style={styles.topNav}>
         <TouchableOpacity
           style={styles.backButton}
@@ -783,8 +789,16 @@ export default function ProductDetailScreen() {
         onRequestClose={handleCloseZoom}
       >
         <View style={styles.lightboxOverlay}>
+          {/* Backdrop absoluto global que cierra al clickear fuera */}
+          <TouchableOpacity
+            style={StyleSheet.absoluteFill}
+            activeOpacity={1}
+            onPress={handleCloseZoom}
+            accessibilityLabel="Cerrar visor"
+          />
+
           {/* Barra superior de controles del Lightbox */}
-          <View style={styles.lightboxTopBar}>
+          <View style={styles.lightboxTopBar} onStartShouldSetResponder={() => true}>
             <View style={styles.lightboxInfoCol}>
               <Text style={styles.lightboxTitle} numberOfLines={1}>
                 {product.nombre}
@@ -846,10 +860,20 @@ export default function ProductDetailScreen() {
 
           {/* Área central con imagen ampliada y soporte de zoom */}
           <View style={styles.lightboxStage}>
+            {/* Backdrop clickeable dentro del stage para cerrar al hacer clic en zonas oscuras */}
+            <TouchableOpacity
+              style={StyleSheet.absoluteFill}
+              activeOpacity={1}
+              onPress={handleCloseZoom}
+            />
+
             {images.length > 1 && (
               <TouchableOpacity
                 style={[styles.lightboxNavBtn, styles.lightboxNavBtnLeft]}
-                onPress={handlePrevImage}
+                onPress={(e) => {
+                  e.stopPropagation?.();
+                  handlePrevImage();
+                }}
                 activeOpacity={0.8}
                 hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
               >
@@ -865,10 +889,20 @@ export default function ProductDetailScreen() {
               showsVerticalScrollIndicator={false}
               centerContent
             >
+              {/* Clic en el área de padding o fondo del ScrollView cierra el visor */}
+              <TouchableOpacity
+                style={StyleSheet.absoluteFill}
+                activeOpacity={1}
+                onPress={handleCloseZoom}
+              />
+
               {currentImageUri ? (
                 <TouchableOpacity
                   activeOpacity={1}
-                  onPress={handleToggleZoom}
+                  onPress={(e) => {
+                    e.stopPropagation?.();
+                    handleToggleZoom();
+                  }}
                   style={styles.lightboxImageTouchable}
                 >
                   <Image
@@ -892,7 +926,10 @@ export default function ProductDetailScreen() {
             {images.length > 1 && (
               <TouchableOpacity
                 style={[styles.lightboxNavBtn, styles.lightboxNavBtnRight]}
-                onPress={handleNextImage}
+                onPress={(e) => {
+                  e.stopPropagation?.();
+                  handleNextImage();
+                }}
                 activeOpacity={0.8}
                 hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
               >
@@ -903,7 +940,7 @@ export default function ProductDetailScreen() {
 
           {/* Barra inferior con miniaturas en el Lightbox si hay más de 1 imagen */}
           {images.length > 1 && (
-            <View style={styles.lightboxBottomBar}>
+            <View style={styles.lightboxBottomBar} onStartShouldSetResponder={() => true}>
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}

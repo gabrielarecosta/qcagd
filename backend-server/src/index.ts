@@ -207,8 +207,13 @@ app.get('/api/version', async (_req: Request, res: Response): Promise<void> => {
   res.setHeader('Expires', '0');
 
   const defaultVersionData = {
-    latest_version: '1.5.1',
+    latest_version: '1.5.3',
     history: [
+      {
+        version: '1.5.3',
+        fecha: '2026-10-06',
+        descripcion: 'Nueva pantalla de producto con URL propia (/producto/[id]), layout de 2 columnas, carrusel de fotos, visor con zoom lightbox, previsualización flotante ampliada y menú de navegación integrado.',
+      },
       {
         version: '1.5.1',
         fecha: '2026-10-06',

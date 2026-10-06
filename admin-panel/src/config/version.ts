@@ -1,4 +1,4 @@
 /**
  * Fuente única de la versión actual del Panel Administrativo.
  */
-export const APP_VERSION = '1.5.1';
+export const APP_VERSION = '1.5.3';

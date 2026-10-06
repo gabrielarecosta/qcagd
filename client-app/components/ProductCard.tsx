@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -44,6 +44,17 @@ export function ProductCard({ product, style, onPress, delay = 0 }: ProductCardP
   const icon = CATEGORY_ICONS[product.categoria];
   const isInCart = quantity > 0;
   const { animatedStyle } = useEntrance({ delay });
+
+  const productImages = useMemo(() => {
+    const pool = [
+      product.imagen,
+      product.imagenSecundaria,
+      ...(Array.isArray(product.imagenes) ? product.imagenes : []),
+    ];
+    return Array.from(new Set(pool.filter((img): img is string => typeof img === 'string' && img.trim().length > 0)));
+  }, [product.imagen, product.imagenSecundaria, product.imagenes]);
+
+  const mainImageUri = productImages[0] || product.imagen;
 
   const [inputVal, setInputVal] = useState(String(quantity));
 
@@ -97,9 +108,10 @@ export function ProductCard({ product, style, onPress, delay = 0 }: ProductCardP
       >
         {/* Imagen/placeholder con gradiente suave */}
         <View style={[styles.imageContainer, isInCart && styles.imageContainerInCart]}>
-          {product.imagen ? (
+          {mainImageUri ? (
             <HoverImagePreview
-              imageUri={product.imagen}
+              imageUri={mainImageUri}
+              images={productImages}
               name={product.nombre}
               price={product.precio}
               presentation={product.presentacion}
@@ -107,7 +119,7 @@ export function ProductCard({ product, style, onPress, delay = 0 }: ProductCardP
               style={{ width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' }}
             >
               <Image
-                source={{ uri: product.imagen }}
+                source={{ uri: mainImageUri }}
                 style={styles.productImage}
                 resizeMode="contain"
               />
