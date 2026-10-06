@@ -6,6 +6,7 @@ import {
   Product,
   ProductStock,
   Order,
+  OrderItem,
   DeliveryRoute,
   DeliveryStatus,
   DeliveryStop,
@@ -96,6 +97,8 @@ interface AdminStore {
   confirmOrderDelivery: (id: string | number, notes?: string) => Promise<{ success: boolean; alreadyDelivered?: boolean; message?: string }>;
   updateOrder: (id: string | number, updates: Partial<Order>) => Promise<void>;
   createOrder: (order: Order) => Promise<void>;
+  fetchOrderItems: (orderId: string | number) => Promise<OrderItem[]>;
+  getOrderById: (orderId: string | number) => Promise<Order | undefined>;
 
   // Repartos y Choferes
   createDelivery: (delivery: Omit<DeliveryRoute, 'id'>) => Promise<void>;
@@ -699,6 +702,38 @@ export const useAdminStore = create<AdminStore>((set, get) => ({
     const userEmail = get().currentUser?.email || '';
     await orderService.create(order as any, userEmail);
     await get().fetchData();
+  },
+
+  fetchOrderItems: async (orderId) => {
+    try {
+      const items = await orderService.getOrderItems(orderId);
+      set((state) => ({
+        orders: state.orders.map((o) =>
+          String(o.id) === String(orderId) ? { ...o, items, itemsCount: items.length } : o
+        ),
+      }));
+      return items;
+    } catch (e) {
+      console.error('Error fetching order items:', e);
+      return [];
+    }
+  },
+
+  getOrderById: async (orderId) => {
+    try {
+      const order = await orderService.getById(orderId);
+      if (order) {
+        set((state) => ({
+          orders: state.orders.map((o) =>
+            String(o.id) === String(orderId) ? order : o
+          ),
+        }));
+      }
+      return order;
+    } catch (e) {
+      console.error('Error getting order by id:', e);
+      return undefined;
+    }
   },
 
   createDelivery: async (delivery) => {

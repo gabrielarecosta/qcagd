@@ -452,12 +452,13 @@ export function DashboardView({ onNavigate, onFilterProductsNoPhoto }: Dashboard
     const map: Record<string, { nombre: string; qty: number }> = {};
     orders.forEach(o => {
       if ((activeBranchId === 'all' || o.branchId === activeBranchId) && o.estado === 'entregado') {
-        o.items.forEach(item => {
-          const id = item.producto.id;
+        (o.items || []).forEach(item => {
+          const id = item.producto?.id || (item as any).codigo;
+          if (!id) return;
           if (!map[id]) {
-            map[id] = { nombre: item.producto.nombre, qty: 0 };
+            map[id] = { nombre: item.producto?.nombre || (item as any).nombre || 'Producto', qty: 0 };
           }
-          map[id].qty += item.cantidad;
+          map[id].qty += (item.cantidad || 0);
         });
       }
     });
