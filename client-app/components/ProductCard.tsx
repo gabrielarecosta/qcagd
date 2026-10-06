@@ -9,6 +9,7 @@ import {
   Animated,
   Image,
 } from 'react-native';
+import { useRouter } from 'expo-router';
 import { Product } from '../types';
 import { Colors } from '../constants/Colors';
 import { FontSize, FontWeight } from '../constants/Typography';
@@ -32,6 +33,7 @@ interface ProductCardProps {
 }
 
 export function ProductCard({ product, style, onPress, delay = 0 }: ProductCardProps) {
+  const router = useRouter();
   const { isLoggedIn } = useAuthStore();
   const { addProduct, getItemQuantity, updateQuantity } = useCartStore();
   const isProductInAnyList = useListsStore((state) => state.isProductInAnyList);
@@ -84,7 +86,13 @@ export function ProductCard({ product, style, onPress, delay = 0 }: ProductCardP
     <Animated.View style={[animatedStyle, styles.wrapper]}>
       <TouchableOpacity
         style={[styles.card, isInCart && styles.cardInCart, style]}
-        onPress={() => onPress?.(product)}
+        onPress={() => {
+          if (onPress) {
+            onPress(product);
+          } else {
+            router.push(`/producto/${product.id}` as any);
+          }
+        }}
         activeOpacity={0.88}
       >
         {/* Imagen/placeholder con gradiente suave */}
