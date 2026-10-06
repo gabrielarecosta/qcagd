@@ -109,8 +109,13 @@ export const versionService = {
 
     // Fallback seguro si la red o los servidores no responden
     return {
-      latest_version: '1.4.0',
+      latest_version: '1.5.0',
       history: [
+        {
+          version: '1.5.0',
+          fecha: '2026-10-06',
+          descripcion: 'Optimización en Monitor de Pedidos: Carga bajo demanda de artículos por orden e indicador de conteo en tiempo real.',
+        },
         {
           version: '1.4.0',
           fecha: '2026-10-05',
