@@ -207,8 +207,13 @@ app.get('/api/version', async (_req: Request, res: Response): Promise<void> => {
   res.setHeader('Expires', '0');
 
   const defaultVersionData = {
-    latest_version: '1.5.0',
+    latest_version: '1.5.1',
     history: [
+      {
+        version: '1.5.1',
+        fecha: '2026-10-06',
+        descripcion: 'Corrección en Catálogo: Precarga de unidades existentes y actualización directa de cantidad en el pedido.',
+      },
       {
         version: '1.5.0',
         fecha: '2026-10-06',
