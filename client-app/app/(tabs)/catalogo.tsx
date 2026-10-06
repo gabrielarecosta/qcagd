@@ -62,7 +62,7 @@ function useDebounce<T>(value: T, delay: number): T {
 export default function CatalogoScreen() {
   const router = useRouter();
   const { isLoggedIn } = useAuthStore();
-  const { addProduct } = useCartStore();
+  const { addProduct, updateQuantity, getItemQuantity } = useCartStore();
   const totalItems = useCartStore((state) => state.totalItems());
   const { width } = useWindowDimensions();
   const isDesktop = Platform.OS === 'web' && width >= 768;
@@ -332,8 +332,10 @@ export default function CatalogoScreen() {
         product={item}
         style={styles.productCard}
         onPress={(p) => {
-          setModalQty(1);
-          setModalQtyText('1');
+          const currentQty = useCartStore.getState().getItemQuantity(p.id);
+          const initialQty = currentQty > 0 ? currentQty : 1;
+          setModalQty(initialQty);
+          setModalQtyText(String(initialQty));
           setDetailActiveImgIndex(0);
           setSelectedProductDetails(p);
         }}
@@ -842,81 +844,120 @@ export default function CatalogoScreen() {
             {isLoggedIn && (
               <View style={styles.modalActionBar}>
                 {selectedProductDetails.precio && selectedProductDetails.precio > 0 ? (
-                  <>
-                    <View style={styles.modalQtyRow}>
-                      <Text style={styles.modalQtyLabel}>Cantidad a agregar:</Text>
-                      <View style={styles.modalQtyControls}>
-                        <TouchableOpacity
-                          style={styles.modalQtyBtn}
-                          onPress={() => {
-                            const next = Math.max(1, modalQty - 1);
-                            setModalQty(next);
-                            setModalQtyText(String(next));
-                          }}
-                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                          accessibilityLabel="Disminuir cantidad"
-                        >
-                          <Text style={styles.modalQtyBtnText}>−</Text>
-                        </TouchableOpacity>
+                  (() => {
+                    const currentInCart = getItemQuantity(selectedProductDetails.id);
+                    const parsed = parseInt(modalQtyText, 10);
+                    const currentDisplayQty = (!isNaN(parsed) && parsed > 0) ? parsed : modalQty;
 
-                        <TextInput
-                          style={styles.modalQtyInput}
-                          value={modalQtyText}
-                          onChangeText={(text) => {
-                            const cleaned = text.replace(/[^0-9]/g, '');
-                            setModalQtyText(cleaned);
-                            const parsed = parseInt(cleaned, 10);
-                            if (!isNaN(parsed) && parsed > 0) {
-                              setModalQty(parsed);
-                            }
-                          }}
-                          onBlur={() => {
-                            const parsed = parseInt(modalQtyText, 10);
-                            if (isNaN(parsed) || parsed <= 0) {
-                              setModalQty(1);
-                              setModalQtyText('1');
+                    return (
+                      <>
+                        <View style={styles.modalQtyRow}>
+                          <View style={{ flex: 1, marginRight: 12 }}>
+                            <Text style={styles.modalQtyLabel}>
+                              {currentInCart > 0 ? 'Cantidad en tu pedido:' : 'Cantidad a agregar:'}
+                            </Text>
+                            {currentInCart > 0 && (
+                              <Text style={{ fontSize: 12, color: Colors.primary, fontWeight: '600', marginTop: 2 }}>
+                                ✓ Ya tenés {currentInCart} {currentInCart === 1 ? 'unidad' : 'unidades'} en el carrito
+                              </Text>
+                            )}
+                          </View>
+                          <View style={styles.modalQtyControls}>
+                            <TouchableOpacity
+                              style={styles.modalQtyBtn}
+                              onPress={() => {
+                                const next = Math.max(1, modalQty - 1);
+                                setModalQty(next);
+                                setModalQtyText(String(next));
+                              }}
+                              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                              accessibilityLabel="Disminuir cantidad"
+                            >
+                              <Text style={styles.modalQtyBtnText}>−</Text>
+                            </TouchableOpacity>
+
+                            <TextInput
+                              style={styles.modalQtyInput}
+                              value={modalQtyText}
+                              onChangeText={(text) => {
+                                const cleaned = text.replace(/[^0-9]/g, '');
+                                setModalQtyText(cleaned);
+                                const p = parseInt(cleaned, 10);
+                                if (!isNaN(p) && p > 0) {
+                                  setModalQty(p);
+                                }
+                              }}
+                              onBlur={() => {
+                                const p = parseInt(modalQtyText, 10);
+                                if (isNaN(p) || p <= 0) {
+                                  const fallback = currentInCart > 0 ? currentInCart : 1;
+                                  setModalQty(fallback);
+                                  setModalQtyText(String(fallback));
+                                } else {
+                                  setModalQty(p);
+                                  setModalQtyText(String(p));
+                                }
+                              }}
+                              keyboardType="numeric"
+                              selectTextOnFocus
+                              returnKeyType="done"
+                              maxLength={5}
+                            />
+
+                            <TouchableOpacity
+                              style={[styles.modalQtyBtn, styles.modalQtyBtnAdd]}
+                              onPress={() => {
+                                const next = modalQty + 1;
+                                setModalQty(next);
+                                setModalQtyText(String(next));
+                              }}
+                              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                              accessibilityLabel="Aumentar cantidad"
+                            >
+                              <Text style={[styles.modalQtyBtnText, styles.modalQtyBtnAddText]}>+</Text>
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+
+                        <TouchableOpacity
+                          style={styles.modalBuyButton}
+                          onPress={() => {
+                            const p = parseInt(modalQtyText, 10);
+                            const finalQty = (!isNaN(p) && p > 0) ? p : modalQty;
+                            if (currentInCart > 0) {
+                              updateQuantity(selectedProductDetails.id, finalQty);
+                              useNotificationStore.getState().showToast({
+                                message: `Cantidad actualizada a ${finalQty} ${finalQty === 1 ? 'unidad' : 'unidades'} en el carrito.`,
+                                type: 'success',
+                                actionLabel: 'Ver carrito',
+                                onAction: () => {
+                                  router.push('/(tabs)/carrito');
+                                },
+                              });
                             } else {
-                              setModalQty(parsed);
-                              setModalQtyText(String(parsed));
+                              addProduct(selectedProductDetails, finalQty);
                             }
+                            setSelectedProductDetails(null);
                           }}
-                          keyboardType="numeric"
-                          selectTextOnFocus
-                          returnKeyType="done"
-                          maxLength={5}
-                        />
-
-                        <TouchableOpacity
-                          style={[styles.modalQtyBtn, styles.modalQtyBtnAdd]}
-                          onPress={() => {
-                            const next = modalQty + 1;
-                            setModalQty(next);
-                            setModalQtyText(String(next));
-                          }}
-                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                          accessibilityLabel="Aumentar cantidad"
                         >
-                          <Text style={[styles.modalQtyBtnText, styles.modalQtyBtnAddText]}>+</Text>
+                          <MaterialCommunityIcons 
+                            name={currentInCart > 0 ? "cart-check" : "cart-plus"} 
+                            size={22} 
+                            color="#fff" 
+                            style={{ marginRight: 8 }} 
+                          />
+                          <Text style={styles.modalBuyButtonText}>
+                            {currentInCart > 0
+                              ? (currentDisplayQty === currentInCart
+                                  ? `Mantener ${currentDisplayQty} en el Pedido`
+                                  : `Actualizar a ${currentDisplayQty} en el Pedido`)
+                              : `Agregar ${currentDisplayQty > 1 ? `${currentDisplayQty} al Pedido` : 'al Pedido'}`}
+                            {selectedProductDetails.precio ? ` · ${formatPrice(selectedProductDetails.precio * currentDisplayQty)}` : ''}
+                          </Text>
                         </TouchableOpacity>
-                      </View>
-                    </View>
-
-                    <TouchableOpacity
-                      style={styles.modalBuyButton}
-                      onPress={() => {
-                        const parsed = parseInt(modalQtyText, 10);
-                        const finalQty = (!isNaN(parsed) && parsed > 0) ? parsed : modalQty;
-                        addProduct(selectedProductDetails, finalQty);
-                        setSelectedProductDetails(null);
-                      }}
-                    >
-                      <MaterialCommunityIcons name="cart-plus" size={22} color="#fff" style={{ marginRight: 8 }} />
-                      <Text style={styles.modalBuyButtonText}>
-                        Agregar {modalQty > 1 ? `${modalQty} al Pedido` : 'al Pedido'}
-                        {selectedProductDetails.precio ? ` · ${formatPrice(selectedProductDetails.precio * modalQty)}` : ''}
-                      </Text>
-                    </TouchableOpacity>
-                  </>
+                      </>
+                    );
+                  })()
                 ) : (
                   <View style={[styles.modalBuyButton, { backgroundColor: '#e2e8f0' }]}>
                     <MaterialCommunityIcons name="tag-off-outline" size={20} color="#94a3b8" style={{ marginRight: 8 }} />
