@@ -332,16 +332,11 @@ export default function CatalogoScreen() {
         product={item}
         style={styles.productCard}
         onPress={(p) => {
-          const currentQty = useCartStore.getState().getItemQuantity(p.id);
-          const initialQty = currentQty > 0 ? currentQty : 1;
-          setModalQty(initialQty);
-          setModalQtyText(String(initialQty));
-          setDetailActiveImgIndex(0);
-          setSelectedProductDetails(p);
+          router.push(`/producto/${p.id}` as any);
         }}
       />
     ),
-    []
+    [router]
   );
 
   const keyExtractor = useCallback((item: Product) => String(item.id), []);
