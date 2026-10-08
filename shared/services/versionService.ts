@@ -109,8 +109,13 @@ export const versionService = {
 
     // Fallback seguro si la red o los servidores no responden
     return {
-      latest_version: '1.5.3',
+      latest_version: '1.5.4',
       history: [
+        {
+          version: '1.5.4',
+          fecha: '2026-10-08',
+          descripcion: 'Identificación y búsqueda de N° de cliente en pedidos, directorio y perfil; orden alfabético en artículos de pedidos y remito; buscador con lupa en carrito flotante y carrito completo.',
+        },
         {
           version: '1.5.3',
           fecha: '2026-10-06',

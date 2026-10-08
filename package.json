@@ -3,6 +3,8 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
+    "dev": "npm --prefix admin-panel run dev",
+    "start": "npm --prefix admin-panel run dev",
     "admin": "npm --prefix admin-panel run dev",
     "dev:admin": "npm --prefix admin-panel run dev",
     "client": "npm --prefix client-app run web",
