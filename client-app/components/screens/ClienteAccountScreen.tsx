@@ -540,6 +540,13 @@ export function ClienteAccountScreen() {
             {!!clientData.razonSocial && (
               <Text style={styles.razonSocial}>{clientData.razonSocial}</Text>
             )}
+            <View style={{ marginTop: 4, flexDirection: 'row', alignItems: 'center' }}>
+              <View style={{ backgroundColor: '#e0f2fe', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6, borderWidth: 1, borderColor: '#bae6fd' }}>
+                <Text style={{ fontSize: 12, fontWeight: '700', color: '#0369a1' }}>
+                  Número de cliente: #{clientData.id}
+                </Text>
+              </View>
+            </View>
           </View>
         </View>
 
@@ -574,6 +581,7 @@ export function ClienteAccountScreen() {
       {/* Mis Datos */}
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Mis datos</Text>
+        <InfoRow label="Número de cliente" value={`#${clientData.id}`} />
         <InfoRow label="Razón Social" value={clientData.razonSocial || clientData.nombre} />
         <InfoRow label="CUIT / DNI" value={clientData.cuit || '-'} />
         <InfoRow label="Teléfono" value={clientData.telefono} />

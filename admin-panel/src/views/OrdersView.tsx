@@ -119,12 +119,17 @@ export function OrdersView() {
   const filteredOrders = useMemo(() => {
     return orders.filter(o => {
       const client = clients.find(c => String(c.id) === String(o.clienteId) || (c.userId && String(c.userId) === String(o.clienteId)));
+      const clientId = client ? String(client.id) : String(o.clienteId || '');
       const clientName = o.customerName || (client ? (client.razonSocial || client.nombre || '') : '');
-      const query = search.toLowerCase();
+      const query = search.trim().toLowerCase();
+      const queryClean = query.replace(/^#/, '');
 
       const matchesSearch = 
+        !query ||
         o.numero.toLowerCase().includes(query) ||
-        clientName.toLowerCase().includes(query);
+        clientName.toLowerCase().includes(query) ||
+        clientId.toLowerCase().includes(query) ||
+        (queryClean && clientId.toLowerCase() === queryClean);
 
       const globalBranchFilter = activeBranchId === 'all' || o.branchId === activeBranchId;
       const matchesStatus = selectedStatus === 'all' || o.estado === selectedStatus;
@@ -137,6 +142,7 @@ export function OrdersView() {
   const getClientInfo = (clienteId: string | number, order?: Order) => {
     const c = clients.find(item => String(item.id) === String(clienteId) || (item.userId && String(item.userId) === String(clienteId)));
     return {
+      id: c ? c.id : (order?.clienteId || '-'),
       name: order?.customerName || (c ? (c.razonSocial || c.nombre) : 'Cliente Desconocido'),
       cuit: c ? c.cuit : '',
       tel: order?.customerPhone || (c ? c.telefono : ''),
@@ -207,6 +213,7 @@ export function OrdersView() {
             </div>
             <div class="details">
               <p><strong>Cliente:</strong> ${client.name}</p>
+              <p><strong>Número de cliente:</strong> ${client.id}</p>
               <p><strong>CUIT:</strong> ${client.cuit}</p>
               <p><strong>Dirección:</strong> ${client.dir}</p>
               <p><strong>Teléfono:</strong> ${client.tel}</p>
@@ -260,6 +267,7 @@ export function OrdersView() {
         Fecha: `${new Date(o.fecha).toLocaleDateString()} ${new Date(o.fecha).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} hs`,
         Sucursal: getBranchName(o.branchId),
         Cliente: client.name,
+        'N° Cliente': client.id,
         Dirección: client.dir,
         Artículos: articulosStr,
         Total: o.total,
@@ -365,7 +373,7 @@ export function OrdersView() {
             <input 
               type="text" 
               className="form-input" 
-              placeholder="Buscar por nro de pedido o razón social..." 
+              placeholder="Buscar por nro de pedido, cliente o N° de cliente..." 
               value={search} 
               onChange={e => setSearch(e.target.value)}
             />
@@ -463,6 +471,7 @@ export function OrdersView() {
                     </td>
                     <td>
                       <div style={{ fontWeight: '600' }}>{client.name}</div>
+                      <div style={{ fontSize: '11px', color: '#0284c7', fontWeight: 600 }}>Número de cliente: {client.id}</div>
                       <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>📍 Dir: {client.dir}</div>
                     </td>
                     <td>
@@ -630,6 +639,9 @@ export function OrdersView() {
                 <div>
                   <h4 style={{ margin: '0 0 6px 0', fontSize: '12px', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>👤 CLIENTE</h4>
                   <div style={{ fontWeight: 'bold', fontSize: '14px' }}>{getClientInfo(selectedOrder.clienteId, selectedOrder).name}</div>
+                  <div style={{ fontSize: '12px', color: '#0284c7', fontWeight: 600, marginTop: '2px' }}>
+                    Número de cliente: {getClientInfo(selectedOrder.clienteId, selectedOrder).id}
+                  </div>
                   {getClientInfo(selectedOrder.clienteId, selectedOrder).cuit && (
                     <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>CUIT/DNI: {getClientInfo(selectedOrder.clienteId, selectedOrder).cuit}</div>
                   )}
@@ -833,9 +845,12 @@ export function OrdersView() {
             )}
 
             <div style={{ background: '#f8fafc', padding: '14px', borderRadius: '8px', border: '1px solid #e2e8f0', marginBottom: '16px', display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '13px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <span style={{ color: '#64748b' }}>Cliente:</span>
-                <strong style={{ color: '#0f172a' }}>{getClientInfo(orderToDeliver.clienteId, orderToDeliver).name}</strong>
+                <div style={{ textAlign: 'right' }}>
+                  <strong style={{ color: '#0f172a' }}>{getClientInfo(orderToDeliver.clienteId, orderToDeliver).name}</strong>
+                  <div style={{ fontSize: '11px', color: '#0284c7', fontWeight: 600 }}>Número de cliente: {getClientInfo(orderToDeliver.clienteId, orderToDeliver).id}</div>
+                </div>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span style={{ color: '#64748b' }}>Dirección de Entrega:</span>

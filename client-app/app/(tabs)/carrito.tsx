@@ -94,6 +94,19 @@ export default function CarritoScreen() {
     useCartStore();
   const { addOrder, orders } = useOrderStore();
   const { clientData, isLoggedIn } = useAuthStore();
+  const [cartSearch, setCartSearch] = useState('');
+
+  const filteredCartItems = useMemo(() => {
+    if (!cartSearch.trim()) return items;
+    const q = cartSearch.trim().toLowerCase();
+    return items.filter((item) => {
+      const name = (item.producto?.nombre || '').toLowerCase();
+      const code = (item.producto?.codigo || '').toLowerCase();
+      const pres = (item.producto?.presentacion || '').toLowerCase();
+      const cat = (item.producto?.categoria || '').toLowerCase();
+      return name.includes(q) || code.includes(q) || pres.includes(q) || cat.includes(q);
+    });
+  }, [items, cartSearch]);
 
 
   useEffect(() => {
@@ -743,17 +756,52 @@ export default function CarritoScreen() {
         >
           {/* ── Lista de ítems ── */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Productos</Text>
-            {items.map((item) => (
-              <CartItemRow
-                key={item.producto.id}
-                item={item}
-                onIncrease={() => updateQuantity(item.producto.id, item.cantidad + 1)}
-                onDecrease={() => updateQuantity(item.producto.id, item.cantidad - 1)}
-                onRemove={() => removeProduct(item.producto.id)}
-                onSetQuantity={(qty) => updateQuantity(item.producto.id, qty)}
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.md }}>
+              <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>Productos</Text>
+              {cartSearch.trim() !== '' && (
+                <Text style={{ fontSize: FontSize.sm, color: Colors.primary, fontWeight: FontWeight.bold }}>
+                  Mostrando {filteredCartItems.length} de {items.length}
+                </Text>
+              )}
+            </View>
+
+            {/* ── Buscador con Lupa en el Carrito ── */}
+            <View style={styles.cartSearchWrap}>
+              <MaterialCommunityIcons name="magnify" size={20} color={Colors.textSecondary} style={{ marginRight: 8 }} />
+              <TextInput
+                style={styles.cartSearchInput}
+                placeholder="Buscar artículo en el carrito..."
+                placeholderTextColor={Colors.textSecondary}
+                value={cartSearch}
+                onChangeText={setCartSearch}
               />
-            ))}
+              {!!cartSearch && (
+                <TouchableOpacity onPress={() => setCartSearch('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <MaterialCommunityIcons name="close-circle" size={18} color={Colors.textSecondary} />
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {filteredCartItems.length === 0 ? (
+              <View style={styles.cartSearchEmpty}>
+                <MaterialCommunityIcons name="magnify-close" size={32} color={Colors.textSecondary} style={{ marginBottom: 6 }} />
+                <Text style={styles.cartSearchEmptyText}>No se encontraron productos para "{cartSearch}".</Text>
+                <TouchableOpacity onPress={() => setCartSearch('')} style={styles.cartSearchResetBtn}>
+                  <Text style={styles.cartSearchResetBtnText}>Mostrar todos ({items.length})</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              filteredCartItems.map((item) => (
+                <CartItemRow
+                  key={item.producto.id}
+                  item={item}
+                  onIncrease={() => updateQuantity(item.producto.id, item.cantidad + 1)}
+                  onDecrease={() => updateQuantity(item.producto.id, item.cantidad - 1)}
+                  onRemove={() => removeProduct(item.producto.id)}
+                  onSetQuantity={(qty) => updateQuantity(item.producto.id, qty)}
+                />
+              ))
+            )}
           </View>
 
           {/* ── Barra de mínimo de compra ── */}
@@ -1788,6 +1836,52 @@ const styles = StyleSheet.create({
     fontWeight: FontWeight.bold,
     color: Colors.textPrimary,
     marginBottom: Spacing.lg,
+  },
+  cartSearchWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F1F5F9',
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    paddingHorizontal: 12,
+    paddingVertical: Platform.OS === 'ios' ? 8 : 4,
+    marginBottom: Spacing.lg,
+  },
+  cartSearchInput: {
+    flex: 1,
+    fontSize: FontSize.md,
+    color: Colors.textPrimary,
+    paddingVertical: 6,
+    ...(Platform.OS === 'web' ? ({ outlineStyle: 'none' } as any) : {}),
+  },
+  cartSearchEmpty: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    paddingVertical: 24,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing.md,
+  },
+  cartSearchEmptyText: {
+    fontSize: FontSize.md,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+  },
+  cartSearchResetBtn: {
+    marginTop: 10,
+    backgroundColor: Colors.primaryLight,
+    paddingVertical: 6,
+    paddingHorizontal: 14,
+    borderRadius: Radius.full,
+  },
+  cartSearchResetBtnText: {
+    fontSize: FontSize.sm,
+    color: Colors.primary,
+    fontWeight: FontWeight.bold,
   },
 
   // Opciones de entrega

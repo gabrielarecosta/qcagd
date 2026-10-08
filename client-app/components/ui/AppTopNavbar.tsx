@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   ScrollView,
   Platform,
   useWindowDimensions,
+  TextInput,
 } from 'react-native';
 import { useRouter, usePathname } from 'expo-router';
 import { Colors } from '../../constants/Colors';
@@ -34,6 +35,19 @@ export function AppTopNavbar({ activeRoute }: AppTopNavbarProps) {
   const items = useCartStore((state) => state.items);
   const totalPrice = useCartStore((state) => state.totalPrice());
   const [showCartPreview, setShowCartPreview] = useState(false);
+  const [cartPreviewSearch, setCartPreviewSearch] = useState('');
+
+  const filteredPreviewItems = useMemo(() => {
+    if (!cartPreviewSearch.trim()) return items;
+    const q = cartPreviewSearch.trim().toLowerCase();
+    return items.filter((item) => {
+      const name = (item.producto?.nombre || '').toLowerCase();
+      const code = (item.producto?.codigo || '').toLowerCase();
+      const pres = (item.producto?.presentacion || '').toLowerCase();
+      const cat = (item.producto?.categoria || '').toLowerCase();
+      return name.includes(q) || code.includes(q) || pres.includes(q) || cat.includes(q);
+    });
+  }, [items, cartPreviewSearch]);
 
   const { isLoggedIn, userRole, logout } = useAuthStore();
   const isRepartidor = isLoggedIn && userRole === 'repartidor';
@@ -169,20 +183,46 @@ export function AppTopNavbar({ activeRoute }: AppTopNavbarProps) {
                       </View>
                     ) : (
                       <>
-                        <ScrollView
-                          style={[
-                            styles.cartPreviewScroll,
-                            Platform.OS === 'web' && ({
-                              maxHeight: 240,
-                              overflowY: 'scroll',
-                              scrollbarWidth: 'thin',
-                              scrollbarColor: '#94A3B8 #F1F5F9',
-                            } as any),
-                          ]}
-                          contentContainerStyle={styles.cartPreviewScrollContent}
-                          showsVerticalScrollIndicator={true}
-                        >
-                          {items.map((item) => {
+                        {/* Lupa / Buscador en el carrito de la esquina superior derecha */}
+                        <View style={styles.cartPreviewSearchWrap}>
+                          <MaterialCommunityIcons name="magnify" size={16} color={Colors.textSecondary} style={{ marginRight: 6 }} />
+                          <TextInput
+                            style={styles.cartPreviewSearchInput}
+                            placeholder="Buscar en el carrito..."
+                            placeholderTextColor={Colors.textSecondary}
+                            value={cartPreviewSearch}
+                            onChangeText={setCartPreviewSearch}
+                          />
+                          {!!cartPreviewSearch && (
+                            <TouchableOpacity onPress={() => setCartPreviewSearch('')} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+                              <MaterialCommunityIcons name="close-circle" size={15} color={Colors.textSecondary} />
+                            </TouchableOpacity>
+                          )}
+                        </View>
+
+                        {filteredPreviewItems.length === 0 ? (
+                          <View style={styles.cartPreviewEmpty}>
+                            <MaterialCommunityIcons name="magnify-close" size={24} color={Colors.textSecondary} style={{ marginBottom: 4 }} />
+                            <Text style={styles.cartPreviewEmptyText}>No hay artículos con "{cartPreviewSearch}"</Text>
+                            <TouchableOpacity onPress={() => setCartPreviewSearch('')} style={{ marginTop: 6 }}>
+                              <Text style={{ fontSize: 12, color: Colors.primary, fontWeight: '600' }}>Ver todos ({items.length})</Text>
+                            </TouchableOpacity>
+                          </View>
+                        ) : (
+                          <ScrollView
+                            style={[
+                              styles.cartPreviewScroll,
+                              Platform.OS === 'web' && ({
+                                maxHeight: 240,
+                                overflowY: 'scroll',
+                                scrollbarWidth: 'thin',
+                                scrollbarColor: '#94A3B8 #F1F5F9',
+                              } as any),
+                            ]}
+                            contentContainerStyle={styles.cartPreviewScrollContent}
+                            showsVerticalScrollIndicator={true}
+                          >
+                            {filteredPreviewItems.map((item) => {
                             const iconName = (CATEGORY_ICONS as any)?.[item.producto.categoria] || 'package-variant';
                             return (
                               <TouchableOpacity
@@ -232,8 +272,9 @@ export function AppTopNavbar({ activeRoute }: AppTopNavbarProps) {
                             );
                           })}
                         </ScrollView>
+                      )}
 
-                        <View style={styles.cartPreviewFooter}>
+                      <View style={styles.cartPreviewFooter}>
                           <View style={styles.cartPreviewTotalRow}>
                             <Text style={styles.cartPreviewTotalLabel}>Total:</Text>
                             <Text style={styles.cartPreviewTotalVal}>{formatPrice(totalPrice)}</Text>
@@ -481,6 +522,25 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
     marginBottom: 8,
+  },
+  cartPreviewSearchWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F1F5F9',
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginHorizontal: 12,
+    marginBottom: 8,
+    paddingHorizontal: 8,
+    paddingVertical: Platform.OS === 'ios' ? 6 : 4,
+  },
+  cartPreviewSearchInput: {
+    flex: 1,
+    fontSize: 12,
+    color: Colors.textPrimary,
+    paddingVertical: 2,
+    ...(Platform.OS === 'web' ? ({ outlineStyle: 'none' } as any) : {}),
   },
   cartPreviewTitle: {
     fontSize: 15,
