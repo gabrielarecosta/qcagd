@@ -164,6 +164,7 @@ export default function RootLayout() {
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="confirmacion-pago" options={{ headerShown: false }} />
+        <Stack.Screen name="producto/[id]" options={{ headerShown: false }} />
       </Stack>
       <NotificationContainer />
       <ConfirmationModal />

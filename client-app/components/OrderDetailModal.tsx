@@ -264,6 +264,13 @@ export function OrderDetailModal({ order, onClose, onRepeat }: OrderDetailModalP
             <View style={styles.infoCard}>
               <Text style={styles.sectionHeaderTitle}>Detalles de Entrega y Pago</Text>
 
+              {!!order.clienteId && (
+                <View style={styles.infoRow}>
+                  <Text style={styles.infoLabel}>Número de cliente:</Text>
+                  <Text style={[styles.infoValue, { fontWeight: FontWeight.bold, color: Colors.primary }]}>#{order.clienteId}</Text>
+                </View>
+              )}
+
               <View style={styles.infoRow}>
                 <Text style={styles.infoLabel}>Método de entrega:</Text>
                 <Text style={styles.infoValue}>{deliveryMethodLabel}</Text>
@@ -320,7 +327,11 @@ export function OrderDetailModal({ order, onClose, onRepeat }: OrderDetailModalP
             <View style={styles.itemsCard}>
               <Text style={styles.sectionHeaderTitle}>Productos solicitados ({order.items.length})</Text>
 
-              {order.items.map((item, idx) => (
+              {([...order.items].sort((a, b) => {
+                const nameA = (a.producto?.nombre || '').trim().toLowerCase();
+                const nameB = (b.producto?.nombre || '').trim().toLowerCase();
+                return nameA.localeCompare(nameB, 'es', { sensitivity: 'base' });
+              })).map((item, idx) => (
                 <View key={idx} style={styles.itemRow}>
                   <View style={styles.itemMain}>
                     <Text style={styles.itemName} numberOfLines={2}>

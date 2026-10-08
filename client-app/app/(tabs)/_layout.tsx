@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Tabs, useRouter, usePathname } from 'expo-router';
-import { View, Text, StyleSheet, ImageBackground, TouchableOpacity, ScrollView, SafeAreaView, Animated, Image, Platform, useWindowDimensions } from 'react-native';
+import { View, Text, StyleSheet, ImageBackground, TouchableOpacity, ScrollView, SafeAreaView, Animated, Image, Platform, useWindowDimensions, TextInput } from 'react-native';
 import { Colors } from '../../constants/Colors';
 import { FontSize, FontWeight } from '../../constants/Typography';
 import { useCartStore } from '../../store/cartStore';
@@ -55,8 +55,21 @@ export default function TabsLayout() {
   const items = useCartStore((state) => state.items);
   const totalPrice = useCartStore((state) => state.totalPrice());
   const [showCartPreview, setShowCartPreview] = useState(false);
+  const [cartPreviewSearch, setCartPreviewSearch] = useState('');
   const { isLoggedIn, userRole, logout } = useAuthStore();
   const isRepartidor = isLoggedIn && userRole === 'repartidor';
+
+  const filteredPreviewItems = useMemo(() => {
+    if (!cartPreviewSearch.trim()) return items;
+    const q = cartPreviewSearch.trim().toLowerCase();
+    return items.filter((item) => {
+      const name = (item.producto?.nombre || '').toLowerCase();
+      const code = (item.producto?.codigo || '').toLowerCase();
+      const pres = (item.producto?.presentacion || '').toLowerCase();
+      const cat = (item.producto?.categoria || '').toLowerCase();
+      return name.includes(q) || code.includes(q) || pres.includes(q) || cat.includes(q);
+    });
+  }, [items, cartPreviewSearch]);
 
   const [authStep, setAuthStep] = useState<'landing' | 'options' | 'login-client' | 'register-client' | 'login-driver'>('landing');
 
@@ -189,23 +202,49 @@ export default function TabsLayout() {
                         </View>
                       ) : (
                         <>
-                          <ScrollView
-                            style={[
-                              desktopStyles.cartPreviewScroll,
-                              Platform.OS === 'web' && ({
-                                maxHeight: 240,
-                                overflowY: 'scroll',
-                                scrollbarWidth: 'thin',
-                                scrollbarColor: '#94A3B8 #F1F5F9',
-                              } as any),
-                            ]}
-                            contentContainerStyle={desktopStyles.cartPreviewScrollContent}
-                            showsVerticalScrollIndicator={true}
-                            persistentScrollbar={true}
-                            // @ts-ignore
-                            dataSet={{ cartScroll: 'true', testid: 'cart-preview-scroll' }}
-                          >
-                            {items.map((item) => {
+                          {/* Lupa / Buscador en el carrito de la esquina superior derecha */}
+                          <View style={desktopStyles.cartPreviewSearchWrap}>
+                            <MaterialCommunityIcons name="magnify" size={16} color={Colors.textSecondary} style={{ marginRight: 6 }} />
+                            <TextInput
+                              style={desktopStyles.cartPreviewSearchInput}
+                              placeholder="Buscar en el carrito..."
+                              placeholderTextColor={Colors.textSecondary}
+                              value={cartPreviewSearch}
+                              onChangeText={setCartPreviewSearch}
+                            />
+                            {!!cartPreviewSearch && (
+                              <TouchableOpacity onPress={() => setCartPreviewSearch('')} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+                                <MaterialCommunityIcons name="close-circle" size={15} color={Colors.textSecondary} />
+                              </TouchableOpacity>
+                            )}
+                          </View>
+
+                          {filteredPreviewItems.length === 0 ? (
+                            <View style={desktopStyles.cartPreviewEmpty}>
+                              <MaterialCommunityIcons name="magnify-close" size={24} color={Colors.textSecondary} style={{ marginBottom: 4 }} />
+                              <Text style={desktopStyles.cartPreviewEmptyText}>No hay artículos con "{cartPreviewSearch}"</Text>
+                              <TouchableOpacity onPress={() => setCartPreviewSearch('')} style={{ marginTop: 6 }}>
+                                <Text style={{ fontSize: 12, color: Colors.primary, fontWeight: '600' }}>Ver todos ({items.length})</Text>
+                              </TouchableOpacity>
+                            </View>
+                          ) : (
+                            <ScrollView
+                              style={[
+                                desktopStyles.cartPreviewScroll,
+                                Platform.OS === 'web' && ({
+                                  maxHeight: 240,
+                                  overflowY: 'scroll',
+                                  scrollbarWidth: 'thin',
+                                  scrollbarColor: '#94A3B8 #F1F5F9',
+                                } as any),
+                              ]}
+                              contentContainerStyle={desktopStyles.cartPreviewScrollContent}
+                              showsVerticalScrollIndicator={true}
+                              persistentScrollbar={true}
+                              // @ts-ignore
+                              dataSet={{ cartScroll: 'true', testid: 'cart-preview-scroll' }}
+                            >
+                              {filteredPreviewItems.map((item) => {
                               const iconName = (CATEGORY_ICONS as any)?.[item.producto.categoria] || 'package-variant';
                               return (
                                 <TouchableOpacity
@@ -254,8 +293,9 @@ export default function TabsLayout() {
                               );
                             })}
                           </ScrollView>
+                        )}
 
-                          <View style={desktopStyles.cartPreviewFooter}>
+                        <View style={desktopStyles.cartPreviewFooter}>
                             <View style={desktopStyles.cartPreviewTotalRow}>
                               <Text style={desktopStyles.cartPreviewTotalLabel}>Total:</Text>
                               <Text style={desktopStyles.cartPreviewTotalVal}>{fmtPrice(totalPrice)}</Text>
@@ -709,6 +749,25 @@ const desktopStyles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
     marginBottom: 8,
+  },
+  cartPreviewSearchWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F1F5F9',
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginHorizontal: 12,
+    marginBottom: 8,
+    paddingHorizontal: 8,
+    paddingVertical: Platform.OS === 'ios' ? 6 : 4,
+  },
+  cartPreviewSearchInput: {
+    flex: 1,
+    fontSize: 12,
+    color: Colors.textPrimary,
+    paddingVertical: 2,
+    ...(Platform.OS === 'web' ? ({ outlineStyle: 'none' } as any) : {}),
   },
   cartPreviewTitle: {
     fontSize: 15,

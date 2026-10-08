@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { View, Platform, ViewStyle } from 'react-native';
 import { formatPrice } from '../../utils/formatters';
 
@@ -11,39 +11,66 @@ if (Platform.OS === 'web') {
 
 export interface HoverImagePreviewProps {
   imageUri?: string | null;
+  images?: string[];
   name?: string;
   price?: number;
   presentation?: string;
   codigo?: string;
   children: React.ReactNode;
   style?: ViewStyle | any;
-  delayMs?: number; // Por defecto 1000 ms (1 segundo)
+  delayMs?: number; // Por defecto 800 ms
 }
 
 /**
- * Componente que envuelve una imagen y al mantener el mouse encima durante 1 segundo,
- * muestra un popover flotante en alta resolución con la foto ampliada y los detalles del producto.
+ * Componente que envuelve una tarjeta y al mantener el mouse encima,
+ * muestra un popover flotante en alta resolución y tamaño ampliado con la foto
+ * y carrusel en loop automático cada 2 segundos si hay múltiples imágenes.
  */
 export function HoverImagePreview({
   imageUri,
+  images,
   name,
   price,
   presentation,
   codigo,
   children,
   style,
-  delayMs = 1000,
+  delayMs = 800,
 }: HoverImagePreviewProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [coords, setCoords] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
+  const [currentImgIdx, setCurrentImgIdx] = useState(0);
   const timeoutRef = useRef<any>(null);
   const targetRef = useRef<any>(null);
+
+  // Pool consolidado de imágenes sin duplicados
+  const allImages = useMemo(() => {
+    const pool = [
+      imageUri,
+      ...(Array.isArray(images) ? images : []),
+    ].filter((img): img is string => typeof img === 'string' && img.trim().length > 0);
+    return Array.from(new Set(pool));
+  }, [imageUri, images]);
+
+  // Carrusel automático en loop con intervalo de 2 segundos
+  useEffect(() => {
+    if (!isOpen || allImages.length <= 1) {
+      setCurrentImgIdx(0);
+      return;
+    }
+
+    const interval = setInterval(() => {
+      setCurrentImgIdx((prev) => (prev + 1) % allImages.length);
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, [isOpen, allImages.length]);
 
   const calculatePosition = (rect: DOMRect) => {
     if (typeof window === 'undefined') return;
 
-    const PREVIEW_WIDTH = 290;
-    const PREVIEW_HEIGHT = 350;
+    const PREVIEW_WIDTH = 420;
+    const PREVIEW_HEIGHT = 490;
     const MARGIN = 14;
 
     const viewportWidth = window.innerWidth;
@@ -71,7 +98,7 @@ export function HoverImagePreview({
   };
 
   const handleMouseEnter = (e: any) => {
-    if (!imageUri || Platform.OS !== 'web') return;
+    if (allImages.length === 0 || Platform.OS !== 'web') return;
 
     const rect = e.currentTarget?.getBoundingClientRect?.();
     if (!rect) return;
@@ -80,6 +107,7 @@ export function HoverImagePreview({
 
     timeoutRef.current = setTimeout(() => {
       calculatePosition(rect);
+      setCurrentImgIdx(0);
       setIsOpen(true);
     }, delayMs);
   };
@@ -90,6 +118,7 @@ export function HoverImagePreview({
       timeoutRef.current = null;
     }
     setIsOpen(false);
+    setCurrentImgIdx(0);
   };
 
   // Si el usuario hace scroll, ocultamos la previsualización de inmediato
@@ -98,6 +127,7 @@ export function HoverImagePreview({
 
     const handleScroll = () => {
       setIsOpen(false);
+      setCurrentImgIdx(0);
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
     };
 
@@ -113,14 +143,16 @@ export function HoverImagePreview({
     };
   }, []);
 
-  if (Platform.OS !== 'web' || !imageUri) {
+  if (Platform.OS !== 'web' || allImages.length === 0) {
     return <View style={style}>{children}</View>;
   }
 
   const renderPreview = () => {
-    if (!isOpen || !imageUri || typeof document === 'undefined') {
+    if (!isOpen || allImages.length === 0 || typeof document === 'undefined') {
       return null;
     }
+
+    const currentImg = allImages[currentImgIdx] || allImages[0];
 
     const content = (
       <div
@@ -128,17 +160,17 @@ export function HoverImagePreview({
           position: 'fixed',
           top: coords.top,
           left: coords.left,
-          width: 290,
+          width: 420,
           backgroundColor: '#FFFFFF',
           borderRadius: 16,
-          boxShadow: '0 20px 45px -10px rgba(0, 0, 0, 0.28), 0 0 0 1px rgba(0, 0, 0, 0.08)',
+          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(0, 0, 0, 0.08)',
           zIndex: 9999999,
           pointerEvents: 'none',
-          padding: 12,
+          padding: 14,
           boxSizing: 'border-box',
           display: 'flex',
           flexDirection: 'column',
-          gap: 10,
+          gap: 12,
           animation: 'previewFadeIn 0.18s cubic-bezier(0.16, 1, 0.3, 1) forwards',
           fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
         }}
@@ -160,50 +192,87 @@ export function HoverImagePreview({
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div
             style={{
-              fontSize: 11,
+              fontSize: 12,
               fontWeight: 700,
               color: '#1A56DB',
               backgroundColor: '#EFF6FF',
-              padding: '3px 8px',
+              padding: '4px 10px',
               borderRadius: 6,
               display: 'inline-flex',
               alignItems: 'center',
-              gap: 4,
+              gap: 5,
             }}
           >
-            <span>🔍 Vista previa</span>
+            <span>🔍 Vista previa ampliada</span>
+            {allImages.length > 1 && (
+              <span style={{ color: '#2563EB', fontWeight: 600, fontSize: 11 }}>
+                ({currentImgIdx + 1}/{allImages.length})
+              </span>
+            )}
           </div>
           {codigo ? (
-            <span style={{ fontSize: 11, color: '#64748B', fontWeight: 600 }}>
+            <span style={{ fontSize: 12, color: '#64748B', fontWeight: 600 }}>
               Cód: {codigo}
             </span>
           ) : null}
         </div>
 
-        {/* Imagen en grande */}
+        {/* Imagen en grande con soporte para carrusel en loop */}
         <div
           style={{
             width: '100%',
-            height: 250,
+            height: 350,
             backgroundColor: '#F8FAFC',
             borderRadius: 12,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             overflow: 'hidden',
-            border: '1px solid #F1F5F9',
+            border: '1px solid #E2E8F0',
+            position: 'relative',
           }}
         >
           <img
-            src={imageUri}
+            key={currentImg}
+            src={currentImg}
             alt={name || 'Producto'}
             style={{
-              maxWidth: '100%',
-              maxHeight: '100%',
+              maxWidth: '94%',
+              maxHeight: '94%',
               objectFit: 'contain',
               display: 'block',
+              transition: 'opacity 0.25s ease-in-out',
             }}
           />
+
+          {allImages.length > 1 && (
+            <div
+              style={{
+                position: 'absolute',
+                bottom: 10,
+                left: 0,
+                right: 0,
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                gap: 6,
+                zIndex: 2,
+              }}
+            >
+              {allImages.map((_, i) => (
+                <div
+                  key={i}
+                  style={{
+                    width: currentImgIdx === i ? 18 : 6,
+                    height: 6,
+                    borderRadius: 3,
+                    backgroundColor: currentImgIdx === i ? '#1A56DB' : 'rgba(15, 23, 42, 0.28)',
+                    transition: 'all 0.25s ease',
+                  }}
+                />
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Datos del producto */}
@@ -211,10 +280,10 @@ export function HoverImagePreview({
           {name ? (
             <div
               style={{
-                fontSize: 14,
+                fontSize: 15,
                 fontWeight: 700,
                 color: '#0F172A',
-                lineHeight: 1.3,
+                lineHeight: 1.35,
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
                 display: '-webkit-box',
@@ -228,13 +297,13 @@ export function HoverImagePreview({
 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 2 }}>
             {presentation ? (
-              <span style={{ fontSize: 12, color: '#64748B', fontWeight: 500 }}>
+              <span style={{ fontSize: 13, color: '#64748B', fontWeight: 500 }}>
                 {presentation}
               </span>
             ) : <span />}
 
             {typeof price === 'number' && price > 0 ? (
-              <span style={{ fontSize: 16, fontWeight: 800, color: '#1A56DB' }}>
+              <span style={{ fontSize: 18, fontWeight: 800, color: '#1A56DB' }}>
                 {formatPrice(price)}
               </span>
             ) : null}

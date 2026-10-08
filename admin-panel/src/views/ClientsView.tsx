@@ -28,6 +28,7 @@ export function ClientsView({ initialSection = 'directorio' }: ClientsViewProps)
   }, []);
 
   const [search, setSearch] = useState('');
+  const [searchClientId, setSearchClientId] = useState('');
   const [selectedBranch, setSelectedBranch] = useState('all');
   const [selectedType, setSelectedType] = useState('all');
   const [selectedActiveStatus, setSelectedActiveStatus] = useState<string>('all');
@@ -42,7 +43,7 @@ export function ClientsView({ initialSection = 'directorio' }: ClientsViewProps)
   // Reset de página al cambiar filtros
   useEffect(() => {
     setCurrentPage(1);
-  }, [search, selectedBranch, selectedType, selectedActiveStatus, selectedCtaCteStatus, sortBy, itemsPerPage]);
+  }, [search, searchClientId, selectedBranch, selectedType, selectedActiveStatus, selectedCtaCteStatus, sortBy, itemsPerPage]);
 
   // Estados para Sección de Cuentas Corrientes
   const [ctaCteTab, setCtaCteTab] = useState<'minoristas' | 'mayoristas' | 'pendientes'>('minoristas');
@@ -289,9 +290,12 @@ export function ClientsView({ initialSection = 'directorio' }: ClientsViewProps)
     const filtered = clients.filter(c => {
       if (!isRealClient(c)) return false;
 
-      const q = search.toLowerCase();
+      const q = search.trim().toLowerCase();
+      const qClean = q.replace(/^#/, '');
       const matchesSearch = 
         !q ||
+        String(c.id).toLowerCase().includes(q) ||
+        (qClean && String(c.id).toLowerCase() === qClean) ||
         (c.nombre || '').toLowerCase().includes(q) ||
         (c.razonSocial || '').toLowerCase().includes(q) ||
         (c.cuit || '').includes(q) ||
@@ -299,6 +303,9 @@ export function ClientsView({ initialSection = 'directorio' }: ClientsViewProps)
         (c.email || '').toLowerCase().includes(q) ||
         (c.authEmail || '').toLowerCase().includes(q) ||
         (c.telefono || '').includes(q);
+
+      const qClientId = searchClientId.trim().toLowerCase().replace(/^#/, '');
+      const matchesClientId = !qClientId || String(c.id).toLowerCase().includes(qClientId);
 
       const globalBranchFilter = activeBranchId === 'all' || String(c.branchId) === String(activeBranchId);
       const localBranchFilter = selectedBranch === 'all' || String(c.branchId) === String(selectedBranch);
@@ -312,11 +319,15 @@ export function ClientsView({ initialSection = 'directorio' }: ClientsViewProps)
         (selectedCtaCteStatus === 'habilitada' && c.ctaCteAutorizada) ||
         (selectedCtaCteStatus === 'no_habilitada' && !c.ctaCteAutorizada);
 
-      return matchesSearch && globalBranchFilter && localBranchFilter && matchesType && matchesStatus && matchesCtaCte;
+      return matchesSearch && matchesClientId && globalBranchFilter && localBranchFilter && matchesType && matchesStatus && matchesCtaCte;
     });
 
     return filtered.sort((a, b) => {
-      if (sortBy === 'nombre_asc') {
+      if (sortBy === 'id_asc') {
+        return Number(a.id) - Number(b.id);
+      } else if (sortBy === 'id_desc') {
+        return Number(b.id) - Number(a.id);
+      } else if (sortBy === 'nombre_asc') {
         return (a.nombre || '').localeCompare(b.nombre || '', 'es');
       } else if (sortBy === 'nombre_desc') {
         return (b.nombre || '').localeCompare(a.nombre || '', 'es');
@@ -345,7 +356,7 @@ export function ClientsView({ initialSection = 'directorio' }: ClientsViewProps)
       }
       return 0;
     });
-  }, [clients, search, activeBranchId, selectedBranch, selectedType, selectedActiveStatus, selectedCtaCteStatus, sortBy, orders, branches]);
+  }, [clients, search, searchClientId, activeBranchId, selectedBranch, selectedType, selectedActiveStatus, selectedCtaCteStatus, sortBy, orders, branches]);
 
   const totalClientsCount = filteredAndSortedClients.length;
   const totalPages = Math.ceil(totalClientsCount / itemsPerPage) || 1;
@@ -358,6 +369,7 @@ export function ClientsView({ initialSection = 'directorio' }: ClientsViewProps)
 
   const handleExportClients = () => {
     const dataToExport = filteredAndSortedClients.map(c => ({
+      'Número de Cliente': c.id,
       Nombre: c.nombre,
       RazónSocial: c.razonSocial || '',
       CUIT: c.cuit || '',
@@ -426,9 +438,12 @@ export function ClientsView({ initialSection = 'directorio' }: ClientsViewProps)
       const globalBranchFilter = activeBranchId === 'all' || String(c.branchId) === String(activeBranchId);
       if (!globalBranchFilter) return false;
 
-      const q = ctaCteSearch.toLowerCase();
+      const q = ctaCteSearch.trim().toLowerCase();
+      const qClean = q.replace(/^#/, '');
       const matchesSearch = 
         !q ||
+        String(c.id).toLowerCase().includes(q) ||
+        (qClean && String(c.id).toLowerCase() === qClean) ||
         (c.nombre || '').toLowerCase().includes(q) ||
         (c.razonSocial || '').toLowerCase().includes(q) ||
         (c.cuit || '').includes(q);
@@ -563,10 +578,22 @@ export function ClientsView({ initialSection = 'directorio' }: ClientsViewProps)
                 <input 
                   type="text" 
                   className="form-input" 
-                  placeholder="🔍 Buscar por CUIT, Nombre, Razón Social, Dirección o Email..." 
+                  placeholder="🔍 Buscar por N° de cliente, CUIT, Nombre, Razón Social, Email..." 
                   value={search} 
                   onChange={e => setSearch(e.target.value)}
                   style={{ fontSize: '13px' }}
+                />
+              </div>
+
+              <div style={{ width: '170px' }}>
+                <input 
+                  type="text" 
+                  className="form-input" 
+                  placeholder="🔢 N° de cliente..." 
+                  value={searchClientId} 
+                  onChange={e => setSearchClientId(e.target.value)}
+                  style={{ fontSize: '13px' }}
+                  title="Buscar específicamente por Número de cliente"
                 />
               </div>
 
@@ -634,6 +661,8 @@ export function ClientsView({ initialSection = 'directorio' }: ClientsViewProps)
                 >
                   <option value="fecha_desc">📅 Más recientes primero</option>
                   <option value="fecha_asc">📅 Más antiguos primero</option>
+                  <option value="id_asc">🔢 N° de Cliente (Menor a Mayor)</option>
+                  <option value="id_desc">🔢 N° de Cliente (Mayor a Menor)</option>
                   <option value="nombre_asc">🔤 Nombre (A - Z)</option>
                   <option value="nombre_desc">🔤 Nombre (Z - A)</option>
                   <option value="razon_asc">🏢 Razón Social (A - Z)</option>
@@ -677,6 +706,9 @@ export function ClientsView({ initialSection = 'directorio' }: ClientsViewProps)
                     return (
                       <tr key={c.id}>
                         <td>
+                          <div style={{ display: 'inline-block', fontSize: '11px', fontWeight: 'bold', color: '#0284c7', background: '#e0f2fe', padding: '2px 8px', borderRadius: '4px', marginBottom: '4px', border: '1px solid #bae6fd' }}>
+                            Número de cliente: {c.id}
+                          </div>
                           <div style={{ fontWeight: 'bold', color: 'var(--text-primary)' }}>{c.nombre}</div>
                           {c.razonSocial && c.razonSocial !== c.nombre && (
                             <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{c.razonSocial}</div>
@@ -989,11 +1021,11 @@ export function ClientsView({ initialSection = 'directorio' }: ClientsViewProps)
             </button>
           </div>
 
-          <div style={{ width: '220px' }}>
+          <div style={{ width: '240px' }}>
             <input 
               type="text" 
               className="form-input" 
-              placeholder="🔍 Buscar cliente / CUIT..."
+              placeholder="🔍 Buscar por N° cliente, CUIT, Nombre..."
               value={ctaCteSearch}
               onChange={e => setCtaCteSearch(e.target.value)}
               style={{ padding: '6px 12px', fontSize: '13px' }}
@@ -1025,6 +1057,9 @@ export function ClientsView({ initialSection = 'directorio' }: ClientsViewProps)
                 return (
                   <tr key={c.id}>
                     <td>
+                      <div style={{ display: 'inline-block', fontSize: '11px', fontWeight: 'bold', color: '#0284c7', background: '#e0f2fe', padding: '1px 6px', borderRadius: '4px', marginBottom: '2px', border: '1px solid #bae6fd' }}>
+                        Número de cliente: {c.id}
+                      </div>
                       <div style={{ fontWeight: 'bold', color: 'var(--text-primary)' }}>{c.nombre}</div>
                       {c.razonSocial && <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>{c.razonSocial}</div>}
                       <div style={{ fontSize: '11px', color: 'var(--text-disabled)' }}>CUIT: {c.cuit || 'Sin CUIT'}</div>
@@ -1173,7 +1208,9 @@ export function ClientsView({ initialSection = 'directorio' }: ClientsViewProps)
           <div className="modal-content" style={{ maxWidth: '650px' }}>
             <form onSubmit={handleSaveEdit}>
               <div className="modal-header">
-                <h2 className="card-title">Editar Cliente: {editingClient.nombre}</h2>
+                <h2 className="card-title">
+                  Editar Cliente: {editingClient.nombre} <span style={{ fontSize: '13px', color: '#0284c7', fontWeight: 600 }}>(Número de cliente: {editingClient.id})</span>
+                </h2>
                 <button type="button" className="btn-close" onClick={() => setEditingClient(null)}>✕</button>
               </div>
               <div className="modal-body" style={{ maxHeight: '75vh', overflowY: 'auto' }}>

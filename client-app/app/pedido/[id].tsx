@@ -381,7 +381,11 @@ export default function OrderDetailScreen() {
           <View style={styles.itemsSection}>
             <Text style={styles.sectionHeaderTitle}>Productos ({targetOrder.items.length})</Text>
 
-            {targetOrder.items.map((item, idx) => (
+            {([...targetOrder.items].sort((a, b) => {
+              const nameA = (a.producto?.nombre || '').trim().toLowerCase();
+              const nameB = (b.producto?.nombre || '').trim().toLowerCase();
+              return nameA.localeCompare(nameB, 'es', { sensitivity: 'base' });
+            })).map((item, idx) => (
               <View key={idx} style={styles.itemRow}>
                 <View style={styles.itemMain}>
                   <Text style={styles.itemName} numberOfLines={2}>
