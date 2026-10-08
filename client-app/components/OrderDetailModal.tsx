@@ -320,7 +320,11 @@ export function OrderDetailModal({ order, onClose, onRepeat }: OrderDetailModalP
             <View style={styles.itemsCard}>
               <Text style={styles.sectionHeaderTitle}>Productos solicitados ({order.items.length})</Text>
 
-              {order.items.map((item, idx) => (
+              {([...order.items].sort((a, b) => {
+                const nameA = (a.producto?.nombre || '').trim().toLowerCase();
+                const nameB = (b.producto?.nombre || '').trim().toLowerCase();
+                return nameA.localeCompare(nameB, 'es', { sensitivity: 'base' });
+              })).map((item, idx) => (
                 <View key={idx} style={styles.itemRow}>
                   <View style={styles.itemMain}>
                     <Text style={styles.itemName} numberOfLines={2}>

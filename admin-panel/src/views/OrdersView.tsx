@@ -155,6 +155,14 @@ export function OrdersView() {
   const getItemPrice = (item: any) => Number(item?.precioUnitario || item?.precio_unitario || item?.producto?.precio || 0);
   const getItemQty = (item: any) => Number(item?.cantidad || 0);
 
+  const sortItemsAlphabetically = (items: any[]) => {
+    return [...items].sort((a, b) => {
+      const nameA = getItemName(a).trim().toLowerCase();
+      const nameB = getItemName(b).trim().toLowerCase();
+      return nameA.localeCompare(nameB, 'es', { sensitivity: 'base' });
+    });
+  };
+
   const handlePrint = async (order: Order) => {
     setIsPrintingId(order.id);
     try {
@@ -162,11 +170,12 @@ export function OrdersView() {
       if (itemsList.length === 0) {
         itemsList = await fetchOrderItems(order.id);
       }
+      const sortedItemsList = sortItemsAlphabetically(itemsList);
       const client = getClientInfo(order.clienteId, order);
       const printWindow = window.open('', '_blank');
       if (!printWindow) return;
 
-      const itemsRows = itemsList.map(item => `
+      const itemsRows = sortedItemsList.map(item => `
         <tr>
           <td style="padding: 8px; border-bottom: 1px solid #ddd;">${getItemCode(item)}</td>
           <td style="padding: 8px; border-bottom: 1px solid #ddd;">${getItemName(item)}${getItemPresentation(item) ? ` - ${getItemPresentation(item)}` : ''}</td>
@@ -244,7 +253,7 @@ export function OrdersView() {
     const dataToExport = filteredOrders.map(o => {
       const client = getClientInfo(o.clienteId, o);
       const articulosStr = (o.items && o.items.length > 0)
-        ? o.items.map(it => `${it.producto?.nombre || (it as any).nombre || 'Producto'} (${it.cantidad})`).join(', ')
+        ? sortItemsAlphabetically(o.items).map(it => `${getItemName(it)} (${getItemQty(it)})`).join(', ')
         : (o.itemsCount !== undefined ? `${o.itemsCount} producto(s)` : '-');
       return {
         Número: o.numero,
@@ -692,7 +701,7 @@ export function OrdersView() {
                       </tr>
                     </thead>
                     <tbody>
-                      {(selectedOrder.items || []).map((item, idx) => (
+                      {sortItemsAlphabetically(selectedOrder.items || []).map((item, idx) => (
                         <tr key={idx}>
                           <td style={{ fontFamily: 'monospace', padding: '8px', fontWeight: 'bold' }}>{getItemCode(item)}</td>
                           <td style={{ padding: '8px' }}>{getItemName(item)} {getItemPresentation(item) ? `(${getItemPresentation(item)})` : ''}</td>

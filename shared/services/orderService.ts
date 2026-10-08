@@ -39,7 +39,11 @@ const mapOrder = (o: any, items: any[] = [], customerObj?: any): Order => {
     clienteId: o.cliente_id,
     branchId: o.branch_id,
     fecha: o.fecha,
-    items: items.map(mapOrderItem),
+    items: items.map(mapOrderItem).sort((a, b) => {
+      const nameA = (a.producto?.nombre || '').trim().toLowerCase();
+      const nameB = (b.producto?.nombre || '').trim().toLowerCase();
+      return nameA.localeCompare(nameB, 'es', { sensitivity: 'base' });
+    }),
     itemsCount: rawCount,
     total: Number(o.total),
     estado: o.estado as OrderStatus,
@@ -138,7 +142,13 @@ export const orderService = {
       .eq('order_id', orderId);
 
     if (itemsErr) throw itemsErr;
-    return (itemsData || []).map(mapOrderItem);
+    const mapped = (itemsData || []).map(mapOrderItem);
+    mapped.sort((a, b) => {
+      const nameA = (a.producto?.nombre || '').trim().toLowerCase();
+      const nameB = (b.producto?.nombre || '').trim().toLowerCase();
+      return nameA.localeCompare(nameB, 'es', { sensitivity: 'base' });
+    });
+    return mapped;
   },
 
   getById: async (id: string | number): Promise<Order | undefined> => {
