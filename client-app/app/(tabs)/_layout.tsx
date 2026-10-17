@@ -1,23 +1,21 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import { Tabs, useRouter, usePathname } from 'expo-router';
-import { View, Text, StyleSheet, ImageBackground, TouchableOpacity, ScrollView, SafeAreaView, Animated, Image, Platform, useWindowDimensions, TextInput } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image, Platform, useWindowDimensions, TextInput } from 'react-native';
 import { Colors } from '../../constants/Colors';
 import { FontSize, FontWeight } from '../../constants/Typography';
 import { useCartStore } from '../../store/cartStore';
 import { Badge } from '../../components/ui/Badge';
 import { useAuthStore } from '../../store/authStore';
 import { Radius, Spacing } from '../../constants/Spacing';
-import MaterialCommunityIcons from '../../components/icons/MaterialCommunityIcons';import { formatPrice as fmtPrice } from '../../utils/formatters';
+import MaterialCommunityIcons from '../../components/icons/MaterialCommunityIcons';
+import { formatPrice as fmtPrice } from '../../utils/formatters';
 import { CATEGORY_ICONS, ProductCategory } from '../../types';
-import { HoverImagePreview } from '../../components/ui/HoverImagePreview';
 
-// Módulos de pantalla para el flujo de autenticación bloqueado
-import { LoginClienteScreen } from '../../components/screens/LoginClienteScreen';
-import { RegisterClienteScreen } from '../../components/screens/RegisterClienteScreen';
-import { LoginRepartidorScreen } from '../../components/screens/LoginRepartidorScreen';
-import { DesktopStartScreen } from '../../components/screens/DesktopStartScreen';
-import { MobileStartScreen } from '../../components/screens/MobileStartScreen';
 import { NoAddressBanner } from '../../components/ui/NoAddressBanner';
+import { AuthModal } from '../../components/modals/AuthModal';
+import { TopMarqueeBar } from '../../components/ui/TopMarqueeBar';
+import { useAccountTabStore } from '../../store/accountTabStore';
+import { CartPreviewItemRow } from '../../components/ui/CartPreviewItemRow';
 
 // Íconos con MaterialCommunityIcons para mayor calidad visual
 function HomeIcon({ focused }: { focused: boolean }) {
@@ -54,9 +52,13 @@ export default function TabsLayout() {
   const totalItems = useCartStore((state) => state.totalItems());
   const items = useCartStore((state) => state.items);
   const totalPrice = useCartStore((state) => state.totalPrice());
+  const updateQuantity = useCartStore((state) => state.updateQuantity);
+  const removeProduct = useCartStore((state) => state.removeProduct);
   const [showCartPreview, setShowCartPreview] = useState(false);
   const [cartPreviewSearch, setCartPreviewSearch] = useState('');
-  const { isLoggedIn, userRole, logout } = useAuthStore();
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [showUserDropdown, setShowUserDropdown] = useState(false);
+  const { isLoggedIn, userRole, logout, clientData } = useAuthStore();
   const isRepartidor = isLoggedIn && userRole === 'repartidor';
 
   const filteredPreviewItems = useMemo(() => {
@@ -71,57 +73,6 @@ export default function TabsLayout() {
     });
   }, [items, cartPreviewSearch]);
 
-  const [authStep, setAuthStep] = useState<'landing' | 'options' | 'login-client' | 'register-client' | 'login-driver'>('landing');
-
-  // Animaciones landing
-  const buttonOpacity = useRef(new Animated.Value(0)).current;
-  const buttonScale = useRef(new Animated.Value(0.92)).current;
-
-  // Animaciones pantalla opciones
-  const optionsOpacity = useRef(new Animated.Value(0)).current;
-  const optionsTranslateY = useRef(new Animated.Value(20)).current;
-
-  // Reset to landing step if user logs out
-  useEffect(() => {
-    if (!isLoggedIn) {
-      setAuthStep('landing');
-    }
-  }, [isLoggedIn]);
-
-  // Trigger button fade-in + scale animation when landing step mounts
-  useEffect(() => {
-    if (!isLoggedIn && authStep === 'landing') {
-      buttonOpacity.setValue(0);
-      buttonScale.setValue(0.92);
-      Animated.parallel([
-        Animated.timing(buttonOpacity, {
-          toValue: 1,
-          duration: 900,
-          delay: 300,
-          useNativeDriver: true,
-        }),
-        Animated.spring(buttonScale, {
-          toValue: 1,
-          delay: 300,
-          useNativeDriver: true,
-          bounciness: 8,
-        }),
-      ]).start();
-    }
-  }, [isLoggedIn, authStep]);
-
-  // Trigger fade+slide for options screen
-  useEffect(() => {
-    if (authStep === 'options') {
-      optionsOpacity.setValue(0);
-      optionsTranslateY.setValue(20);
-      Animated.parallel([
-        Animated.timing(optionsOpacity, { toValue: 1, duration: 380, useNativeDriver: true }),
-        Animated.timing(optionsTranslateY, { toValue: 0, duration: 380, useNativeDriver: true }),
-      ]).start();
-    }
-  }, [authStep]);
-
   const isActive = (path: string) => {
     if (path === '/') return pathname === '/' || pathname === '/(tabs)' || pathname === '';
     return pathname.includes(path);
@@ -132,6 +83,8 @@ export default function TabsLayout() {
   if (isDesktop) {
     return (
       <View style={desktopStyles.desktopContainer}>
+        {/* Barra dinámica superior en azul oscuro */}
+        <TopMarqueeBar />
         {/* Encabezado tradicional web */}
         <View style={desktopStyles.desktopHeader}>
           <View style={desktopStyles.desktopHeaderInner}>
@@ -149,25 +102,19 @@ export default function TabsLayout() {
                   <TouchableOpacity onPress={() => router.push('/(tabs)/catalogo')} style={[desktopStyles.desktopNavLink, isActive('/catalogo') && desktopStyles.desktopNavLinkActive]}>
                     <Text style={[desktopStyles.desktopNavText, isActive('/catalogo') && desktopStyles.desktopNavTextActive]}>Catálogo</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity onPress={() => router.push('/(tabs)/carrito')} style={[desktopStyles.desktopNavLink, isActive('/carrito') && desktopStyles.desktopNavLinkActive]}>
-                    <Text style={[desktopStyles.desktopNavText, isActive('/carrito') && desktopStyles.desktopNavTextActive]}>Mis Pedidos</Text>
-                    {totalItems > 0 && (
-                      <View style={desktopStyles.desktopCartBadge}>
-                        <Text style={desktopStyles.desktopCartBadgeText}>{totalItems}</Text>
-                      </View>
-                    )}
+                  <TouchableOpacity onPress={() => router.push('/(tabs)/mayoristas' as any)} style={[desktopStyles.desktopNavLink, isActive('/mayoristas') && desktopStyles.desktopNavLinkActive]}>
+                    <Text style={[desktopStyles.desktopNavText, isActive('/mayoristas') && desktopStyles.desktopNavTextActive]}>Mayoristas</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity onPress={() => router.push('/(tabs)/listas' as any)} style={[desktopStyles.desktopNavLink, isActive('/listas') && desktopStyles.desktopNavLinkActive]}>
-                    <Text style={[desktopStyles.desktopNavText, isActive('/listas') && desktopStyles.desktopNavTextActive]}>Mis Listas</Text>
+                  <TouchableOpacity onPress={() => router.push('/(tabs)/como-comprar' as any)} style={[desktopStyles.desktopNavLink, isActive('/como-comprar') && desktopStyles.desktopNavLinkActive]}>
+                    <Text style={[desktopStyles.desktopNavText, isActive('/como-comprar') && desktopStyles.desktopNavTextActive]}>¿Cómo comprar?</Text>
                   </TouchableOpacity>
                 </>
               )}
-              <TouchableOpacity onPress={() => router.push('/(tabs)/reparto')} style={[desktopStyles.desktopNavLink, isActive('/reparto') && desktopStyles.desktopNavLinkActive]}>
-                <Text style={[desktopStyles.desktopNavText, isActive('/reparto') && desktopStyles.desktopNavTextActive]}>Mis Repartos</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => router.push('/(tabs)/cuenta')} style={[desktopStyles.desktopNavLink, isActive('/cuenta') && desktopStyles.desktopNavLinkActive]}>
-                <Text style={[desktopStyles.desktopNavText, isActive('/cuenta') && desktopStyles.desktopNavTextActive]}>Mi Cuenta</Text>
-              </TouchableOpacity>
+              {isRepartidor && (
+                <TouchableOpacity onPress={() => router.push('/(tabs)/reparto')} style={[desktopStyles.desktopNavLink, isActive('/reparto') && desktopStyles.desktopNavLinkActive]}>
+                  <Text style={[desktopStyles.desktopNavText, isActive('/reparto') && desktopStyles.desktopNavTextActive]}>Mis Repartos</Text>
+                </TouchableOpacity>
+              )}
             </View>
 
             <View style={desktopStyles.desktopUserArea}>
@@ -188,149 +135,231 @@ export default function TabsLayout() {
 
                   {/* Popover Preview Dropdown */}
                   {showCartPreview && (
-                    <View style={desktopStyles.cartPreviewDropdown}>
-                      <View style={desktopStyles.cartPreviewHeader}>
-                        <Text style={desktopStyles.cartPreviewTitle}>Mis Pedidos ({totalItems})</Text>
-                        <TouchableOpacity onPress={() => setShowCartPreview(false)}>
-                          <MaterialCommunityIcons name="close" size={18} color={Colors.textSecondary} />
-                        </TouchableOpacity>
-                      </View>
-
-                      {items.length === 0 ? (
-                        <View style={desktopStyles.cartPreviewEmpty}>
-                          <Text style={desktopStyles.cartPreviewEmptyText}>Tu carrito está vacío.</Text>
+                    <>
+                      <TouchableOpacity
+                        style={desktopStyles.invisibleBackdrop}
+                        activeOpacity={1}
+                        onPress={() => setShowCartPreview(false)}
+                      />
+                      <View style={desktopStyles.cartPreviewDropdown}>
+                        <View style={desktopStyles.cartPreviewHeader}>
+                          <Text style={desktopStyles.cartPreviewTitle}>Mi Carrito ({totalItems})</Text>
+                          <TouchableOpacity onPress={() => setShowCartPreview(false)}>
+                            <MaterialCommunityIcons name="close" size={18} color={Colors.textSecondary} />
+                          </TouchableOpacity>
                         </View>
-                      ) : (
-                        <>
-                          {/* Lupa / Buscador en el carrito de la esquina superior derecha */}
-                          <View style={desktopStyles.cartPreviewSearchWrap}>
-                            <MaterialCommunityIcons name="magnify" size={16} color={Colors.textSecondary} style={{ marginRight: 6 }} />
-                            <TextInput
-                              style={desktopStyles.cartPreviewSearchInput}
-                              placeholder="Buscar en el carrito..."
-                              placeholderTextColor={Colors.textSecondary}
-                              value={cartPreviewSearch}
-                              onChangeText={setCartPreviewSearch}
-                            />
-                            {!!cartPreviewSearch && (
-                              <TouchableOpacity onPress={() => setCartPreviewSearch('')} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
-                                <MaterialCommunityIcons name="close-circle" size={15} color={Colors.textSecondary} />
-                              </TouchableOpacity>
-                            )}
+
+                        {items.length === 0 ? (
+                          <View style={desktopStyles.cartPreviewEmpty}>
+                            <Text style={desktopStyles.cartPreviewEmptyText}>Tu carrito está vacío.</Text>
                           </View>
-
-                          {filteredPreviewItems.length === 0 ? (
-                            <View style={desktopStyles.cartPreviewEmpty}>
-                              <MaterialCommunityIcons name="magnify-close" size={24} color={Colors.textSecondary} style={{ marginBottom: 4 }} />
-                              <Text style={desktopStyles.cartPreviewEmptyText}>No hay artículos con "{cartPreviewSearch}"</Text>
-                              <TouchableOpacity onPress={() => setCartPreviewSearch('')} style={{ marginTop: 6 }}>
-                                <Text style={{ fontSize: 12, color: Colors.primary, fontWeight: '600' }}>Ver todos ({items.length})</Text>
-                              </TouchableOpacity>
-                            </View>
-                          ) : (
-                            <ScrollView
-                              style={[
-                                desktopStyles.cartPreviewScroll,
-                                Platform.OS === 'web' && ({
-                                  maxHeight: 240,
-                                  overflowY: 'scroll',
-                                  scrollbarWidth: 'thin',
-                                  scrollbarColor: '#94A3B8 #F1F5F9',
-                                } as any),
-                              ]}
-                              contentContainerStyle={desktopStyles.cartPreviewScrollContent}
-                              showsVerticalScrollIndicator={true}
-                              persistentScrollbar={true}
-                              // @ts-ignore
-                              dataSet={{ cartScroll: 'true', testid: 'cart-preview-scroll' }}
-                            >
-                              {filteredPreviewItems.map((item) => {
-                              const iconName = (CATEGORY_ICONS as any)?.[item.producto.categoria] || 'package-variant';
-                              return (
-                                <TouchableOpacity
-                                  key={item.producto.id}
-                                  style={desktopStyles.cartPreviewItem}
-                                  onPress={() => {
-                                    setShowCartPreview(false);
-                                    router.push('/(tabs)/carrito');
-                                  }}
-                                  activeOpacity={0.7}
-                                >
-                                  <View style={desktopStyles.cartPreviewItemImgWrap}>
-                                    {item.producto.imagen ? (
-                                      <HoverImagePreview
-                                        imageUri={item.producto.imagen}
-                                        name={item.producto.nombre}
-                                        price={item.producto.precio}
-                                        presentation={item.producto.presentacion}
-                                        codigo={item.producto.codigo}
-                                        style={{ width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' }}
-                                      >
-                                        <Image
-                                          source={{ uri: item.producto.imagen }}
-                                          style={desktopStyles.cartPreviewItemImg}
-                                          resizeMode="contain"
-                                        />
-                                      </HoverImagePreview>
-                                    ) : (
-                                      <MaterialCommunityIcons
-                                        name={iconName as any}
-                                        size={22}
-                                        color={Colors.primary}
-                                      />
-                                    )}
-                                  </View>
-
-                                  <View style={{ flex: 1, minWidth: 0, justifyContent: 'center' }}>
-                                    <Text style={desktopStyles.cartPreviewItemName} numberOfLines={1}>
-                                      {item.producto.nombre}
-                                    </Text>
-                                    <Text style={desktopStyles.cartPreviewItemDetails}>
-                                      {item.cantidad} u. × {fmtPrice(item.producto.precio)}
-                                    </Text>
-                                  </View>
+                        ) : (
+                          <>
+                            {/* Lupa / Buscador en el carrito de la esquina superior derecha */}
+                            <View style={desktopStyles.cartPreviewSearchWrap}>
+                              <MaterialCommunityIcons name="magnify" size={16} color={Colors.textSecondary} style={{ marginRight: 6 }} />
+                              <TextInput
+                                style={desktopStyles.cartPreviewSearchInput}
+                                placeholder="Buscar en el carrito..."
+                                placeholderTextColor={Colors.textSecondary}
+                                value={cartPreviewSearch}
+                                onChangeText={setCartPreviewSearch}
+                              />
+                              {!!cartPreviewSearch && (
+                                <TouchableOpacity onPress={() => setCartPreviewSearch('')} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+                                  <MaterialCommunityIcons name="close-circle" size={15} color={Colors.textSecondary} />
                                 </TouchableOpacity>
-                              );
-                            })}
-                          </ScrollView>
-                        )}
-
-                        <View style={desktopStyles.cartPreviewFooter}>
-                            <View style={desktopStyles.cartPreviewTotalRow}>
-                              <Text style={desktopStyles.cartPreviewTotalLabel}>Total:</Text>
-                              <Text style={desktopStyles.cartPreviewTotalVal}>{fmtPrice(totalPrice)}</Text>
+                              )}
                             </View>
-                            <TouchableOpacity
-                              style={desktopStyles.cartPreviewGoBtn}
-                              onPress={() => {
-                                setShowCartPreview(false);
-                                router.push('/(tabs)/carrito');
-                              }}
-                            >
-                              <Text style={desktopStyles.cartPreviewGoBtnText}>Ver Carrito Completo</Text>
-                            </TouchableOpacity>
-                          </View>
-                        </>
-                      )}
-                    </View>
+
+                            {filteredPreviewItems.length === 0 ? (
+                              <View style={desktopStyles.cartPreviewEmpty}>
+                                <MaterialCommunityIcons name="magnify-close" size={24} color={Colors.textSecondary} style={{ marginBottom: 4 }} />
+                                <Text style={desktopStyles.cartPreviewEmptyText}>No hay artículos con "{cartPreviewSearch}"</Text>
+                                <TouchableOpacity onPress={() => setCartPreviewSearch('')} style={{ marginTop: 6 }}>
+                                  <Text style={{ fontSize: 12, color: Colors.primary, fontWeight: '600' }}>Ver todos ({items.length})</Text>
+                                </TouchableOpacity>
+                              </View>
+                            ) : (
+                              <ScrollView
+                                style={[
+                                  desktopStyles.cartPreviewScroll,
+                                  Platform.OS === 'web' && ({
+                                    maxHeight: 290,
+                                    overflowY: 'scroll',
+                                    scrollbarWidth: 'thin',
+                                    scrollbarColor: '#94A3B8 #F1F5F9',
+                                  } as any),
+                                ]}
+                                contentContainerStyle={desktopStyles.cartPreviewScrollContent}
+                                showsVerticalScrollIndicator={true}
+                                persistentScrollbar={true}
+                                // @ts-ignore
+                                dataSet={{ cartScroll: 'true', testid: 'cart-preview-scroll' }}
+                              >
+                                {filteredPreviewItems.map((item) => (
+                                  <CartPreviewItemRow
+                                    key={item.producto.id}
+                                    item={item}
+                                    onUpdateQty={(qty) => updateQuantity(item.producto.id, qty)}
+                                    onRemove={() => removeProduct(item.producto.id)}
+                                    onOpenProduct={() => {
+                                      setShowCartPreview(false);
+                                      router.push(`/producto/${item.producto.id}` as any);
+                                    }}
+                                  />
+                                ))}
+                              </ScrollView>
+                            )}
+
+                            <View style={desktopStyles.cartPreviewFooter}>
+                              <View style={desktopStyles.cartPreviewTotalRow}>
+                                <Text style={desktopStyles.cartPreviewTotalLabel}>Total:</Text>
+                                <Text style={desktopStyles.cartPreviewTotalVal}>{fmtPrice(totalPrice)}</Text>
+                              </View>
+                              <TouchableOpacity
+                                style={desktopStyles.cartPreviewGoBtn}
+                                onPress={() => {
+                                  setShowCartPreview(false);
+                                  router.push('/(tabs)/carrito');
+                                }}
+                              >
+                                <Text style={desktopStyles.cartPreviewGoBtnText}>Ver Carrito Completo</Text>
+                              </TouchableOpacity>
+                            </View>
+                          </>
+                        )}
+                      </View>
+                    </>
                   )}
                 </View>
               )}
 
-              {isLoggedIn ? (
-                <TouchableOpacity onPress={logout} style={desktopStyles.desktopLogoutBtn}>
-                  <MaterialCommunityIcons name="logout" size={16} color="#ef4444" style={{ marginRight: 6 }} />
-                  <Text style={desktopStyles.desktopLogoutText}>Salir</Text>
-                </TouchableOpacity>
-              ) : (
+              {/* Muñequito / User Account Icon Button */}
+              <View style={{ position: 'relative', zIndex: 9999 }}>
                 <TouchableOpacity
-                  onPress={() => router.push({ pathname: '/(tabs)', params: { tab: 'login' } })}
-                  style={[desktopStyles.desktopLogoutBtn, { borderColor: Colors.primary }]}
+                  onPress={() => {
+                    if (isLoggedIn) {
+                      setShowUserDropdown(!showUserDropdown);
+                    } else {
+                      setShowAuthModal(true);
+                    }
+                  }}
+                  style={desktopStyles.desktopUserBtn}
+                  activeOpacity={0.8}
+                  accessibilityLabel="Mi Cuenta / Iniciar sesión"
                 >
-                  <MaterialCommunityIcons name="login" size={16} color={Colors.primary} style={{ marginRight: 6 }} />
-                  <Text style={[desktopStyles.desktopLogoutText, { color: Colors.primary }]}>Ingresar</Text>
+                  <MaterialCommunityIcons
+                    name={isLoggedIn ? 'account-circle' : 'account-circle-outline'}
+                    size={22}
+                    color={Colors.primary}
+                  />
+                  <Text style={desktopStyles.desktopUserBtnText}>
+                    {isLoggedIn && clientData ? (clientData.nombre ? clientData.nombre.split(' ')[0] : 'Mi Cuenta') : 'Ingresar'}
+                  </Text>
+                  {isLoggedIn && (
+                    <MaterialCommunityIcons name={showUserDropdown ? 'chevron-up' : 'chevron-down'} size={14} color={Colors.textSecondary} />
+                  )}
                 </TouchableOpacity>
-              )}
+
+                {/* Dropdown de usuario logueado */}
+                {isLoggedIn && showUserDropdown && (
+                  <>
+                    <TouchableOpacity
+                      style={desktopStyles.invisibleBackdrop}
+                      activeOpacity={1}
+                      onPress={() => setShowUserDropdown(false)}
+                    />
+                    <View style={desktopStyles.userDropdownMenu}>
+                      <View style={desktopStyles.userDropdownHeader}>
+                        <Text style={desktopStyles.userDropdownName} numberOfLines={1}>{clientData?.nombre || 'Cliente'}</Text>
+                        <Text style={desktopStyles.userDropdownEmail} numberOfLines={1}>{clientData?.email || clientData?.telefono || ''}</Text>
+                      </View>
+                      <TouchableOpacity
+                        style={desktopStyles.userDropdownItem}
+                        onPress={() => {
+                          setShowUserDropdown(false);
+                          useAccountTabStore.getState().setActiveTab('datos');
+                          router.push({ pathname: '/(tabs)/cuenta', params: { tab: 'datos' } } as any);
+                        }}
+                      >
+                        <MaterialCommunityIcons name="account-details-outline" size={17} color={Colors.textPrimary} style={{ marginRight: 8 }} />
+                        <Text style={desktopStyles.userDropdownItemText}>Mis Datos & Domicilios</Text>
+                      </TouchableOpacity>
+                      {!isRepartidor && (
+                        <>
+                          <TouchableOpacity
+                            style={desktopStyles.userDropdownItem}
+                            onPress={() => {
+                              setShowUserDropdown(false);
+                              useAccountTabStore.getState().setActiveTab('pedidos');
+                              router.push({ pathname: '/(tabs)/cuenta', params: { tab: 'pedidos' } } as any);
+                            }}
+                          >
+                            <MaterialCommunityIcons name="clipboard-list-outline" size={17} color={Colors.textPrimary} style={{ marginRight: 8 }} />
+                            <Text style={desktopStyles.userDropdownItemText}>Mis Pedidos</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={desktopStyles.userDropdownItem}
+                            onPress={() => {
+                              setShowUserDropdown(false);
+                              useAccountTabStore.getState().setActiveTab('listas');
+                              router.push({ pathname: '/(tabs)/cuenta', params: { tab: 'listas' } } as any);
+                            }}
+                          >
+                            <MaterialCommunityIcons name="bookmark-outline" size={17} color={Colors.textPrimary} style={{ marginRight: 8 }} />
+                            <Text style={desktopStyles.userDropdownItemText}>Mis Listas</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={desktopStyles.userDropdownItem}
+                            onPress={() => {
+                              setShowUserDropdown(false);
+                              router.push('/(tabs)/reparto' as any);
+                            }}
+                          >
+                            <MaterialCommunityIcons name="truck-delivery-outline" size={17} color={Colors.textPrimary} style={{ marginRight: 8 }} />
+                            <Text style={desktopStyles.userDropdownItemText}>Estado de mi Reparto</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={desktopStyles.userDropdownItem}
+                            onPress={() => {
+                              setShowUserDropdown(false);
+                              useAccountTabStore.getState().setActiveTab('todos');
+                              router.push({ pathname: '/(tabs)/cuenta', params: { tab: 'todos' } } as any);
+                            }}
+                          >
+                            <MaterialCommunityIcons name="view-dashboard-outline" size={17} color={Colors.textPrimary} style={{ marginRight: 8 }} />
+                            <Text style={desktopStyles.userDropdownItemText}>Ver Todo mi Perfil</Text>
+                          </TouchableOpacity>
+                        </>
+                      )}
+                      {isRepartidor && (
+                        <TouchableOpacity
+                          style={desktopStyles.userDropdownItem}
+                          onPress={() => {
+                            setShowUserDropdown(false);
+                            router.push('/(tabs)/reparto');
+                          }}
+                        >
+                          <MaterialCommunityIcons name="truck-delivery-outline" size={17} color={Colors.textPrimary} style={{ marginRight: 8 }} />
+                          <Text style={desktopStyles.userDropdownItemText}>Mis Repartos</Text>
+                        </TouchableOpacity>
+                      )}
+                      <View style={desktopStyles.userDropdownDivider} />
+                      <TouchableOpacity
+                        style={desktopStyles.userDropdownItem}
+                        onPress={() => {
+                          setShowUserDropdown(false);
+                          logout();
+                        }}
+                      >
+                        <MaterialCommunityIcons name="logout" size={17} color="#EF4444" style={{ marginRight: 8 }} />
+                        <Text style={[desktopStyles.userDropdownItemText, { color: '#EF4444', fontWeight: 'bold' }]}>Cerrar sesión</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </>
+                )}
+              </View>
             </View>
           </View>
         </View>
@@ -346,18 +375,72 @@ export default function TabsLayout() {
           >
             <Tabs.Screen name="index" options={{ href: isRepartidor ? null : undefined }} />
             <Tabs.Screen name="catalogo" options={{ href: isRepartidor ? null : undefined }} />
+            <Tabs.Screen name="mayoristas" options={{ href: isRepartidor ? null : undefined }} />
+            <Tabs.Screen name="como-comprar" options={{ href: isRepartidor ? null : undefined }} />
             <Tabs.Screen name="carrito" options={{ href: isRepartidor ? null : undefined }} />
             <Tabs.Screen name="listas" options={{ href: isRepartidor ? null : undefined }} />
             <Tabs.Screen name="reparto" />
             <Tabs.Screen name="cuenta" />
           </Tabs>
         </View>
+        <AuthModal visible={showAuthModal} onClose={() => setShowAuthModal(false)} />
       </View>
     );
   }
 
   return (
-    <View style={{ flex: 1 }}>
+    <View style={{ flex: 1, backgroundColor: '#F8FAFC' }}>
+      {/* Barra dinámica superior en azul oscuro */}
+      <TopMarqueeBar />
+
+      {/* Encabezado Móvil de Marca */}
+      <View style={mobileHeaderStyles.container}>
+        <TouchableOpacity
+          style={mobileHeaderStyles.brand}
+          onPress={() => router.push('/(tabs)' as any)}
+          activeOpacity={0.8}
+        >
+          <Image
+            source={require('../../assets/logo2.png')}
+            style={mobileHeaderStyles.logo}
+            resizeMode="contain"
+          />
+          <View style={mobileHeaderStyles.brandTextWrap}>
+            <Text style={mobileHeaderStyles.brandTitle} numberOfLines={1}>
+              Química General Deheza
+            </Text>
+            <Text style={mobileHeaderStyles.brandSubtitle}>Distribuidora Oficial</Text>
+          </View>
+        </TouchableOpacity>
+
+        <View style={mobileHeaderStyles.actionsRow}>
+          {isLoggedIn ? (
+            <TouchableOpacity
+              style={mobileHeaderStyles.userPill}
+              onPress={() => {
+                useAccountTabStore.getState().setActiveTab('todos');
+                router.push('/(tabs)/cuenta' as any);
+              }}
+              activeOpacity={0.8}
+            >
+              <MaterialCommunityIcons name="account-circle" size={20} color={Colors.primary} />
+              <Text style={mobileHeaderStyles.userNameText} numberOfLines={1}>
+                {clientData?.nombre ? clientData.nombre.split(' ')[0] : 'Cuenta'}
+              </Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={mobileHeaderStyles.loginBtn}
+              onPress={() => setShowAuthModal(true)}
+              activeOpacity={0.85}
+            >
+              <MaterialCommunityIcons name="account-circle-outline" size={17} color="#FFFFFF" style={{ marginRight: 4 }} />
+              <Text style={mobileHeaderStyles.loginBtnText}>Ingresar</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+
       <NoAddressBanner />
       <Tabs
         screenOptions={{
@@ -385,9 +468,25 @@ export default function TabsLayout() {
           }}
         />
         <Tabs.Screen
+          name="mayoristas"
+          options={{
+            title: 'Mayoristas',
+            href: isRepartidor ? null : undefined,
+            tabBarIcon: ({ focused }) => (
+              <MaterialCommunityIcons name="storefront-outline" size={24} color={focused ? Colors.tabActive : Colors.tabInactive} />
+            ),
+          }}
+        />
+        <Tabs.Screen
+          name="como-comprar"
+          options={{
+            href: null, // Oculto del tab bar móvil, accesible desde menú y links
+          }}
+        />
+        <Tabs.Screen
           name="carrito"
           options={{
-            title: 'Mis Pedidos',
+            title: 'Carrito',
             href: isRepartidor ? null : undefined,
             tabBarIcon: ({ focused }) => (
               <CartIcon focused={focused} count={totalItems} />
@@ -404,6 +503,7 @@ export default function TabsLayout() {
           name="reparto"
           options={{
             title: 'Mis Repartos',
+            href: isRepartidor ? undefined : null, // Oculto para clientes, accesible desde Mi Cuenta
             tabBarIcon: ({ focused }) => <DeliveryIcon focused={focused} />,
           }}
         />
@@ -415,28 +515,110 @@ export default function TabsLayout() {
           }}
         />
       </Tabs>
+      <AuthModal visible={showAuthModal} onClose={() => setShowAuthModal(false)} />
     </View>
   );
 }
 
+const mobileHeaderStyles = StyleSheet.create({
+  container: {
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    zIndex: 50,
+  },
+  brand: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 9,
+    flex: 1,
+    marginRight: 8,
+  },
+  logo: {
+    width: 34,
+    height: 34,
+    borderRadius: 6,
+  },
+  brandTextWrap: {
+    flex: 1,
+  },
+  brandTitle: {
+    fontSize: 14.5,
+    fontWeight: '800',
+    color: '#0F172A',
+    letterSpacing: 0.1,
+  },
+  brandSubtitle: {
+    fontSize: 10,
+    color: Colors.textSecondary,
+    fontWeight: '600',
+    marginTop: 1,
+  },
+  actionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  userPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: Radius.full,
+    gap: 4,
+    maxWidth: 120,
+  },
+  userNameText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.primary,
+  },
+  loginBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.primary,
+    paddingHorizontal: 11,
+    paddingVertical: 6,
+    borderRadius: Radius.xs,
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  loginBtnText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+});
+
 const styles = StyleSheet.create({
   tabBar: {
-    backgroundColor: Colors.tabBackground,
+    backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
-    borderTopColor: Colors.border,
-    height: 82,
-    paddingBottom: 16,
-    paddingTop: 10,
-    shadowColor: '#1A56DB',
-    shadowOffset: { width: 0, height: -3 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 10,
+    borderTopColor: '#E2E8F0',
+    height: Platform.OS === 'web' ? 64 : 80,
+    paddingBottom: Platform.OS === 'web' ? 8 : 20,
+    paddingTop: 8,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 8,
   },
   tabLabel: {
-    fontSize: FontSize.xs,
+    fontSize: 10.5,
     fontWeight: FontWeight.semibold,
-    marginTop: 4,
+    marginTop: 2,
   },
 });
 
@@ -675,6 +857,75 @@ const desktopStyles = StyleSheet.create({
   desktopUserArea: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 12,
+  },
+  desktopUserBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    backgroundColor: '#FFFFFF',
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+  },
+  desktopUserBtnText: {
+    fontSize: 13,
+    fontWeight: FontWeight.bold,
+    color: Colors.primary,
+  },
+  userDropdownMenu: {
+    position: 'absolute',
+    top: 50,
+    right: 0,
+    width: 220,
+    backgroundColor: Colors.white,
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    paddingVertical: 6,
+    zIndex: 10000,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  userDropdownHeader: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+    marginBottom: 4,
+  },
+  userDropdownName: {
+    fontSize: 13,
+    fontWeight: FontWeight.bold,
+    color: Colors.textPrimary,
+  },
+  userDropdownEmail: {
+    fontSize: 11,
+    color: Colors.textSecondary,
+    marginTop: 2,
+  },
+  userDropdownItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+  },
+  userDropdownItemText: {
+    fontSize: 13,
+    color: Colors.textPrimary,
+    fontWeight: FontWeight.medium,
+  },
+  userDropdownDivider: {
+    height: 1,
+    backgroundColor: '#F1F5F9',
+    marginVertical: 4,
   },
   desktopLogoutBtn: {
     flexDirection: 'row',
@@ -683,7 +934,7 @@ const desktopStyles = StyleSheet.create({
     paddingHorizontal: 14,
     borderRadius: Radius.md,
     borderWidth: 1,
-    borderColor: '#fca5a5', // light red
+    borderColor: '#fca5a5',
     backgroundColor: '#fef2f2',
     ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
@@ -701,11 +952,13 @@ const desktopStyles = StyleSheet.create({
   desktopCartIconBtn: {
     width: 44,
     height: 44,
-    borderRadius: 22,
+    borderRadius: Radius.md,
     backgroundColor: 'rgba(37, 99, 235, 0.06)',
     justifyContent: 'center',
     alignItems: 'center',
     position: 'relative',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
   },
   desktopHeaderCartBadge: {
     position: 'absolute',
@@ -724,11 +977,20 @@ const desktopStyles = StyleSheet.create({
     fontSize: 10,
     fontWeight: 'bold',
   },
+  invisibleBackdrop: {
+    position: (Platform.OS === 'web' ? 'fixed' : 'absolute') as any,
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 9995,
+    backgroundColor: 'transparent',
+  },
   cartPreviewDropdown: {
     position: 'absolute',
     top: 50,
     right: 0,
-    width: 320,
+    width: 390,
     backgroundColor: Colors.white,
     borderRadius: Radius.lg,
     borderWidth: 1,
@@ -739,6 +1001,7 @@ const desktopStyles = StyleSheet.create({
     shadowRadius: 20,
     elevation: 10,
     paddingVertical: 12,
+    zIndex: 10000,
   },
   cartPreviewHeader: {
     flexDirection: 'row',
@@ -783,7 +1046,7 @@ const desktopStyles = StyleSheet.create({
     fontSize: 14,
   },
   cartPreviewScroll: {
-    maxHeight: 240,
+    maxHeight: 290,
   },
   cartPreviewScrollContent: {
     paddingLeft: 14,

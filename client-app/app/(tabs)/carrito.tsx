@@ -78,8 +78,7 @@ const DELIVERY_OPTIONS: {
   ];
 
 import { useWindowDimensions } from 'react-native';
-import { DesktopStartScreen } from '../../components/screens/DesktopStartScreen';
-import { MobileStartScreen } from '../../components/screens/MobileStartScreen';
+import { AuthModal } from '../../components/modals/AuthModal';
 
 // El número de WhatsApp y otros datos se cargan dinámicamente desde company_settings en la BD
 
@@ -95,17 +94,24 @@ export default function CarritoScreen() {
   const { addOrder, orders } = useOrderStore();
   const { clientData, isLoggedIn } = useAuthStore();
   const [cartSearch, setCartSearch] = useState('');
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [authModalInitialTab, setAuthModalInitialTab] = useState<'login' | 'register'>('login');
 
   const filteredCartItems = useMemo(() => {
-    if (!cartSearch.trim()) return items;
-    const q = cartSearch.trim().toLowerCase();
-    return items.filter((item) => {
-      const name = (item.producto?.nombre || '').toLowerCase();
-      const code = (item.producto?.codigo || '').toLowerCase();
-      const pres = (item.producto?.presentacion || '').toLowerCase();
-      const cat = (item.producto?.categoria || '').toLowerCase();
-      return name.includes(q) || code.includes(q) || pres.includes(q) || cat.includes(q);
-    });
+    let list = items;
+    if (cartSearch.trim()) {
+      const q = cartSearch.trim().toLowerCase();
+      list = items.filter((item) => {
+        const name = (item.producto?.nombre || '').toLowerCase();
+        const code = (item.producto?.codigo || '').toLowerCase();
+        const pres = (item.producto?.presentacion || '').toLowerCase();
+        const cat = (item.producto?.categoria || '').toLowerCase();
+        return name.includes(q) || code.includes(q) || pres.includes(q) || cat.includes(q);
+      });
+    }
+    return [...list].sort((a, b) =>
+      (a.producto?.nombre || '').localeCompare(b.producto?.nombre || '', 'es', { sensitivity: 'base' })
+    );
   }, [items, cartSearch]);
 
 
@@ -348,6 +354,12 @@ export default function CarritoScreen() {
 
   // ── Confirmar pedido ──
   const handleConfirmOrder = useCallback(() => {
+    if (!isLoggedIn) {
+      setAuthModalInitialTab('login');
+      setShowAuthModal(true);
+      return;
+    }
+
     const selectedOption = DELIVERY_OPTIONS.find((o) => o.key === deliveryMethod)!;
 
     // Validar dirección de envío requerida para repartos a domicilio
@@ -445,7 +457,7 @@ export default function CarritoScreen() {
           const newOrder: Order = {
             id: undefined as any,
             numero: orderNum,
-            clienteId: clientData?.id,
+            clienteId: clientData?.id || 0,
             branchId: clientData?.branchId || 1,
             fecha: new Date().toISOString(),
             customerName: clientData?.nombre || 'Cliente sin nombre',
@@ -631,10 +643,6 @@ export default function CarritoScreen() {
     }
   }, [repeatOrder]);
 
-  if (!isLoggedIn) {
-    return isDesktop ? <DesktopStartScreen /> : <MobileStartScreen />;
-  }
-
 
 
   // ──────────────────────────────────────────────────────────────
@@ -682,37 +690,57 @@ export default function CarritoScreen() {
             </View>
           </View>
 
-          {/* Historial de Pedidos del Pasado */}
-          <View style={[styles.section, { marginTop: Spacing.xl, paddingHorizontal: Spacing.xl }]}>
-            <Text style={[styles.sectionTitle, { fontSize: 18, marginBottom: Spacing.md }]}>Historial de pedidos ({clientOrders.length})</Text>
-            {clientOrders.length === 0 ? (
-              <Text style={{ color: Colors.textSecondary, textAlign: 'center', marginVertical: 20 }}>No tenés pedidos registrados todavía.</Text>
-            ) : (
-              clientOrders.map((o) => (
-                <View key={o.id} style={styles.orderHistoryCard}>
-                  <View style={styles.orderHistoryHeader}>
-                    <Text style={styles.orderHistoryNumber}>Pedido #{o.numero}</Text>
-                    <Text style={[styles.orderHistoryStatus, { color: Colors.primary }]}>{o.estado.toUpperCase()}</Text>
-                  </View>
-                  <Text style={styles.orderHistoryDate}>
-                    Fecha: {new Date(o.fecha).toLocaleDateString()}
-                  </Text>
-                  {o.deliveryDate && (
-                    <Text style={styles.orderHistoryDelivery}>
-                      Entrega: {o.deliveryDate} ({o.deliveryStartTime} a {o.deliveryEndTime} hs)
+          {/* Historial de Pedidos del Pasado (si está logueado) o prompt de login para invitados */}
+          {isLoggedIn ? (
+            <View style={[styles.section, { marginTop: Spacing.xl, paddingHorizontal: Spacing.xl }]}>
+              <Text style={[styles.sectionTitle, { fontSize: 18, marginBottom: Spacing.md }]}>Historial de pedidos ({clientOrders.length})</Text>
+              {clientOrders.length === 0 ? (
+                <Text style={{ color: Colors.textSecondary, textAlign: 'center', marginVertical: 20 }}>No tenés pedidos registrados todavía.</Text>
+              ) : (
+                clientOrders.map((o) => (
+                  <View key={o.id} style={styles.orderHistoryCard}>
+                    <View style={styles.orderHistoryHeader}>
+                      <Text style={styles.orderHistoryNumber}>Pedido #{o.numero}</Text>
+                      <Text style={[styles.orderHistoryStatus, { color: Colors.primary }]}>{o.estado.toUpperCase()}</Text>
+                    </View>
+                    <Text style={styles.orderHistoryDate}>
+                      Fecha: {new Date(o.fecha).toLocaleDateString()}
                     </Text>
-                  )}
-                  <Text style={styles.orderHistoryTotal}>
-                    Monto total: {fmtPrice(o.total)}
-                  </Text>
-                  <TouchableOpacity style={styles.orderHistoryRepeatBtn} onPress={() => handleRepeatOrder(o)} activeOpacity={0.8}>
-                    <Text style={styles.orderHistoryRepeatBtnText}>🔄 Volver a comprar</Text>
-                  </TouchableOpacity>
-                </View>
-              ))
-            )}
-          </View>
+                    {o.deliveryDate && (
+                      <Text style={styles.orderHistoryDelivery}>
+                        Entrega: {o.deliveryDate} ({o.deliveryStartTime} a {o.deliveryEndTime} hs)
+                      </Text>
+                    )}
+                    <Text style={styles.orderHistoryTotal}>
+                      Monto total: {fmtPrice(o.total)}
+                    </Text>
+                    <TouchableOpacity style={styles.orderHistoryRepeatBtn} onPress={() => handleRepeatOrder(o)} activeOpacity={0.8}>
+                      <Text style={styles.orderHistoryRepeatBtnText}>🔄 Volver a comprar</Text>
+                    </TouchableOpacity>
+                  </View>
+                ))
+              )}
+            </View>
+          ) : (
+            <View style={styles.guestEmptyPrompt}>
+              <Text style={styles.guestEmptyPromptTitle}>¿Ya tenés una cuenta registrada?</Text>
+              <Text style={styles.guestEmptyPromptDesc}>
+                Iniciá sesión para consultar tus pedidos anteriores o sincronizar tus listas guardadas.
+              </Text>
+              <TouchableOpacity
+                style={styles.guestEmptyLoginBtn}
+                onPress={() => {
+                  setAuthModalInitialTab('login');
+                  setShowAuthModal(true);
+                }}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.guestEmptyLoginBtnText}>Iniciar Sesión</Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </ScrollView>
+        <AuthModal visible={showAuthModal} onClose={() => setShowAuthModal(false)} initialTab={authModalInitialTab} />
       </SafeAreaView>
     );
   }
@@ -797,7 +825,13 @@ export default function CarritoScreen() {
                   item={item}
                   onIncrease={() => updateQuantity(item.producto.id, item.cantidad + 1)}
                   onDecrease={() => updateQuantity(item.producto.id, item.cantidad - 1)}
-                  onRemove={() => removeProduct(item.producto.id)}
+                  onRemove={() => {
+                    removeProduct(item.producto.id);
+                    useNotificationStore.getState().showToast({
+                      message: `Se quitó "${item.producto.nombre}" del carrito.`,
+                      type: 'info',
+                    });
+                  }}
                   onSetQuantity={(qty) => updateQuantity(item.producto.id, qty)}
                 />
               ))
@@ -876,13 +910,38 @@ export default function CarritoScreen() {
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Dirección de entrega</Text>
 
-              {addresses.length === 0 ? (
+              {!isLoggedIn ? (
+                <View style={{ padding: Spacing.md, borderRadius: Radius.md, backgroundColor: '#EFF6FF', borderWidth: 1, borderColor: '#BFDBFE' }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                    <MaterialCommunityIcons name="map-marker-outline" size={20} color="#1A56DB" />
+                    <Text style={{ fontSize: FontSize.md, fontWeight: 'bold', color: '#1A56DB' }}>
+                      Entrega a Domicilio
+                    </Text>
+                  </View>
+                  <Text style={{ fontSize: 13, color: Colors.textSecondary, marginTop: 2, lineHeight: 18 }}>
+                    Iniciá sesión o registrate para seleccionar tu dirección de entrega y consultar los días y horarios de reparto disponibles para tu zona.
+                  </Text>
+                  <TouchableOpacity
+                    style={{ marginTop: 10, alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#FFFFFF', paddingVertical: 7, paddingHorizontal: 12, borderRadius: 8, borderWidth: 1, borderColor: '#93C5FD' }}
+                    onPress={() => {
+                      setAuthModalInitialTab('login');
+                      setShowAuthModal(true);
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <MaterialCommunityIcons name="account-outline" size={16} color="#1A56DB" />
+                    <Text style={{ fontSize: 13, color: '#1A56DB', fontWeight: 'bold' }}>
+                      Iniciar sesión / Registrarme →
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              ) : addresses.length === 0 ? (
                 <View style={{ padding: Spacing.md, borderRadius: Radius.md, backgroundColor: '#f1f5f9' }}>
                   <Text style={{ fontSize: FontSize.md, fontWeight: 'bold', color: Colors.textPrimary }}>
                     🏠 Dirección principal de tu perfil:
                   </Text>
                   <Text style={{ fontSize: 13, color: Colors.textSecondary, marginTop: 4 }}>
-                    {clientData?.direccion}
+                    {clientData?.direccion || 'Sin dirección registrada'}
                   </Text>
                   <Text style={{ fontSize: 12, color: Colors.textSecondary, fontStyle: 'italic', marginTop: 4 }}>
                     Podés cargar direcciones adicionales desde tu pestaña de Cuenta.
@@ -930,14 +989,16 @@ export default function CarritoScreen() {
               )}
 
               {/* Botón para ir a gestionar direcciones en cuenta */}
-              <TouchableOpacity
-                style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: Spacing.md }}
-                onPress={() => router.push('/(tabs)/cuenta')}
-              >
-                <Text style={{ fontSize: 13, color: Colors.primary, fontWeight: 'bold' }}>
-                  ⚙️ Gestionar o Agregar Direcciones
-                </Text>
-              </TouchableOpacity>
+              {isLoggedIn && (
+                <TouchableOpacity
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: Spacing.md }}
+                  onPress={() => router.push('/(tabs)/cuenta')}
+                >
+                  <Text style={{ fontSize: 13, color: Colors.primary, fontWeight: 'bold' }}>
+                    ⚙️ Gestionar o Agregar Direcciones
+                  </Text>
+                </TouchableOpacity>
+              )}
             </View>
           )}
 
@@ -1426,32 +1487,81 @@ export default function CarritoScreen() {
             </View>
           </View>
 
-          {/* ── Botón confirmar ── */}
-          <View style={styles.confirmSection}>
-            <Button
-              title={deliveryMethod === 'whatsapp' ? '💬  Enviar por WhatsApp' : '✓  Confirmar pedido'}
-              variant={deliveryMethod === 'whatsapp' ? 'success' : 'success'}
-              size="lg"
-              disabled={minOrderAmount > 0 && deliveryMethod !== 'retiro' && deliveryMethod !== 'whatsapp' && total < minOrderAmount}
-              onPress={handleConfirmOrder}
-            />
-            {minOrderAmount > 0 && deliveryMethod !== 'retiro' && deliveryMethod !== 'whatsapp' && total < minOrderAmount && (
-              <Text style={[styles.confirmDisclaimer, { color: '#b91c1c', textAlign: 'center', marginTop: 6 }]}>
-                El monto mínimo para hacer un pedido es {fmtPrice(minOrderAmount)}.
-              </Text>
-            )}
-            <Text style={styles.confirmDisclaimer}>
-              * Los precios son estimados. El precio final puede variar según disponibilidad.
-            </Text>
-          </View>
+          {/* ── Botón confirmar o Cartel para usuarios no logueados ── */}
+          {!isLoggedIn ? (
+            <View style={styles.guestAuthCard}>
+              <View style={styles.guestAuthHeader}>
+                <View style={styles.guestAuthIconBadge}>
+                  <MaterialCommunityIcons name="lock-open-check-outline" size={26} color="#1A56DB" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.guestAuthTitle}>
+                    Iniciá sesión o registrate para completar tu compra
+                  </Text>
+                  <Text style={styles.guestAuthDesc}>
+                    Tenés {count} producto{count !== 1 ? 's' : ''} en tu carrito listo{count !== 1 ? 's' : ''} para pedir por un total estimado de {fmtPrice(total)}. Identificate para coordinar la entrega.
+                  </Text>
+                </View>
+              </View>
 
-          {/* Historial de Pedidos del Pasado */}
-          <View style={[styles.section, { marginTop: Spacing.xxl }]}>
-            <Text style={styles.sectionTitle}>Historial de pedidos ({clientOrders.length})</Text>
-            {clientOrders.length === 0 ? (
-              <Text style={{ color: Colors.textSecondary, textAlign: 'center', marginVertical: 20 }}>No tenés pedidos registrados todavía.</Text>
-            ) : (
-              clientOrders.map((o) => (
+              <View style={styles.guestAuthButtonsRow}>
+                <TouchableOpacity
+                  style={styles.guestAuthPrimaryBtn}
+                  onPress={() => {
+                    setAuthModalInitialTab('login');
+                    setShowAuthModal(true);
+                  }}
+                  activeOpacity={0.85}
+                >
+                  <MaterialCommunityIcons name="login" size={18} color="#FFFFFF" style={{ marginRight: 6 }} />
+                  <Text style={styles.guestAuthPrimaryBtnText}>Iniciar Sesión</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.guestAuthSecondaryBtn}
+                  onPress={() => {
+                    setAuthModalInitialTab('register');
+                    setShowAuthModal(true);
+                  }}
+                  activeOpacity={0.85}
+                >
+                  <MaterialCommunityIcons name="account-plus-outline" size={18} color="#1A56DB" style={{ marginRight: 6 }} />
+                  <Text style={styles.guestAuthSecondaryBtnText}>Crear Cuenta</Text>
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.guestAuthFooter}>
+                <MaterialCommunityIcons name="shield-check-outline" size={16} color="#16A34A" style={{ marginRight: 6 }} />
+                <Text style={styles.guestAuthFooterText}>
+                  ¡No te preocupes! Los productos de tu carrito se mantendrán guardados.
+                </Text>
+              </View>
+            </View>
+          ) : (
+            <View style={styles.confirmSection}>
+              <Button
+                title={deliveryMethod === 'whatsapp' ? '💬  Enviar por WhatsApp' : '✓  Confirmar pedido'}
+                variant="success"
+                size="lg"
+                disabled={minOrderAmount > 0 && deliveryMethod !== 'retiro' && deliveryMethod !== 'whatsapp' && total < minOrderAmount}
+                onPress={handleConfirmOrder}
+              />
+              {minOrderAmount > 0 && deliveryMethod !== 'retiro' && deliveryMethod !== 'whatsapp' && total < minOrderAmount && (
+                <Text style={[styles.confirmDisclaimer, { color: '#b91c1c', textAlign: 'center', marginTop: 6 }]}>
+                  El monto mínimo para hacer un pedido es {fmtPrice(minOrderAmount)}.
+                </Text>
+              )}
+              <Text style={styles.confirmDisclaimer}>
+                * Los precios son estimados. El precio final puede variar según disponibilidad.
+              </Text>
+            </View>
+          )}
+
+          {/* Historial de Pedidos del Pasado (solo para clientes logueados) */}
+          {isLoggedIn && clientOrders.length > 0 && (
+            <View style={[styles.section, { marginTop: Spacing.xxl }]}>
+              <Text style={styles.sectionTitle}>Historial de pedidos ({clientOrders.length})</Text>
+              {clientOrders.map((o) => (
                 <View key={o.id} style={styles.orderHistoryCard}>
                   <View style={styles.orderHistoryHeader}>
                     <Text style={styles.orderHistoryNumber}>Pedido #{o.numero}</Text>
@@ -1472,13 +1582,14 @@ export default function CarritoScreen() {
                     <Text style={styles.orderHistoryRepeatBtnText}>🔄 Volver a comprar</Text>
                   </TouchableOpacity>
                 </View>
-              ))
-            )}
-          </View>
+              ))}
+            </View>
+          )}
 
           <View style={{ height: Spacing.xxxl }} />
         </ScrollView>
       </KeyboardAvoidingView>
+      <AuthModal visible={showAuthModal} onClose={() => setShowAuthModal(false)} initialTab={authModalInitialTab} />
     </SafeAreaView>
   );
 }
@@ -1610,16 +1721,28 @@ function CartItemRow({
         )}
       </View>
 
-      {/* Controles de cantidad + subtotal */}
+      {/* Controles de cantidad + subtotal + tachito */}
       <View style={rowStyles.controls}>
-        {/* Subtotal */}
-        <View style={{ alignItems: 'flex-end', marginBottom: 4 }}>
-          {calculation.discountPercent > 0 && (
-            <Text style={{ fontSize: 11, color: '#94a3b8', textDecorationLine: 'line-through' }}>
-              {fmtPrice(calculation.priceOriginal * cantidad)}
-            </Text>
-          )}
-          <Text style={rowStyles.subtotal}>{fmtPrice(calculation.subtotal)}</Text>
+        {/* Fila de subtotal y tachito para eliminar individualmente */}
+        <View style={rowStyles.subtotalHeaderRow}>
+          <View style={{ alignItems: 'flex-end' }}>
+            {calculation.discountPercent > 0 && (
+              <Text style={{ fontSize: 11, color: '#94a3b8', textDecorationLine: 'line-through' }}>
+                {fmtPrice(calculation.priceOriginal * cantidad)}
+              </Text>
+            )}
+            <Text style={rowStyles.subtotal}>{fmtPrice(calculation.subtotal)}</Text>
+          </View>
+
+          <TouchableOpacity
+            style={rowStyles.deleteItemBtn}
+            onPress={onRemove}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            accessibilityLabel={`Eliminar ${producto.nombre} del carrito`}
+            activeOpacity={0.7}
+          >
+            <MaterialCommunityIcons name="trash-can-outline" size={19} color="#EF4444" />
+          </TouchableOpacity>
         </View>
 
         {/* Botones +/− */}
@@ -1630,7 +1753,7 @@ function CartItemRow({
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             accessibilityLabel={cantidad === 1 ? 'Eliminar producto' : 'Disminuir cantidad'}
           >
-            <Text style={rowStyles.qtyBtnText}>{cantidad === 1 ? '🗑' : '−'}</Text>
+            <Text style={rowStyles.qtyBtnText}>−</Text>
           </TouchableOpacity>
 
           <TextInput
@@ -1672,11 +1795,11 @@ const rowStyles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: Colors.white,
     borderRadius: Radius.lg,
-    padding: Spacing.lg,
-    marginBottom: Spacing.md,
+    padding: 12,
+    marginBottom: Spacing.sm,
     borderWidth: 1,
     borderColor: Colors.border,
-    gap: Spacing.md,
+    gap: 10,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.04,
@@ -1684,8 +1807,8 @@ const rowStyles = StyleSheet.create({
     elevation: 1,
   },
   iconContainer: {
-    width: 56,
-    height: 56,
+    width: 46,
+    height: 46,
     borderRadius: Radius.md,
     backgroundColor: Colors.primaryLight,
     justifyContent: 'center',
@@ -1694,44 +1817,62 @@ const rowStyles = StyleSheet.create({
     overflow: 'hidden',
   },
   productImage: {
-    width: 56,
-    height: 56,
+    width: 46,
+    height: 46,
     borderRadius: Radius.md,
   },
   icon: {
-    fontSize: 28,
+    fontSize: 24,
   },
   info: {
     flex: 1,
     gap: 2,
+    minWidth: 0,
   },
   nombre: {
-    fontSize: FontSize.md,
+    fontSize: 13,
     fontWeight: FontWeight.semibold,
     color: Colors.textPrimary,
-    lineHeight: 22,
+    lineHeight: 18,
   },
   presentacion: {
-    fontSize: FontSize.sm,
+    fontSize: 11.5,
     color: Colors.primary,
     fontWeight: FontWeight.medium,
   },
   codigo: {
-    fontSize: FontSize.xs,
+    fontSize: 10,
     color: Colors.textDisabled,
   },
   precioUnit: {
-    fontSize: FontSize.sm,
+    fontSize: 12,
     color: Colors.textSecondary,
     marginTop: 2,
   },
   controls: {
-    alignItems: 'center',
-    gap: Spacing.sm,
+    alignItems: 'flex-end',
+    gap: 4,
     flexShrink: 0,
   },
+  subtotalHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 6,
+    marginBottom: 2,
+  },
+  deleteItemBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: Radius.xs,
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FEE2E2',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   subtotal: {
-    fontSize: FontSize.lg,
+    fontSize: 14.5,
     fontWeight: FontWeight.extrabold,
     color: Colors.primary,
   },
@@ -1739,13 +1880,14 @@ const rowStyles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     borderRadius: Radius.md,
-    borderWidth: 2,
+    borderWidth: 1.5,
     borderColor: Colors.primary,
     overflow: 'hidden',
+    height: 34,
   },
   qtyBtn: {
-    width: 42,
-    height: 42,
+    width: 34,
+    height: 34,
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: Colors.white,
@@ -1754,24 +1896,24 @@ const rowStyles = StyleSheet.create({
     backgroundColor: Colors.primary,
   },
   qtyBtnText: {
-    fontSize: FontSize.xl,
+    fontSize: FontSize.lg,
     fontWeight: FontWeight.bold,
     color: Colors.primary,
-    lineHeight: 26,
+    lineHeight: 20,
   },
   qtyBtnAddText: {
     color: Colors.white,
   },
   qtyInput: {
-    fontSize: FontSize.md,
+    fontSize: 13,
     fontWeight: FontWeight.bold,
     color: Colors.textPrimary,
-    minWidth: 44,
-    maxWidth: 68,
-    height: 42,
+    minWidth: 36,
+    maxWidth: 52,
+    height: 34,
     textAlign: 'center',
-    paddingVertical: 2,
-    paddingHorizontal: 4,
+    paddingVertical: 0,
+    paddingHorizontal: 2,
     backgroundColor: '#F8FAFC',
   },
 });
@@ -2024,6 +2166,135 @@ const styles = StyleSheet.create({
     color: Colors.textDisabled,
     textAlign: 'center',
     lineHeight: 18,
+  },
+
+  // Cartel para usuarios no logueados en el checkout
+  guestAuthCard: {
+    marginHorizontal: Spacing.xl,
+    marginTop: Spacing.xxl,
+    padding: Spacing.xl,
+    backgroundColor: '#FFFFFF',
+    borderRadius: Radius.lg,
+    borderWidth: 1.5,
+    borderColor: '#BFDBFE',
+    shadowColor: '#1A56DB',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  guestAuthHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+  },
+  guestAuthIconBadge: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1,
+    borderColor: '#DBEAFE',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  guestAuthTitle: {
+    fontSize: 16,
+    fontWeight: FontWeight.bold,
+    color: '#0F172A',
+  },
+  guestAuthDesc: {
+    fontSize: 13,
+    color: '#64748B',
+    marginTop: 4,
+    lineHeight: 18,
+  },
+  guestAuthButtonsRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 18,
+  },
+  guestAuthPrimaryBtn: {
+    flex: 1,
+    backgroundColor: '#1A56DB',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: Radius.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+  },
+  guestAuthPrimaryBtnText: {
+    color: '#FFFFFF',
+    fontWeight: FontWeight.bold,
+    fontSize: 14,
+  },
+  guestAuthSecondaryBtn: {
+    flex: 1,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1.5,
+    borderColor: '#93C5FD',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: Radius.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+  },
+  guestAuthSecondaryBtnText: {
+    color: '#1A56DB',
+    fontWeight: FontWeight.bold,
+    fontSize: 14,
+  },
+  guestAuthFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 14,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+  },
+  guestAuthFooterText: {
+    fontSize: 12,
+    color: '#16A34A',
+    fontWeight: FontWeight.medium,
+  },
+  guestEmptyPrompt: {
+    marginTop: Spacing.xl,
+    marginHorizontal: Spacing.xl,
+    padding: Spacing.lg,
+    backgroundColor: '#F8FAFC',
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    alignItems: 'center',
+  },
+  guestEmptyPromptTitle: {
+    fontSize: 14,
+    fontWeight: FontWeight.bold,
+    color: Colors.textPrimary,
+    marginBottom: 4,
+  },
+  guestEmptyPromptDesc: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  guestEmptyLoginBtn: {
+    backgroundColor: Colors.primary,
+    paddingVertical: 8,
+    paddingHorizontal: 18,
+    borderRadius: Radius.md,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+  },
+  guestEmptyLoginBtnText: {
+    color: '#FFFFFF',
+    fontWeight: FontWeight.bold,
+    fontSize: 13,
   },
 
   // Barra de mínimo de compra

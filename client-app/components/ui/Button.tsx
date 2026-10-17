@@ -117,7 +117,7 @@ export function Button({
 const styles = StyleSheet.create({
   base: {
     flexDirection: 'row',
-    borderRadius: Radius.lg,
+    borderRadius: Radius.md,
     overflow: 'hidden',
   },
   pressable: {
@@ -134,11 +134,8 @@ const styles = StyleSheet.create({
     opacity: 0.48,
   },
   solidShadow: {
-    shadowColor: '#1A56DB',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.22,
-    shadowRadius: 8,
-    elevation: 4,
+    elevation: 0,
+    shadowOpacity: 0,
   },
 
   // Variantes

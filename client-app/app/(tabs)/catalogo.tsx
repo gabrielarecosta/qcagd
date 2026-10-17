@@ -85,7 +85,7 @@ export default function CatalogoScreen() {
     fetchCategoryNames,
     activeCategories,
   } = useCatalogStore();
-  const { categoria } = useLocalSearchParams<{ categoria?: string }>();
+  const { categoria, search, q } = useLocalSearchParams<{ categoria?: string; search?: string; q?: string }>();
 
   const [rawQuery, setRawQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<ProductCategory | 'todos'>('todos');
@@ -116,6 +116,14 @@ export default function CatalogoScreen() {
       setSelectedCategory(categoria as ProductCategory);
     }
   }, [categoria]);
+
+  // Si viene un término de búsqueda por parámetro, lo aplicamos
+  useEffect(() => {
+    const term = search || q;
+    if (term) {
+      setRawQuery(term);
+    }
+  }, [search, q]);
 
   // Referencias para detectar cambios en filtros de búsqueda y reiniciar página de forma atómica
   const prevFilterRef = useRef({ query, selectedCategory, sortBy });
@@ -368,27 +376,11 @@ export default function CatalogoScreen() {
             </View>
 
             <View style={styles.desktopRightSection}>
-              {!isLoggedIn && (
-                <View style={{ flexDirection: 'column', gap: 4, alignItems: 'flex-end', marginRight: Spacing.md }}>
-                  <Text style={{ fontSize: 12, fontWeight: '700', color: Colors.primary }}>
-                    🔒 Registrate para ver precios
-                  </Text>
-                  <View style={{ flexDirection: 'row', gap: Spacing.sm }}>
-                    <TouchableOpacity
-                      style={styles.headerLoginBtn}
-                      onPress={() => router.push({ pathname: '/(tabs)', params: { tab: 'login' } })}
-                    >
-                      <Text style={styles.headerLoginBtnText}>Iniciar sesión</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={styles.headerRegisterBtn}
-                      onPress={() => router.push({ pathname: '/(tabs)', params: { tab: 'register' } })}
-                    >
-                      <Text style={styles.headerRegisterBtnText}>Registrarme</Text>
-                    </TouchableOpacity>
-                  </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginRight: Spacing.md }}>
+                <View style={styles.headerPricePill}>
+                  <Text style={styles.headerPricePillText}>🏷️ Lista 1 · Precios Minoristas</Text>
                 </View>
-              )}
+              </View>
               <TouchableOpacity
                 style={styles.filterBtnCompact}
                 onPress={() => setShowFilterDropdown(!showFilterDropdown)}
@@ -448,27 +440,11 @@ export default function CatalogoScreen() {
               </TouchableOpacity>
             </View>
 
-            {!isLoggedIn && (
-              <View style={{ marginTop: 8 }}>
-                <Text style={{ fontSize: 12.5, fontWeight: '700', color: Colors.primary, textAlign: 'center', marginBottom: 6 }}>
-                  🔒 Registrate para ver precios
-                </Text>
-                <View style={styles.mobileHeaderAuthRow}>
-                  <TouchableOpacity
-                    style={[styles.headerLoginBtn, { flex: 1 }]}
-                    onPress={() => router.push({ pathname: '/(tabs)', params: { tab: 'login' } })}
-                  >
-                    <Text style={styles.headerLoginBtnText}>Iniciar sesión</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.headerRegisterBtn, { flex: 1 }]}
-                    onPress={() => router.push({ pathname: '/(tabs)', params: { tab: 'register' } })}
-                  >
-                    <Text style={styles.headerRegisterBtnText}>Registrarme</Text>
-                  </TouchableOpacity>
+                <View style={{ alignItems: 'center', marginTop: 8 }}>
+                  <View style={styles.headerPricePill}>
+                    <Text style={styles.headerPricePillText}>🏷️ Lista 1 · Precios Minoristas</Text>
+                  </View>
                 </View>
-              </View>
-            )}
           </View>
         )}
 
@@ -653,37 +629,15 @@ export default function CatalogoScreen() {
                                 </Text>
                               ))}
                             </View>
-                            {isLoggedIn ? (
-                              <>
-                                <View style={styles.offerPrices}>
-                                  <Text style={styles.offerOriginal}>{formatPrice(offer.precio_original)}</Text>
-                                  <Text style={styles.offerPromo}>{formatPrice(offer.precio_oferta)}</Text>
-                                </View>
-                                <TouchableOpacity style={styles.offerBuyBtn} onPress={() => addOfferToCart(offer)}>
-                                  <Text style={styles.offerBuyBtnText}>Lo quiero</Text>
-                                </TouchableOpacity>
-                              </>
-                            ) : (
-                              <>
-                                <View style={styles.offerPrices}>
-                                  <Text style={styles.publicOfferPriceText}>Registrate para ver precios</Text>
-                                </View>
-                                <View style={styles.publicOfferCardButtons}>
-                                  <TouchableOpacity
-                                    style={styles.publicOfferLoginBtn}
-                                    onPress={() => router.push({ pathname: '/(tabs)', params: { tab: 'login' } })}
-                                  >
-                                    <Text style={styles.publicOfferLoginBtnText}>Ingresar</Text>
-                                  </TouchableOpacity>
-                                  <TouchableOpacity
-                                    style={styles.publicOfferRegisterBtn}
-                                    onPress={() => router.push({ pathname: '/(tabs)', params: { tab: 'register' } })}
-                                  >
-                                    <Text style={styles.publicOfferRegisterBtnText}>Registrarme</Text>
-                                  </TouchableOpacity>
-                                </View>
-                              </>
-                            )}
+                            <View style={styles.offerPrices}>
+                              {offer.precio_original > 0 && (
+                                <Text style={styles.offerOriginal}>{formatPrice(offer.precio_original)}</Text>
+                              )}
+                              <Text style={styles.offerPromo}>{formatPrice(offer.precio_oferta)}</Text>
+                            </View>
+                            <TouchableOpacity style={styles.offerBuyBtn} onPress={() => addOfferToCart(offer)}>
+                              <Text style={styles.offerBuyBtnText}>Lo quiero</Text>
+                            </TouchableOpacity>
                           </View>
                         );
                       })}
@@ -795,33 +749,12 @@ export default function CatalogoScreen() {
                 <Text style={styles.modalPresentacion}>
                   {selectedProductDetails.presentacion} · por {selectedProductDetails.unidad}
                 </Text>
-                {isLoggedIn ? (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 }}>
                   <Text style={styles.modalPrice}>{formatPrice(selectedProductDetails.precio)}</Text>
-                ) : (
-                  <View style={styles.modalPublicPriceBox}>
-                    <Text style={styles.modalPublicPriceText}>Registrate para ver precios</Text>
-                    <View style={styles.modalPublicPriceButtons}>
-                      <TouchableOpacity
-                        style={styles.modalPublicLoginBtn}
-                        onPress={() => {
-                          setSelectedProductDetails(null);
-                          router.push({ pathname: '/(tabs)', params: { tab: 'login' } });
-                        }}
-                      >
-                        <Text style={styles.modalPublicLoginBtnText}>Iniciar sesión</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={styles.modalPublicRegisterBtn}
-                        onPress={() => {
-                          setSelectedProductDetails(null);
-                          router.push({ pathname: '/(tabs)', params: { tab: 'register' } });
-                        }}
-                      >
-                        <Text style={styles.modalPublicRegisterBtnText}>Registrarme</Text>
-                      </TouchableOpacity>
-                    </View>
+                  <View style={styles.headerPricePill}>
+                    <Text style={styles.headerPricePillText}>Lista 1 · Minorista</Text>
                   </View>
-                )}
+                </View>
 
                 <View style={styles.modalDivider} />
 
@@ -836,8 +769,7 @@ export default function CatalogoScreen() {
             </ScrollView>
 
             {/* Bottom action bar */}
-            {isLoggedIn && (
-              <View style={styles.modalActionBar}>
+            <View style={styles.modalActionBar}>
                 {selectedProductDetails.precio && selectedProductDetails.precio > 0 ? (
                   (() => {
                     const currentInCart = getItemQuantity(selectedProductDetails.id);
@@ -960,7 +892,6 @@ export default function CatalogoScreen() {
                   </View>
                 )}
               </View>
-            )}
 
           </View>
         </View>
@@ -973,6 +904,20 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: Colors.background,
+  },
+  headerPricePill: {
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: Radius.xs,
+  },
+  headerPricePillText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#1A56DB',
+    letterSpacing: 0.3,
   },
 
   // ── Header ──
@@ -1253,7 +1198,7 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
-    borderRadius: Radius.full,
+    borderRadius: Radius.md,
     backgroundColor: Colors.surfaceAlt,
     borderWidth: 1.5,
     borderColor: 'transparent',
@@ -1552,15 +1497,12 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   mosaicCard: {
-    borderRadius: Radius.lg,
+    borderRadius: Radius.md,
     overflow: 'hidden',
     position: 'relative',
     height: 100,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 2,
+    elevation: 0,
+    shadowOpacity: 0,
   },
   mosaicCardMobile: {
     width: '47%', // 2 columns

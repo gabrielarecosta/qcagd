@@ -161,6 +161,7 @@ export interface Order {
   total: number;
   estado: OrderStatus;
   observaciones?: string;
+  observacionesCliente?: string;
   repartidorId?: string;
   estimatedDelivery?: string;
   branchId?: string | number;

@@ -9,6 +9,7 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import MaterialCommunityIcons from './icons/MaterialCommunityIcons';
+import { useRouter } from 'expo-router';
 import { Colors } from '../constants/Colors';
 import { FontSize, FontWeight } from '../constants/Typography';
 import { Radius, Spacing } from '../constants/Spacing';
@@ -17,9 +18,9 @@ import { FaqsModal } from './legal/FaqsModal';
 import { TermsModal } from './legal/TermsModal';
 import { ArrepentimientoModal } from './legal/ArrepentimientoModal';
 import { triggerPwaInstallModal } from './PwaInstallBanner';
-import { ClientVersionSection } from './ClientVersionSection';
 
 export function AppFooter() {
+  const router = useRouter();
   const { width } = useWindowDimensions();
   const isDesktop = Platform.OS === 'web' && width >= 768;
 
@@ -81,6 +82,11 @@ export function AppFooter() {
             </TouchableOpacity>
           )}
 
+          <TouchableOpacity style={styles.linkRow} onPress={() => router.push('/(tabs)/como-comprar' as any)} activeOpacity={0.7}>
+            <MaterialCommunityIcons name="information-outline" size={16} color={Colors.primary} />
+            <Text style={styles.linkText}>¿Cómo comprar?</Text>
+          </TouchableOpacity>
+
           <TouchableOpacity style={styles.linkRow} onPress={() => setShowFaqs(true)} activeOpacity={0.7}>
             <MaterialCommunityIcons name="help-circle-outline" size={16} color={Colors.primary} />
             <Text style={styles.linkText}>Preguntas Frecuentes (FAQs)</Text>
@@ -119,10 +125,6 @@ export function AppFooter() {
 
       </View>
 
-      {/* Control de Versiones y Auto-actualización */}
-      <View style={isDesktop ? { maxWidth: 1200, width: '100%', marginHorizontal: 'auto', paddingHorizontal: Spacing.xl } : { paddingHorizontal: Spacing.xl }}>
-        <ClientVersionSection />
-      </View>
 
       {/* Barra de Copyright */}
       <View style={styles.bottomBar}>

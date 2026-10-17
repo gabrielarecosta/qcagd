@@ -584,50 +584,22 @@ export default function ProductDetailScreen() {
 
             {/* Sección de Precio */}
             <View style={styles.priceSectionCard}>
-              {isLoggedIn ? (
-                <>
-                  <View style={styles.priceRow}>
-                    <Text style={styles.priceAmount}>
-                      {product.precio && product.precio > 0 ? formatPrice(product.precio) : 'Sin precio'}
-                    </Text>
-                    <Text style={styles.priceSubunit}>/ {product.unidad || 'unidad'}</Text>
-                  </View>
-                  <Text style={styles.priceClarification}>Precios finales vigentes con IVA incluido.</Text>
-                </>
-              ) : (
-                <View style={styles.publicPriceNotice}>
-                  <View style={styles.publicPriceHeader}>
-                    <MaterialCommunityIcons name="lock-outline" size={24} color={Colors.primary} />
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.publicPriceTitle}>Precios exclusivos para clientes</Text>
-                      <Text style={styles.publicPriceSub}>
-                        Iniciá sesión o registrate para consultar precios y realizar pedidos directos.
-                      </Text>
-                    </View>
-                  </View>
-                  <View style={styles.publicPriceBtnGroup}>
-                    <TouchableOpacity
-                      style={styles.publicLoginBtn}
-                      onPress={() => router.push({ pathname: '/(tabs)' as any, params: { tab: 'login' } })}
-                      activeOpacity={0.8}
-                    >
-                      <Text style={styles.publicLoginBtnText}>Iniciar sesión</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={styles.publicRegisterBtn}
-                      onPress={() => router.push({ pathname: '/(tabs)' as any, params: { tab: 'register' } })}
-                      activeOpacity={0.8}
-                    >
-                      <Text style={styles.publicRegisterBtnText}>Crear cuenta</Text>
-                    </TouchableOpacity>
-                  </View>
+              <View style={styles.priceRow}>
+                <Text style={styles.priceAmount}>
+                  {product.precio && product.precio > 0 ? formatPrice(product.precio) : 'Sin precio'}
+                </Text>
+                <Text style={styles.priceSubunit}>/ {product.unidad || 'unidad'}</Text>
+              </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4, flexWrap: 'wrap' }}>
+                <View style={styles.listaBadge}>
+                  <Text style={styles.listaBadgeText}>LISTA 1 · MINORISTA</Text>
                 </View>
-              )}
+                <Text style={styles.priceClarification}>Precios finales vigentes con IVA incluido.</Text>
+              </View>
             </View>
 
-            {/* Sección de Compra y Carrito (Solo si está logueado) */}
-            {isLoggedIn && (
-              <View style={styles.cartActionBox}>
+            {/* Sección de Compra y Carrito (Disponible para todos) */}
+            <View style={styles.cartActionBox}>
                 {/* Banner de cantidad ya existente en el carrito */}
                 {currentInCart > 0 && (
                   <View style={styles.alreadyInCartBanner}>
@@ -714,7 +686,6 @@ export default function ProductDetailScreen() {
                   </TouchableOpacity>
                 )}
               </View>
-            )}
 
             {/* Tarjeta de Descripción del Producto */}
             <View style={styles.descriptionCard}>
@@ -1449,8 +1420,21 @@ const styles = StyleSheet.create({
   },
   priceClarification: {
     fontSize: 13,
-    color: '#94A3B8',
-    marginTop: 4,
+    color: '#64748B',
+  },
+  listaBadge: {
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 4,
+  },
+  listaBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#1A56DB',
+    letterSpacing: 0.5,
   },
   publicPriceNotice: {
     gap: 12,

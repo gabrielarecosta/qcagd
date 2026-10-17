@@ -285,6 +285,11 @@ export const useAuthStore = create<AuthState>()(
           // Así, cuando el usuario vuelva a iniciar sesión, su carrito guardado se restaurará intacto.
           const { useCartStore } = require('./cartStore');
           useCartStore.setState({ items: [] });
+          if (typeof window !== 'undefined' && window.localStorage) {
+            try {
+              window.localStorage.removeItem('qgd_guest_cart');
+            } catch (_) {}
+          }
         } catch (_) {}
         try {
           const { useListsStore } = require('./listsStore');

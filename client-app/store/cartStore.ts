@@ -3,12 +3,62 @@ import { CartItem, Product, Order } from '../types';
 import { offerService, Promotion } from '@shared/services/offerService';
 import { cartService } from '@shared/services/cartService';
 
-// Limpieza de cualquier almacenamiento local previo del carrito
-if (typeof window !== 'undefined' && window.localStorage) {
-  try {
-    window.localStorage.removeItem('qgd_user_cart');
-  } catch (_) {}
-}
+const GUEST_CART_STORAGE_KEY = 'qgd_guest_cart';
+
+const safeStorage = {
+  getItem: (name: string): string | null => {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      try {
+        return window.localStorage.getItem(name);
+      } catch (_) {
+        return null;
+      }
+    }
+    return null;
+  },
+  setItem: (name: string, value: string): void => {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      try {
+        window.localStorage.setItem(name, value);
+      } catch (_) {}
+    }
+  },
+  removeItem: (name: string): void => {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      try {
+        window.localStorage.removeItem(name);
+      } catch (_) {}
+    }
+  },
+};
+
+// Función auxiliar para ordenar items alfabéticamente por nombre de producto
+const sortItemsAlphabetically = (items: CartItem[]): CartItem[] => {
+  return [...items].sort((a, b) =>
+    (a.producto?.nombre || '').localeCompare(b.producto?.nombre || '', 'es', { sensitivity: 'base' })
+  );
+};
+
+const getInitialCartItems = (): CartItem[] => {
+  const stored = safeStorage.getItem(GUEST_CART_STORAGE_KEY);
+  if (stored) {
+    try {
+      const parsed = JSON.parse(stored);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return sortItemsAlphabetically(parsed);
+      }
+    } catch (_) {}
+  }
+  return [];
+};
+
+const saveLocalCartItems = (items: CartItem[]) => {
+  if (items && items.length > 0) {
+    safeStorage.setItem(GUEST_CART_STORAGE_KEY, JSON.stringify(items));
+  } else {
+    safeStorage.removeItem(GUEST_CART_STORAGE_KEY);
+  }
+};
 
 interface CartStore {
   items: CartItem[];
@@ -52,7 +102,7 @@ const syncCartToSupabase = (items: CartItem[]) => {
 };
 
 export const useCartStore = create<CartStore>()((set, get) => ({
-  items: [],
+  items: getInitialCartItems(),
   promotions: [],
   isLoadingServerCart: false,
 
@@ -70,15 +120,41 @@ export const useCartStore = create<CartStore>()((set, get) => ({
     set({ isLoadingServerCart: true });
     try {
       const serverItems = await cartService.getByUserId(String(userId));
-      set({ items: serverItems || [], isLoadingServerCart: false });
+      const currentGuestItems = get().items;
+
+      let merged: CartItem[] = [];
+      if (serverItems && serverItems.length > 0) {
+        merged = [...serverItems];
+        // Incorporar items que el usuario agregó mientras no estaba logueado
+        if (currentGuestItems && currentGuestItems.length > 0) {
+          currentGuestItems.forEach((gItem) => {
+            const existingIdx = merged.findIndex((m) => String(m.producto.id) === String(gItem.producto.id));
+            if (existingIdx === -1) {
+              merged.push(gItem);
+            } else {
+              merged[existingIdx].cantidad = Math.max(merged[existingIdx].cantidad, gItem.cantidad);
+            }
+          });
+        }
+      } else if (currentGuestItems && currentGuestItems.length > 0) {
+        merged = currentGuestItems;
+      }
+
+      const sorted = sortItemsAlphabetically(merged);
+      saveLocalCartItems(sorted);
+      set({ items: sorted, isLoadingServerCart: false });
+      if (merged.length > 0) {
+        syncCartToSupabase(sorted);
+      }
     } catch (err) {
       console.error('Error al cargar carrito desde el servidor:', err);
-      set({ items: [], isLoadingServerCart: false });
+      set({ isLoadingServerCart: false });
     }
   },
 
   syncWithServer: async () => {
     const items = get().items;
+    saveLocalCartItems(items);
     syncCartToSupabase(items);
   },
 
@@ -102,6 +178,9 @@ export const useCartStore = create<CartStore>()((set, get) => ({
         newItems.push({ producto, cantidad });
       }
 
+      // Ordenar alfabéticamente los productos en el carrito
+      newItems = sortItemsAlphabetically(newItems);
+
       if (!silent) {
         setTimeout(() => {
           try {
@@ -123,7 +202,8 @@ export const useCartStore = create<CartStore>()((set, get) => ({
         }, 50);
       }
 
-      // Sincronizar dinámicamente a la base de datos
+      // Guardar en almacenamiento local para persistencia entre recargas y sincronizar a DB
+      saveLocalCartItems(newItems);
       syncCartToSupabase(newItems);
 
       return { items: newItems };
@@ -135,6 +215,7 @@ export const useCartStore = create<CartStore>()((set, get) => ({
       const newItems = state.items.filter(
         (item) => String(item.producto.id) !== String(productoId)
       );
+      saveLocalCartItems(newItems);
       syncCartToSupabase(newItems);
       return { items: newItems };
     });
@@ -151,12 +232,14 @@ export const useCartStore = create<CartStore>()((set, get) => ({
           ? { ...item, cantidad }
           : item
       );
+      saveLocalCartItems(newItems);
       syncCartToSupabase(newItems);
       return { items: newItems };
     });
   },
 
   clearCart: () => {
+    saveLocalCartItems([]);
     const { useAuthStore } = require('./authStore');
     const client = useAuthStore.getState().clientData;
     const userId = client?.id || client?.user_id;
@@ -179,8 +262,10 @@ export const useCartStore = create<CartStore>()((set, get) => ({
       cantidad: orderItem.cantidad,
     } as any));
 
-    set({ items });
-    syncCartToSupabase(items);
+    const sorted = sortItemsAlphabetically(items);
+    saveLocalCartItems(sorted);
+    set({ items: sorted });
+    syncCartToSupabase(sorted);
 
     setTimeout(() => {
       try {

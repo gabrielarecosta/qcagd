@@ -509,6 +509,22 @@ export function ClientsView({ initialSection = 'directorio' }: ClientsViewProps)
     }
   };
 
+  const handleRejectMayorista = async (client: Customer) => {
+    const confirmReject = window.confirm(`¿Rechazar la solicitud mayorista de "${client.nombre}" (${client.razonSocial || 'Sin Razón Social'})? Pasará a categoría minorista.`);
+    if (!confirmReject) return;
+    try {
+      const updatedObs = ((client.observaciones || '') + `\n[SOLICITUD MAYORISTA RECHAZADA - ${new Date().toLocaleDateString('es-AR')}]`).trim();
+      await updateClient(String(client.id), {
+        tipoCliente: 'minorista',
+        mayoristaAutorizado: false,
+        observaciones: updatedObs,
+      });
+      alert(`La solicitud de ${client.nombre} ha sido rechazada.`);
+    } catch (err: any) {
+      alert('Error al rechazar solicitud mayorista: ' + err.message);
+    }
+  };
+
   const handleSaveInlineCreditLimit = async (client: Customer) => {
     try {
       await updateClient(String(client.id), { limiteCredito: editingLimitValue });
@@ -1061,8 +1077,14 @@ export function ClientsView({ initialSection = 'directorio' }: ClientsViewProps)
                         Número de cliente: {c.id}
                       </div>
                       <div style={{ fontWeight: 'bold', color: 'var(--text-primary)' }}>{c.nombre}</div>
-                      {c.razonSocial && <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>{c.razonSocial}</div>}
+                      {c.razonSocial && <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>🏢 {c.razonSocial}</div>}
                       <div style={{ fontSize: '11px', color: 'var(--text-disabled)' }}>CUIT: {c.cuit || 'Sin CUIT'}</div>
+                      <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>📞 {c.telefono || 'Sin teléfono'} {c.email ? `· ✉️ ${c.email}` : ''}</div>
+                      {c.observaciones && (
+                        <div style={{ fontSize: '11px', color: '#1e3a8a', backgroundColor: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '4px', padding: '3px 6px', marginTop: '4px' }}>
+                          📝 {c.observaciones}
+                        </div>
+                      )}
                     </td>
                     <td>
                       <span className={`badge ${esMayorista ? 'badge-warning' : 'badge-neutral'}`}>
@@ -1146,13 +1168,25 @@ export function ClientsView({ initialSection = 'directorio' }: ClientsViewProps)
                         </button>
 
                         {esMayorista && (
-                          <button 
-                            className={`btn ${c.mayoristaAutorizado ? 'btn-secondary' : 'btn-primary'}`}
-                            style={{ padding: '5px 10px', fontSize: '11px', backgroundColor: c.mayoristaAutorizado ? undefined : '#7c3aed', color: '#fff' }}
-                            onClick={() => handleToggleMayoristaAuth(c)}
-                          >
-                            {c.mayoristaAutorizado ? '🔒 Suspender Mayorista' : '⭐ Aprobar Mayorista'}
-                          </button>
+                          <div style={{ display: 'inline-flex', gap: '4px' }}>
+                            <button 
+                              className={`btn ${c.mayoristaAutorizado ? 'btn-secondary' : 'btn-primary'}`}
+                              style={{ padding: '5px 10px', fontSize: '11px', backgroundColor: c.mayoristaAutorizado ? undefined : '#16a34a', color: '#fff' }}
+                              onClick={() => handleToggleMayoristaAuth(c)}
+                            >
+                              {c.mayoristaAutorizado ? '🔒 Suspender Mayorista' : '✅ Aceptar Mayorista'}
+                            </button>
+                            {!c.mayoristaAutorizado && (
+                              <button 
+                                className="btn btn-secondary"
+                                style={{ padding: '5px 10px', fontSize: '11px', backgroundColor: '#fee2e2', color: '#dc2626', borderColor: '#fca5a5' }}
+                                onClick={() => handleRejectMayorista(c)}
+                                title="Rechazar solicitud mayorista"
+                              >
+                                ❌ Rechazar
+                              </button>
+                            )}
+                          </div>
                         )}
                       </div>
                     </td>
