@@ -207,8 +207,13 @@ app.get('/api/version', async (_req: Request, res: Response): Promise<void> => {
   res.setHeader('Expires', '0');
 
   const defaultVersionData = {
-    latest_version: '1.5.4',
+    latest_version: '1.5.5',
     history: [
+      {
+        version: '1.5.5',
+        fecha: '2026-10-17',
+        descripcion: 'Diseño completamente responsive para celulares; inicio y navegación moderna para usuarios invitados; eliminación individual y edición directa de cantidad por teclado en carrito; cierre de menús al tocar fuera; acceso directo a secciones del perfil.',
+      },
       {
         version: '1.5.4',
         fecha: '2026-10-08',

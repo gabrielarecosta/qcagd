@@ -32,14 +32,14 @@ export const versionService = {
   },
 
   /**
-   * Determina si la versión de la API es superior o distinta a la local.
+   * Determina si la versión remota es estrictamente superior a la versión local actual.
    */
   isNewerOrDifferent(latestVersion: string, currentVersion: string): boolean {
     const cleanLatest = (latestVersion || '').replace(/^v/i, '').trim();
     const cleanCurrent = (currentVersion || '').replace(/^v/i, '').trim();
 
     if (!cleanLatest || !cleanCurrent) return false;
-    return cleanLatest !== cleanCurrent;
+    return this.compareVersions(cleanLatest, cleanCurrent) > 0;
   },
 
   /**
@@ -109,8 +109,13 @@ export const versionService = {
 
     // Fallback seguro si la red o los servidores no responden
     return {
-      latest_version: '1.5.4',
+      latest_version: '1.5.5',
       history: [
+        {
+          version: '1.5.5',
+          fecha: '2026-10-17',
+          descripcion: 'Diseño completamente responsive para celulares; inicio y navegación moderna para usuarios invitados; eliminación individual y edición directa de cantidad por teclado en carrito; cierre de menús al tocar fuera; acceso directo a secciones del perfil.',
+        },
         {
           version: '1.5.4',
           fecha: '2026-10-08',
