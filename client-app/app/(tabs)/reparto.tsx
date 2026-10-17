@@ -30,8 +30,6 @@ import { useCartStore } from '../../store/cartStore';
 import { customAlert as _customAlert } from '../../utils/alert';
 
 import { Platform, useWindowDimensions } from 'react-native';
-import { DesktopStartScreen } from '../../components/screens/DesktopStartScreen';
-import { MobileStartScreen } from '../../components/screens/MobileStartScreen';
 import { RepartidorHomeScreen } from '../../components/screens/RepartidorHomeScreen';
 
 export default function RepartoScreen() {
@@ -402,13 +400,22 @@ export default function RepartoScreen() {
           <Text style={styles.guestText}>
             Iniciá sesión con tu cuenta para consultar el estado de tu reparto y chofer asignado en tiempo real.
           </Text>
-          <TouchableOpacity
-            style={styles.guestButton}
-            onPress={() => router.push('/(tabs)/cuenta')}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.guestButtonText}>Ir a Mi Cuenta</Text>
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', gap: 10, flexWrap: 'wrap', justifyContent: 'center', marginTop: 10 }}>
+            <TouchableOpacity
+              style={styles.guestButton}
+              onPress={() => router.push('/(tabs)/cuenta')}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.guestButtonText}>Ir a Mi Cuenta</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.guestButton, { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: Colors.primary }]}
+              onPress={() => router.push('/(tabs)' as any)}
+              activeOpacity={0.8}
+            >
+              <Text style={[styles.guestButtonText, { color: Colors.primary }]}>Volver al Inicio</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </SafeAreaView>
     );

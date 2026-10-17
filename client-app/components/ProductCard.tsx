@@ -182,69 +182,65 @@ export function ProductCard({ product, style, onPress, delay = 0 }: ProductCardP
             <Text style={styles.unidad}>por {product.unidad}</Text>
           </View>
 
-          {/* Footer: precio + controles */}
+          {/* Footer: precio Lista 1 (minorista) + controles de compra */}
           <View style={styles.footer}>
-            {isLoggedIn ? (
-              <>
-                <Text style={[styles.precio, (!product.precio || product.precio <= 0) && styles.sinPrecio]}>
-                  {product.precio && product.precio > 0 ? formatPrice(product.precio) : 'Sin precio'}
-                </Text>
+            <View style={styles.priceContainer}>
+              <Text style={[styles.precio, (!product.precio || product.precio <= 0) && styles.sinPrecio]}>
+                {product.precio && product.precio > 0 ? formatPrice(product.precio) : 'Sin precio'}
+              </Text>
+              <Text style={styles.priceListTag}>Lista 1 · Minorista</Text>
+            </View>
 
-                {/* Botón "+ Agregar" o control +/− */}
-                {(!product.precio || product.precio <= 0) ? (
-                  <View style={styles.sinPrecioBtn}>
-                    <Text style={styles.sinPrecioBtnText}>No disponible</Text>
-                  </View>
-                ) : quantity === 0 ? (
-                  <TouchableOpacity
-                    style={styles.addButton}
-                    onPress={() => addProduct(product)}
-                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                    accessibilityLabel={`Agregar ${product.nombre} al pedido`}
-                    activeOpacity={0.78}
-                  >
-                    <Text style={styles.addButtonText}>+ Agregar</Text>
-                  </TouchableOpacity>
-                ) : (
-                  <View style={styles.quantityControl} onStartShouldSetResponder={() => true}>
-                    <TouchableOpacity
-                      style={styles.qtyButton}
-                      onPress={handleDecrease}
-                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                      accessibilityLabel="Quitar uno"
-                    >
-                      <Text style={styles.qtyButtonText}>−</Text>
-                    </TouchableOpacity>
-
-                    <TextInput
-                      style={styles.qtyInput}
-                      value={inputVal}
-                      onChangeText={(text) => {
-                        const cleaned = text.replace(/[^0-9]/g, '');
-                        setInputVal(cleaned);
-                      }}
-                      onBlur={commitQty}
-                      onSubmitEditing={commitQty}
-                      keyboardType="numeric"
-                      selectTextOnFocus
-                      returnKeyType="done"
-                      maxLength={5}
-                    />
-
-                    <TouchableOpacity
-                      style={[styles.qtyButton, styles.qtyButtonAdd]}
-                      onPress={handleIncrease}
-                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                      accessibilityLabel="Agregar uno más"
-                    >
-                      <Text style={[styles.qtyButtonText, styles.qtyButtonAddText]}>+</Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
-              </>
+            {/* Botón "COMPRAR" o control +/− */}
+            {(!product.precio || product.precio <= 0) ? (
+              <View style={styles.sinPrecioBtn}>
+                <Text style={styles.sinPrecioBtnText}>No disponible</Text>
+              </View>
+            ) : quantity === 0 ? (
+              <TouchableOpacity
+                style={styles.addButton}
+                onPress={() => addProduct(product)}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                accessibilityLabel={`Comprar ${product.nombre}`}
+                activeOpacity={0.8}
+              >
+                <MaterialCommunityIcons name="cart-outline" size={16} color={Colors.white} style={{ marginRight: 6 }} />
+                <Text style={styles.addButtonText}>COMPRAR</Text>
+              </TouchableOpacity>
             ) : (
-              <View style={styles.guestCardFooter}>
-                <Text style={styles.guestCardLock}>🔒 Ver precio</Text>
+              <View style={styles.quantityControl} onStartShouldSetResponder={() => true}>
+                <TouchableOpacity
+                  style={styles.qtyButton}
+                  onPress={handleDecrease}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  accessibilityLabel="Quitar uno"
+                >
+                  <Text style={styles.qtyButtonText}>−</Text>
+                </TouchableOpacity>
+
+                <TextInput
+                  style={styles.qtyInput}
+                  value={inputVal}
+                  onChangeText={(text) => {
+                    const cleaned = text.replace(/[^0-9]/g, '');
+                    setInputVal(cleaned);
+                  }}
+                  onBlur={commitQty}
+                  onSubmitEditing={commitQty}
+                  keyboardType="numeric"
+                  selectTextOnFocus
+                  returnKeyType="done"
+                  maxLength={5}
+                />
+
+                <TouchableOpacity
+                  style={[styles.qtyButton, styles.qtyButtonAdd]}
+                  onPress={handleIncrease}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  accessibilityLabel="Agregar uno más"
+                >
+                  <Text style={[styles.qtyButtonText, styles.qtyButtonAddText]}>+</Text>
+                </TouchableOpacity>
               </View>
             )}
           </View>
@@ -266,81 +262,52 @@ const styles = StyleSheet.create({
   },
   card: {
     backgroundColor: Colors.white,
-    borderRadius: Radius.lg,
-    borderWidth: 1.5,
-    borderColor: Colors.border,
-    overflow: 'hidden',
-    flex: 1,
-    minHeight: 290,
-    shadowColor: '#1A56DB',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.07,
-    shadowRadius: 10,
-    elevation: 3,
-  },
-  cardInCart: {
-    borderColor: Colors.primary,
-    shadowOpacity: 0.16,
-    elevation: 5,
-  },
-  guestCardFooter: {
-    flex: 1,
-    paddingVertical: 6,
-    paddingHorizontal: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#F1F5F9',
     borderRadius: Radius.md,
     borderWidth: 1,
     borderColor: '#E2E8F0',
+    overflow: 'hidden',
+    flex: 1,
+    minHeight: 280,
+    elevation: 0,
+    shadowOpacity: 0,
   },
-  guestCardLock: {
-    fontSize: FontSize.xs,
-    fontWeight: FontWeight.semibold,
-    color: '#64748B',
-    textAlign: 'center',
+  cardInCart: {
+    borderColor: Colors.primary,
+    borderWidth: 1.5,
   },
   imageContainer: {
-    height: 135,
-    backgroundColor: '#F8FAFC',
+    height: 130,
+    backgroundColor: '#FFFFFF',
     justifyContent: 'center',
     alignItems: 'center',
     position: 'relative',
     overflow: 'hidden',
     padding: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
   },
   productImage: {
     width: '100%',
     height: '100%',
   },
   imageContainerInCart: {
-    backgroundColor: '#DBEAFE',
+    backgroundColor: '#F8FAFC',
   },
   imageOverlay: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: 20,
-    backgroundColor: 'rgba(255,255,255,0.25)',
+    display: 'none',
   },
   listBookmarkBtn: {
     position: 'absolute',
-    top: 8,
-    left: 8,
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: 'rgba(255, 255, 255, 0.92)',
+    top: 6,
+    left: 6,
+    width: 28,
+    height: 28,
+    borderRadius: Radius.xs,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 2,
     zIndex: 10,
   },
   listBookmarkBtnActive: {
@@ -349,88 +316,99 @@ const styles = StyleSheet.create({
   },
   cartBadge: {
     position: 'absolute',
-    top: 8,
-    right: 8,
+    top: 6,
+    right: 6,
     backgroundColor: Colors.primary,
-    borderRadius: 12,
-    minWidth: 24,
-    height: 24,
+    borderRadius: Radius.xs,
+    minWidth: 22,
+    height: 22,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 6,
-    shadowColor: Colors.primary,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.4,
-    shadowRadius: 4,
-    elevation: 3,
+    paddingHorizontal: 4,
   },
   cartBadgeText: {
     color: Colors.white,
     fontSize: FontSize.xs,
-    fontWeight: FontWeight.extrabold,
+    fontWeight: FontWeight.bold,
   },
   info: {
-    padding: Spacing.md,
+    padding: 10,
     flex: 1,
     justifyContent: 'space-between',
+    gap: 6,
   },
   codigo: {
-    fontSize: FontSize.xs,
+    fontSize: 10,
     color: Colors.textDisabled,
     fontWeight: FontWeight.medium,
     marginBottom: 2,
-    letterSpacing: 0.5,
+    letterSpacing: 0.3,
+    textAlign: 'center',
   },
   nombre: {
-    fontSize: FontSize.md,
-    fontWeight: FontWeight.semibold,
+    fontSize: 13,
+    fontWeight: FontWeight.bold,
     color: Colors.textPrimary,
     marginBottom: 2,
-    lineHeight: 21,
+    lineHeight: 17,
+    textTransform: 'uppercase',
+    textAlign: 'center',
   },
   presentacion: {
-    fontSize: FontSize.sm,
-    color: Colors.primary,
+    fontSize: 11.5,
+    color: Colors.textSecondary,
     fontWeight: FontWeight.medium,
     marginBottom: 2,
+    textAlign: 'center',
   },
   unidad: {
-    fontSize: FontSize.sm,
-    color: Colors.textSecondary,
-    marginBottom: Spacing.sm,
+    fontSize: FontSize.xs,
+    color: Colors.textDisabled,
+    marginBottom: 4,
+    textAlign: 'center',
   },
   footer: {
-    flexDirection: 'row',
+    flexDirection: 'column',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
     marginTop: 'auto',
-    gap: 4,
-    flexWrap: 'wrap',
+    gap: 6,
+    width: '100%',
+  },
+  priceContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   precio: {
-    fontSize: FontSize.lg,
-    fontWeight: FontWeight.bold,
+    fontSize: 17,
+    fontWeight: '800',
     color: Colors.primary,
+    textAlign: 'center',
+  },
+  priceListTag: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#64748B',
+    marginTop: 1,
+    letterSpacing: 0.3,
   },
 
-  // Botón "Agregar"
+  // Botón "COMPRAR"
   addButton: {
+    flexDirection: 'row',
     backgroundColor: Colors.primary,
     borderRadius: Radius.md,
-    paddingHorizontal: Spacing.md,
+    paddingHorizontal: Spacing.sm,
     height: 36,
+    width: '100%',
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: Colors.primary,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.28,
-    shadowRadius: 4,
-    elevation: 2,
   },
   addButtonText: {
     color: Colors.white,
-    fontSize: FontSize.sm,
-    fontWeight: FontWeight.bold,
+    fontSize: 12.5,
+    fontWeight: '700',
+    letterSpacing: 0.4,
   },
 
   // Control +/−
@@ -439,11 +417,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderRadius: Radius.md,
     overflow: 'hidden',
-    borderWidth: 2,
+    borderWidth: 1,
     borderColor: Colors.primary,
+    width: '100%',
+    height: 36,
   },
   qtyButton: {
-    width: 36,
+    flex: 1,
     height: 36,
     justifyContent: 'center',
     alignItems: 'center',
@@ -453,25 +433,27 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary,
   },
   qtyButtonText: {
-    fontSize: FontSize.xl,
+    fontSize: FontSize.lg,
     fontWeight: FontWeight.bold,
     color: Colors.primary,
-    lineHeight: 26,
+    lineHeight: 22,
   },
   qtyButtonAddText: {
     color: Colors.white,
   },
   qtyInput: {
-    fontSize: FontSize.md,
+    fontSize: 14,
     fontWeight: FontWeight.bold,
     color: Colors.primary,
-    minWidth: 38,
-    maxWidth: 60,
+    minWidth: 40,
     height: 36,
     textAlign: 'center',
     paddingVertical: 2,
     paddingHorizontal: 4,
     backgroundColor: '#F8FAFC',
+    borderLeftWidth: 1,
+    borderRightWidth: 1,
+    borderColor: '#E2E8F0',
   },
   // Sin precio
   sinPrecio: {
@@ -479,10 +461,11 @@ const styles = StyleSheet.create({
     fontSize: FontSize.sm,
   },
   sinPrecioBtn: {
-    backgroundColor: '#f1f5f9',
+    backgroundColor: '#F1F5F9',
     borderRadius: Radius.md,
     paddingHorizontal: Spacing.md,
-    height: 36,
+    height: 38,
+    width: '100%',
     justifyContent: 'center',
     alignItems: 'center',
   },

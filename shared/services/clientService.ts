@@ -186,6 +186,7 @@ export const clientService = {
       localidad: client.localidad || null,
       branch_id: branchIdNum,
       tipo_cliente: client.tipoCliente ?? 'minorista',
+      mayorista_autorizado: client.mayoristaAutorizado ?? (client.tipoCliente === 'mayorista' ? false : true),
       activo: client.activo ?? true,
       observaciones: client.observaciones ? client.observaciones : null,
       latitude: client.latitude || null,

@@ -18,11 +18,12 @@ export const TouchTarget = {
   xlarge: 72,
 };
 
-// Bordes redondeados
+// Bordes redondeados — Estilo plano y cuadrado
 export const Radius = {
-  sm: 6,
-  md: 10,
-  lg: 14,
-  xl: 20,
+  xs: 2,
+  sm: 2,
+  md: 4,
+  lg: 4,
+  xl: 6,
   full: 999,
 };

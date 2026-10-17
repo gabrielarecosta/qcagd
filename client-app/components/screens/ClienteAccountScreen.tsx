@@ -13,8 +13,9 @@ import {
 import { customAlert } from '../../utils/alert';
 import { companySettingsService } from '@shared/services/companySettingsService';
 import { clientService } from '@shared/services/clientService';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Colors } from '../../constants/Colors';
+import MaterialCommunityIcons from '../icons/MaterialCommunityIcons';
 import { FontSize, FontWeight } from '../../constants/Typography';
 import { Radius, Spacing } from '../../constants/Spacing';
 import { useAuthStore } from '../../store/authStore';
@@ -33,6 +34,7 @@ import { geocodeAddress, getLocalityCenter } from '@shared/utils/geo';
 import { triggerPwaInstallModal } from '../PwaInstallBanner';
 import { MisListasScreen } from './MisListasScreen';
 import { useListsStore } from '../../store/listsStore';
+import { useAccountTabStore, AccountTab } from '../../store/accountTabStore';
 
 
 function InfoRow({ label, value }: { label: string; value: string }) {
@@ -85,8 +87,15 @@ export function ClienteAccountScreen() {
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
   const [deliveryMethodFilter, setDeliveryMethodFilter] = useState<'all' | 'reparto' | 'retiro' | 'whatsapp'>('all');
   const [statusFilter, setStatusFilter] = useState<'all' | 'preparacion' | 'en_camino' | 'entregado' | 'cancelado'>('all');
-  const [showMisListas, setShowMisListas] = useState(false);
   const { lists } = useListsStore();
+  const params = useLocalSearchParams<{ tab?: string }>();
+  const { activeTab: activeAccountTab, setActiveTab: setActiveAccountTab } = useAccountTabStore();
+
+  useEffect(() => {
+    if (params?.tab && ['pedidos', 'listas', 'reparto', 'datos', 'todos'].includes(params.tab)) {
+      setActiveAccountTab(params.tab as AccountTab);
+    }
+  }, [params?.tab]);
 
   // Coordenadas y mapa para agregar dirección
   const mapContainerRef = useRef<HTMLDivElement>(null);
@@ -519,14 +528,6 @@ export function ClienteAccountScreen() {
     .join('')
     .toUpperCase();
 
-  if (showMisListas) {
-    return (
-      <View style={{ flex: 1, backgroundColor: Colors.background }}>
-        <MisListasScreen onBackToAccount={() => setShowMisListas(false)} />
-      </View>
-    );
-  }
-
   return (
     <ScrollView style={styles.scrollView} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
       {/* Header Perfil */}
@@ -578,8 +579,95 @@ export function ClienteAccountScreen() {
         </TouchableOpacity>
       </View>
 
+      {/* Sub-navegación dentro de Mi Cuenta */}
+      <View style={accountTabStyles.tabBar}>
+        <TouchableOpacity
+          style={[accountTabStyles.tabItem, activeAccountTab === 'datos' && accountTabStyles.tabItemActive]}
+          onPress={() => setActiveAccountTab('datos')}
+          activeOpacity={0.7}
+        >
+          <MaterialCommunityIcons
+            name="account-details-outline"
+            size={18}
+            color={activeAccountTab === 'datos' ? '#1A56DB' : '#64748B'}
+          />
+          <Text style={[accountTabStyles.tabText, activeAccountTab === 'datos' && accountTabStyles.tabTextActive]}>
+            Mis Datos
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[accountTabStyles.tabItem, activeAccountTab === 'pedidos' && accountTabStyles.tabItemActive]}
+          onPress={() => setActiveAccountTab('pedidos')}
+          activeOpacity={0.7}
+        >
+          <MaterialCommunityIcons
+            name="package-variant-closed"
+            size={18}
+            color={activeAccountTab === 'pedidos' ? '#1A56DB' : '#64748B'}
+          />
+          <Text style={[accountTabStyles.tabText, activeAccountTab === 'pedidos' && accountTabStyles.tabTextActive]}>
+            Mis Pedidos ({clientOrders.length})
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[accountTabStyles.tabItem, activeAccountTab === 'listas' && accountTabStyles.tabItemActive]}
+          onPress={() => setActiveAccountTab('listas')}
+          activeOpacity={0.7}
+        >
+          <MaterialCommunityIcons
+            name="bookmark-outline"
+            size={18}
+            color={activeAccountTab === 'listas' ? '#1A56DB' : '#64748B'}
+          />
+          <Text style={[accountTabStyles.tabText, activeAccountTab === 'listas' && accountTabStyles.tabTextActive]}>
+            Mis Listas ({lists.length})
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[accountTabStyles.tabItem, activeAccountTab === 'reparto' && accountTabStyles.tabItemActive]}
+          onPress={() => setActiveAccountTab('reparto')}
+          activeOpacity={0.7}
+        >
+          <MaterialCommunityIcons
+            name="truck-fast-outline"
+            size={18}
+            color={activeAccountTab === 'reparto' ? '#1A56DB' : '#64748B'}
+          />
+          <Text style={[accountTabStyles.tabText, activeAccountTab === 'reparto' && accountTabStyles.tabTextActive]}>
+            Estado Reparto
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[accountTabStyles.tabItem, activeAccountTab === 'todos' && accountTabStyles.tabItemActive]}
+          onPress={() => setActiveAccountTab('todos')}
+          activeOpacity={0.7}
+        >
+          <MaterialCommunityIcons
+            name="view-dashboard-outline"
+            size={18}
+            color={activeAccountTab === 'todos' ? '#1A56DB' : '#64748B'}
+          />
+          <Text style={[accountTabStyles.tabText, activeAccountTab === 'todos' && accountTabStyles.tabTextActive]}>
+            Ver Todo
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Mis Listas */}
+      {(activeAccountTab === 'listas' || activeAccountTab === 'todos') && (
+        <View style={{ width: '100%', marginBottom: Spacing.xl }}>
+          <MisListasScreen onBackToAccount={() => setActiveAccountTab('datos')} />
+        </View>
+      )}
+
       {/* Mis Datos */}
-      <View style={styles.card}>
+      {(activeAccountTab === 'datos' || activeAccountTab === 'todos') && (
+        <>
+          <View style={styles.card}>
         <Text style={styles.cardTitle}>Mis datos</Text>
         <InfoRow label="Número de cliente" value={`#${clientData.id}`} />
         <InfoRow label="Razón Social" value={clientData.razonSocial || clientData.nombre} />
@@ -657,9 +745,12 @@ export function ClienteAccountScreen() {
           </TouchableOpacity>
         </View>
       )}
+      </>
+      )}
 
       {/* Mis Listas */}
-      <View style={styles.card}>
+      {activeAccountTab === 'todos' && (
+        <View style={styles.card}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
           <View style={{ flex: 1 }}>
             <Text style={styles.cardTitle}>Mis Listas</Text>
@@ -688,7 +779,7 @@ export function ClienteAccountScreen() {
             flexDirection: 'row',
             alignItems: 'center',
           }}
-          onPress={() => setShowMisListas(true)}
+          onPress={() => setActiveAccountTab('listas')}
           activeOpacity={0.8}
         >
           <Text style={{ fontSize: 22, marginRight: 12 }}>📋</Text>
@@ -703,9 +794,11 @@ export function ClienteAccountScreen() {
           <Text style={{ fontSize: 18, color: Colors.primary, fontWeight: 'bold', marginLeft: 8 }}>›</Text>
         </TouchableOpacity>
       </View>
+      )}
 
       {/* Direcciones de Entrega */}
-      <View style={styles.card}>
+      {(activeAccountTab === 'datos' || activeAccountTab === 'todos') && (
+        <View style={styles.card}>
         <Text style={styles.cardTitle}>Direcciones de entrega</Text>
         
         {combinedAddresses.map((addr) => (
@@ -855,9 +948,11 @@ export function ClienteAccountScreen() {
         )}
 
       </View>
+      )}
 
       {/* Estado del Reparto (Tracking) */}
-      <View style={styles.card}>
+      {(activeAccountTab === 'reparto' || activeAccountTab === 'todos') && (
+        <View style={styles.card}>
         <Text style={styles.cardTitle}>Estado de mi reparto</Text>
         <Text style={styles.cardDesc}>Consultá en tiempo real si tu pedido está en camino y el chofer asignado.</Text>
         <TouchableOpacity style={styles.menuItem} onPress={() => router.push('/(tabs)/reparto')}>
@@ -866,9 +961,11 @@ export function ClienteAccountScreen() {
           <Text style={styles.menuItemArrow}>›</Text>
         </TouchableOpacity>
       </View>
+      )}
 
       {/* Métodos de Pago */}
-      <View style={styles.card}>
+      {(activeAccountTab === 'datos' || activeAccountTab === 'reparto' || activeAccountTab === 'todos') && (
+        <View style={styles.card}>
         <Text style={styles.cardTitle}>Métodos de pago</Text>
         <Text style={styles.cardDesc}>Podés abonar tus compras usando cualquiera de estos métodos:</Text>
         <View style={styles.paymentMethodRow}>
@@ -886,9 +983,13 @@ export function ClienteAccountScreen() {
           </View>
         </View>
       </View>
+      )}
 
-      {/* Repetir último pedido */}
-      {lastOrder && (
+      {/* Repetir último pedido, Productos frecuentes, Historial de pedidos */}
+      {(activeAccountTab === 'pedidos' || activeAccountTab === 'todos') && (
+        <>
+          {/* Repetir último pedido */}
+          {lastOrder && (
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Repetir último pedido</Text>
           <View style={styles.orderSummaryBox}>
@@ -1107,9 +1208,13 @@ export function ClienteAccountScreen() {
           </View>
         )}
       </View>
+      </>
+      )}
 
       {/* Contacto y Soporte */}
-      <View style={styles.card}>
+      {(activeAccountTab === 'datos' || activeAccountTab === 'todos') && (
+        <>
+          <View style={styles.card}>
         <Text style={styles.cardTitle}>¿Necesitás ayuda?</Text>
         <TouchableOpacity style={styles.menuItem} onPress={handleWhatsappSupport}>
           <Text style={styles.menuItemIcon}>💬</Text>
@@ -1159,7 +1264,7 @@ export function ClienteAccountScreen() {
       {/* Cambiar Contraseña & Cerrar Sesión */}
       <View style={{ gap: 10, marginTop: Spacing.sm }}>
         <TouchableOpacity
-          style={[styles.logoutButton, { backgroundColor: Colors.surfaceBackground || '#f1f5f9', borderColor: Colors.border || '#cbd5e1', borderWidth: 1 }]}
+          style={[styles.logoutButton, { backgroundColor: Colors.surfaceAlt || '#f1f5f9', borderColor: Colors.border || '#cbd5e1', borderWidth: 1 }]}
           onPress={() => setShowChangePasswordModal(true)}
           activeOpacity={0.8}
         >
@@ -1170,6 +1275,8 @@ export function ClienteAccountScreen() {
           <Text style={styles.logoutButtonText}>Cerrar sesión</Text>
         </TouchableOpacity>
       </View>
+      </>
+      )}
 
       <View style={styles.versionContainer}>
         <Text style={styles.versionText}>Química General Deheza · Cliente Final (v{APP_VERSION})</Text>
@@ -1204,38 +1311,39 @@ export function ClienteAccountScreen() {
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.xl,
+    gap: 14,
     backgroundColor: Colors.white,
-    paddingHorizontal: Spacing.xl,
-    paddingVertical: Spacing.xxl,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
   },
   avatar: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     backgroundColor: Colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
     flexShrink: 0,
   },
   avatarText: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: FontWeight.extrabold,
     color: Colors.white,
   },
   headerInfo: {
     flex: 1,
-    gap: 4,
+    gap: 2,
+    minWidth: 0,
   },
   customerName: {
-    fontSize: FontSize.xxl,
+    fontSize: 18,
     fontWeight: FontWeight.bold,
     color: Colors.textPrimary,
   },
   razonSocial: {
-    fontSize: FontSize.md,
+    fontSize: FontSize.sm,
     color: Colors.textSecondary,
   },
   zonaBadge: {
@@ -1256,9 +1364,9 @@ export function ClienteAccountScreen() {
     borderRadius: Radius.lg,
     borderWidth: 1,
     borderColor: Colors.border,
-    marginHorizontal: Spacing.xl,
+    marginHorizontal: 12,
     marginTop: Spacing.md,
-    padding: Spacing.xl,
+    padding: 16,
   },
   cardTitle: {
     fontSize: FontSize.xl,
@@ -1532,4 +1640,43 @@ export function ClienteAccountScreen() {
     fontSize: FontSize.sm,
     color: Colors.textDisabled,
   },
-})
+});
+
+const accountTabStyles = StyleSheet.create({
+  tabBar: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: Spacing.lg,
+    padding: 6,
+    backgroundColor: '#FFFFFF',
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  tabItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: Radius.md,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    ...(Platform.OS === 'web' ? ({ cursor: 'pointer' } as any) : {}),
+  },
+  tabItemActive: {
+    backgroundColor: '#EFF6FF',
+    borderColor: '#BFDBFE',
+  },
+  tabText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  tabTextActive: {
+    color: '#1A56DB',
+    fontWeight: '700',
+  },
+});

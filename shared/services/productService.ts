@@ -3,9 +3,10 @@ import { processLogService } from './processLogService';
 import { Product, ProductStock, ProductCategory } from '../types/product';
 
 const mapProduct = (d: any, rate: number = 1000, isPublic: boolean = false): Product => {
-  const isDolarizado = isPublic ? false : (d.dolarizado || false);
-  const precioUsd = isPublic ? 0.0 : Number(d.precio_usd || 0.0);
-  const precioArs = isPublic ? 0.0 : (isDolarizado ? Math.round(precioUsd * rate * 100) / 100 : Number(d.precio || 0.0));
+  const isDolarizado = d.dolarizado || false;
+  const precioUsd = Number(d.precio_usd || 0.0);
+  // Lista 1 (precio minorista estándar cargado del Excel) siempre visible para todos los usuarios
+  const precioArs = isDolarizado ? Math.round(precioUsd * rate * 100) / 100 : Number(d.precio || 0.0);
 
   return {
     id: d.id,
@@ -56,7 +57,49 @@ export interface ProductQueryOptions {
   stockFilter?: 'all' | 'with-stock' | 'critico' | 'no-stock';
 }
 
+let cachedTopSoldProductIds: number[] | null = null;
+let lastTopSoldFetchTime = 0;
+
 export const productService = {
+  getTopSoldProductIds: async (): Promise<number[]> => {
+    const now = Date.now();
+    if (cachedTopSoldProductIds && now - lastTopSoldFetchTime < 60000) {
+      return cachedTopSoldProductIds;
+    }
+    try {
+      let allItems: any[] = [];
+      let page = 0;
+      while (true) {
+        const { data, error } = await supabase
+          .from('order_items')
+          .select('product_id, cantidad')
+          .range(page * 1000, (page + 1) * 1000 - 1);
+        if (error || !data || data.length === 0) break;
+        allItems = allItems.concat(data);
+        if (data.length < 1000) break;
+        page++;
+      }
+
+      const totals: Record<number, number> = {};
+      for (const it of allItems) {
+        if (!it.product_id) continue;
+        const pid = Number(it.product_id);
+        totals[pid] = (totals[pid] || 0) + Number(it.cantidad || 0);
+      }
+
+      const sortedIds = Object.keys(totals)
+        .map(Number)
+        .sort((a, b) => totals[b] - totals[a]);
+
+      cachedTopSoldProductIds = sortedIds;
+      lastTopSoldFetchTime = now;
+      return sortedIds;
+    } catch (e) {
+      console.error('Error fetching top sold product ids:', e);
+      return cachedTopSoldProductIds || [];
+    }
+  },
+
   getLatestExchangeRate: async (): Promise<number> => {
     const { data, error } = await supabase
       .from('exchange_rates')
@@ -82,7 +125,7 @@ export const productService = {
     const isStockFilterActive = options.stockFilter && options.stockFilter !== 'all';
 
     const selectCols = isPublic
-      ? 'id, codigo, nombre, categoria, subcategoria, presentacion, unidad, descripcion, imagen, imagen_secundaria, imagenes, activo, visible_en_app, destacado, created_at, updated_at'
+      ? 'id, codigo, nombre, categoria, subcategoria, presentacion, unidad, descripcion, imagen, imagen_secundaria, imagenes, activo, visible_en_app, destacado, precio, precio_usd, dolarizado, created_at, updated_at'
       : '*';
 
     let query = supabase
@@ -132,25 +175,55 @@ export const productService = {
       }
     }
 
+    const isMasVendido = options.sortBy === 'mas-vendido';
+    let topSoldIds: number[] = [];
+    if (isMasVendido) {
+      topSoldIds = await productService.getTopSoldProductIds();
+    }
+
     // Si NO hay filtro de stock en memoria, aplicar ordenamiento y paginación directamente en PostgREST (Supabase)
     if (!isStockFilterActive) {
       if (options.sortBy === 'price' || options.sortBy === 'precio-bajo') {
         query = query.order('precio', { ascending: true }).order('id', { ascending: true });
+        const fromIndex = (page - 1) * pageSize;
+        const toIndex = fromIndex + pageSize - 1;
+        query = query.range(fromIndex, toIndex);
       } else if (options.sortBy === 'precio-alto') {
         query = query.order('precio', { ascending: false }).order('id', { ascending: true });
+        const fromIndex = (page - 1) * pageSize;
+        const toIndex = fromIndex + pageSize - 1;
+        query = query.range(fromIndex, toIndex);
       } else if (options.sortBy === 'code') {
         query = query.order('codigo', { ascending: sortAsc }).order('id', { ascending: true });
+        const fromIndex = (page - 1) * pageSize;
+        const toIndex = fromIndex + pageSize - 1;
+        query = query.range(fromIndex, toIndex);
       } else if (options.sortBy === 'category') {
         query = query.order('categoria', { ascending: sortAsc }).order('nombre', { ascending: true }).order('id', { ascending: true });
+        const fromIndex = (page - 1) * pageSize;
+        const toIndex = fromIndex + pageSize - 1;
+        query = query.range(fromIndex, toIndex);
       } else if (options.sortBy === 'name') {
         query = query.order('nombre', { ascending: sortAsc }).order('id', { ascending: true });
+        const fromIndex = (page - 1) * pageSize;
+        const toIndex = fromIndex + pageSize - 1;
+        query = query.range(fromIndex, toIndex);
+      } else if (isMasVendido && !options.search && !options.categoria && topSoldIds.length > 0) {
+        // Obtenemos los productos más comprados tanto por minoristas como mayoristas
+        const fromIndex = (page - 1) * pageSize;
+        const targetIds = topSoldIds.slice(fromIndex, fromIndex + pageSize);
+        if (targetIds.length > 0) {
+          query = query.in('id', targetIds);
+        } else {
+          query = query.order('destacado', { ascending: false }).order('nombre', { ascending: true }).order('id', { ascending: true });
+          query = query.range(fromIndex, fromIndex + pageSize - 1);
+        }
       } else {
         query = query.order('destacado', { ascending: false }).order('nombre', { ascending: true }).order('id', { ascending: true });
+        const fromIndex = (page - 1) * pageSize;
+        const toIndex = fromIndex + pageSize - 1;
+        query = query.range(fromIndex, toIndex);
       }
-
-      const fromIndex = (page - 1) * pageSize;
-      const toIndex = fromIndex + pageSize - 1;
-      query = query.range(fromIndex, toIndex);
     } else {
       // Si hay filtro especial de stock en admin, obtenemos todos los registros para evaluar stock en memoria
       query = query.range(0, 99999);
@@ -162,7 +235,18 @@ export const productService = {
       return { data: [], total: 0, page, pageSize, totalPages: 0, hasError: true, errorMessage: error.message };
     }
 
-    const allMatchedProducts = rawProducts || [];
+    let allMatchedProducts = rawProducts || [];
+    if (isMasVendido && topSoldIds.length > 0) {
+      const rankMap = new Map<number, number>();
+      topSoldIds.forEach((id, idx) => rankMap.set(id, idx));
+      allMatchedProducts = [...allMatchedProducts].sort((a: any, b: any) => {
+        const rankA = rankMap.has(a.id) ? rankMap.get(a.id)! : 999999;
+        const rankB = rankMap.has(b.id) ? rankMap.get(b.id)! : 999999;
+        if (rankA !== rankB) return rankA - rankB;
+        return (a.nombre || '').localeCompare(b.nombre || '');
+      });
+    }
+
     const prodIds = allMatchedProducts.map((p: any) => p.id);
 
     // Cargar información de inventario/stock para los productos encontrados
@@ -259,7 +343,9 @@ export const productService = {
     }
 
     // Paginación directa con conteo exacto de Supabase para más de 6000 productos
-    const total = exactTotalCount ?? processed.length;
+    const total = (isMasVendido && !options.search && !options.categoria && topSoldIds.length > 0)
+      ? topSoldIds.length
+      : (exactTotalCount ?? processed.length);
     const totalPages = Math.ceil(total / pageSize) || 1;
 
     return {
@@ -286,7 +372,7 @@ export const productService = {
 
       const { data: chunk, error: prodErr } = await supabase
         .from('products')
-        .select(isPublic ? 'id, codigo, nombre, categoria, subcategoria, presentacion, unidad, descripcion, imagen, imagen_secundaria, imagenes, activo, visible_en_app, destacado, created_at, updated_at, deleted_at, deleted_by' : '*')
+        .select(isPublic ? 'id, codigo, nombre, categoria, subcategoria, presentacion, unidad, descripcion, imagen, imagen_secundaria, imagenes, activo, visible_en_app, destacado, precio, precio_usd, dolarizado, created_at, updated_at, deleted_at, deleted_by' : '*')
         .is('deleted_at', null)
         .range(fromRange, toRange);
 
@@ -1452,15 +1538,7 @@ export const productService = {
   getSuperOffers: async (isPublic?: boolean): Promise<any[]> => {
     const { data, error } = await supabase
       .from('super_offers')
-      .select(isPublic ? `
-        id, nombre, descripcion, activo, created_at,
-        super_offer_items (
-          id, offer_id, product_id, cantidad, unidad,
-          products:products (
-            id, codigo, nombre, categoria, subcategoria, presentacion, unidad, descripcion, imagen, activo, visible_en_app, destacado
-          )
-        )
-      ` : `
+      .select(`
         *,
         super_offer_items (
           id, offer_id, product_id, cantidad, unidad,
@@ -1470,20 +1548,16 @@ export const productService = {
       .order('created_at', { ascending: false });
     if (error) throw error;
 
-    let list = data || [];
-    if (isPublic) {
-      list = list.filter((offer: any) => offer.activo && !offer.deleted_at);
-      return list.map((offer: any) => ({
-        ...offer,
-        precio_oferta: 0,
-        precio_original: 0,
-        super_offer_items: (offer.super_offer_items || []).map((item: any) => ({
-          ...item,
-          products: item.products ? mapProduct(item.products, 1000, true) : null
-        }))
-      }));
-    }
-    return list;
+    let list = (data || []).filter((offer: any) => offer.activo && !offer.deleted_at);
+    return list.map((offer: any) => ({
+      ...offer,
+      precio_oferta: Number(offer.precio_oferta || 0),
+      precio_original: Number(offer.precio_original || 0),
+      super_offer_items: (offer.super_offer_items || []).map((item: any) => ({
+        ...item,
+        products: item.products ? mapProduct(item.products, 1000, !!isPublic) : null
+      }))
+    }));
   },
 
   deleteSuperOffer: async (id: string): Promise<void> => {
