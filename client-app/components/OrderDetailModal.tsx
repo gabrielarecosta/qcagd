@@ -188,7 +188,17 @@ export function OrderDetailModal({ order, onClose, onRepeat }: OrderDetailModalP
             </View>
           </View>
 
-          <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+          <ScrollView
+            style={[
+              { flex: 1 },
+              Platform.OS === 'web' && ({ overflowY: 'scroll' } as any),
+            ]}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={true}
+            persistentScrollbar={true}
+            // @ts-ignore
+            dataSet={{ mainScroll: 'true' }}
+          >
             {/* Badges de Estado */}
             <View style={styles.badgesContainer}>
               {/* Estado del pedido */}

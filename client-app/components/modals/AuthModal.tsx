@@ -230,7 +230,17 @@ export function AuthModal({ visible, onClose, initialTab = 'login' }: AuthModalP
             </TouchableOpacity>
           </View>
 
-          <ScrollView style={styles.bodyScroll} contentContainerStyle={styles.bodyContent} showsVerticalScrollIndicator={false}>
+          <ScrollView
+            style={[
+              styles.bodyScroll,
+              Platform.OS === 'web' && ({ overflowY: 'scroll' } as any),
+            ]}
+            contentContainerStyle={styles.bodyContent}
+            showsVerticalScrollIndicator={true}
+            persistentScrollbar={true}
+            // @ts-ignore
+            dataSet={{ mainScroll: 'true' }}
+          >
             {/* LOGIN FORM */}
             {tab === 'login' ? (
               <View style={styles.form}>

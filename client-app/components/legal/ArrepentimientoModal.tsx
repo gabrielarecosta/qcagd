@@ -153,7 +153,17 @@ export function ArrepentimientoModal({ visible, onClose }: ArrepentimientoModalP
             </TouchableOpacity>
           </View>
 
-          <ScrollView contentContainerStyle={styles.contentScroll} showsVerticalScrollIndicator={false}>
+          <ScrollView
+            style={[
+              { flex: 1 },
+              Platform.OS === 'web' && ({ overflowY: 'scroll' } as any),
+            ]}
+            contentContainerStyle={styles.contentScroll}
+            showsVerticalScrollIndicator={true}
+            persistentScrollbar={true}
+            // @ts-ignore
+            dataSet={{ mainScroll: 'true' }}
+          >
             {successTrackingId ? (
               /* Success State */
               <View style={styles.successBox}>

@@ -313,9 +313,15 @@ export default function HomeScreen() {
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView
-        style={styles.scrollView}
+        style={[
+          styles.scrollView,
+          Platform.OS === 'web' && ({ overflowY: 'scroll' } as any),
+        ]}
         contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={false}
+        showsVerticalScrollIndicator={true}
+        persistentScrollbar={true}
+        // @ts-ignore
+        dataSet={{ mainScroll: 'true' }}
       >
         {/* ======================================================== */}
         {/* BARRA AZUL DE BÚSQUEDA (Abajo del Menú Principal)         */}
@@ -930,7 +936,13 @@ export default function HomeScreen() {
               <MaterialCommunityIcons name="close" size={22} color="#64748B" />
             </TouchableOpacity>
 
-            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalScrollContent}>
+            <ScrollView
+              showsVerticalScrollIndicator={true}
+              persistentScrollbar={true}
+              contentContainerStyle={styles.modalScrollContent}
+              // @ts-ignore
+              dataSet={{ mainScroll: 'true' }}
+            >
               <View style={styles.modalUrgencyRow}>
                 <MaterialCommunityIcons name="flash" size={16} color="#EAB308" />
                 <Text style={styles.modalUrgencyText}>🔥 SÚPER OFERTA · COMBO ESPECIAL</Text>
@@ -1056,6 +1068,9 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
+    ...(Platform.OS === 'web' ? {
+      overflowY: 'scroll',
+    } : {}),
   },
   content: {
     paddingBottom: Spacing.huge,

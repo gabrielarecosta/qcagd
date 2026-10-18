@@ -167,8 +167,17 @@ export function FaqsModal({ visible, onClose }: FaqsModalProps) {
             ))}
           </ScrollView>
 
-          {/* FAQ List */}
-          <ScrollView contentContainerStyle={styles.contentScroll} showsVerticalScrollIndicator={false}>
+          <ScrollView
+            style={[
+              { flex: 1 },
+              Platform.OS === 'web' && ({ overflowY: 'scroll' } as any),
+            ]}
+            contentContainerStyle={styles.contentScroll}
+            showsVerticalScrollIndicator={true}
+            persistentScrollbar={true}
+            // @ts-ignore
+            dataSet={{ mainScroll: 'true' }}
+          >
             {filteredFaqs.length === 0 ? (
               <View style={styles.emptyContainer}>
                 <MaterialCommunityIcons name="text-box-search-outline" size={48} color="#cbd5e1" />

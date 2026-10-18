@@ -9,6 +9,7 @@ import {
   Modal,
   TextInput,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Colors } from '../../constants/Colors';
@@ -186,7 +187,17 @@ export function ListaDetalleScreen({ listId, onBack }: ListaDetalleScreenProps) 
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={[
+          { flex: 1 },
+          Platform.OS === 'web' && ({ overflowY: 'scroll' } as any),
+        ]}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={true}
+        persistentScrollbar={true}
+        // @ts-ignore
+        dataSet={{ mainScroll: 'true' }}
+      >
         {/* Encabezado de la lista */}
         <View style={styles.headerCard}>
           <View style={styles.badgeRow}>

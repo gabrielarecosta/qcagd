@@ -1,6 +1,6 @@
 import React, { useState, useRef, useMemo } from 'react';
 import { Tabs, useRouter, usePathname } from 'expo-router';
-import { View, Text, StyleSheet, TouchableOpacity, Image, Platform, useWindowDimensions, TextInput } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image, Platform, useWindowDimensions, TextInput, ScrollView } from 'react-native';
 import { Colors } from '../../constants/Colors';
 import { FontSize, FontWeight } from '../../constants/Typography';
 import { useCartStore } from '../../store/cartStore';
@@ -946,7 +946,7 @@ const desktopStyles = StyleSheet.create({
   desktopContentWrapper: {
     flex: 1,
     width: '100%',
-    paddingHorizontal: 32,
+    paddingHorizontal: 0,
     backgroundColor: Colors.background,
   },
   desktopCartIconBtn: {

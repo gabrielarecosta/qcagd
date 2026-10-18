@@ -392,7 +392,14 @@ export default function ProductDetailScreen() {
       </View>
 
       <ScrollView
-        showsVerticalScrollIndicator={false}
+        style={[
+          { flex: 1 },
+          Platform.OS === 'web' && ({ overflowY: 'scroll' } as any),
+        ]}
+        showsVerticalScrollIndicator={true}
+        persistentScrollbar={true}
+        // @ts-ignore
+        dataSet={{ mainScroll: 'true' }}
         contentContainerStyle={[styles.scrollContent, isDesktop && styles.scrollContentDesktop]}
       >
         <View style={[styles.mainLayout, isDesktop && styles.mainLayoutDesktop]}>
