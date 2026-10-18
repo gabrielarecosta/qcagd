@@ -189,9 +189,15 @@ export default function MayoristasScreen() {
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView
-        style={styles.scrollView}
+        style={[
+          styles.scrollView,
+          Platform.OS === 'web' && ({ overflowY: 'scroll' } as any),
+        ]}
         contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={false}
+        showsVerticalScrollIndicator={true}
+        persistentScrollbar={true}
+        // @ts-ignore
+        dataSet={{ mainScroll: 'true' }}
       >
         {/* ======================================================== */}
         {/* HEADER / HERO DEL PORTAL MAYORISTA                       */}
@@ -533,6 +539,9 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
+    ...(Platform.OS === 'web' ? {
+      overflowY: 'scroll',
+    } : {}),
   },
   content: {
     paddingBottom: Spacing.huge,

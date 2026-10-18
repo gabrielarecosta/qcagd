@@ -9,6 +9,7 @@ import {
   ScrollView,
   ActivityIndicator,
   Animated,
+  Platform,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Colors } from '../../constants/Colors';
@@ -398,9 +399,16 @@ export function DesktopStartScreen() {
         {/* LADO DERECHO: Identidad y Login/Registro (38% ancho) */}
         <View style={styles.rightColumn}>
           <ScrollView
-            showsVerticalScrollIndicator={false}
+            showsVerticalScrollIndicator={true}
+            persistentScrollbar={true}
+            style={[
+              { flex: 1 },
+              Platform.OS === 'web' && ({ overflowY: 'scroll' } as any),
+            ]}
             contentContainerStyle={styles.authScroll}
             keyboardShouldPersistTaps="handled"
+            // @ts-ignore
+            dataSet={{ mainScroll: 'true' }}
           >
             {/* Logo de la empresa */}
             <View style={styles.logoWrapper}>

@@ -119,7 +119,17 @@ export default function PedidoConfirmadoScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={[
+          { flex: 1 },
+          Platform.OS === 'web' && ({ overflowY: 'scroll' } as any),
+        ]}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={true}
+        persistentScrollbar={true}
+        // @ts-ignore
+        dataSet={{ mainScroll: 'true' }}
+      >
         <View style={styles.confirmedContainer}>
           <Text style={styles.confirmedIcon}>🎉</Text>
 

@@ -58,47 +58,69 @@ export default function Root({ children }: PropsWithChildren) {
             user-drag: none;
           }
 
-          /* Scrollbar global estilizado y visible */
-          ::-webkit-scrollbar {
-            width: 7px;
-            height: 7px;
-          }
-          ::-webkit-scrollbar-track {
-            background: #F1F5F9;
-            border-radius: 6px;
-          }
-          ::-webkit-scrollbar-thumb {
-            background: #CBD5E1;
-            border-radius: 6px;
-          }
-          ::-webkit-scrollbar-thumb:hover {
-            background: #94A3B8;
+          /* Scrollbar global estilizado y visible a la derecha */
+          * {
+            scrollbar-width: thin !important;
+            scrollbar-color: #94A3B8 #F1F5F9 !important;
           }
 
-          /* Barra de desplazamiento siempre visible y destacada para la ventana de Mis Pedidos */
+          ::-webkit-scrollbar,
+          *::-webkit-scrollbar {
+            width: 8px !important;
+            height: 8px !important;
+            display: block !important;
+          }
+          ::-webkit-scrollbar-track,
+          *::-webkit-scrollbar-track {
+            background: #F1F5F9 !important;
+            border-radius: 6px !important;
+          }
+          ::-webkit-scrollbar-thumb,
+          *::-webkit-scrollbar-thumb {
+            background: #94A3B8 !important;
+            border-radius: 6px !important;
+            border: 2px solid #F1F5F9 !important;
+          }
+          ::-webkit-scrollbar-thumb:hover,
+          *::-webkit-scrollbar-thumb:hover {
+            background: #64748B !important;
+          }
+
+          /* Barra de desplazamiento siempre visible y destacada a la derecha para pantallas principales y modales */
+          [data-main-scroll="true"],
           [data-cart-scroll="true"],
-          [data-testid="cart-preview-scroll"] {
+          [data-testid="cart-preview-scroll"],
+          .main-scroll-view {
             overflow-y: scroll !important;
             scrollbar-width: thin !important;
             scrollbar-color: #94A3B8 #F1F5F9 !important;
           }
+          [data-main-scroll="true"]::-webkit-scrollbar,
           [data-cart-scroll="true"]::-webkit-scrollbar,
-          [data-testid="cart-preview-scroll"]::-webkit-scrollbar {
-            width: 7px !important;
+          [data-testid="cart-preview-scroll"]::-webkit-scrollbar,
+          .main-scroll-view::-webkit-scrollbar {
+            width: 8px !important;
             display: block !important;
           }
+          [data-main-scroll="true"]::-webkit-scrollbar-track,
           [data-cart-scroll="true"]::-webkit-scrollbar-track,
-          [data-testid="cart-preview-scroll"]::-webkit-scrollbar-track {
+          [data-testid="cart-preview-scroll"]::-webkit-scrollbar-track,
+          .main-scroll-view::-webkit-scrollbar-track {
             background: #F1F5F9 !important;
             border-radius: 6px !important;
           }
+          [data-main-scroll="true"]::-webkit-scrollbar-thumb,
           [data-cart-scroll="true"]::-webkit-scrollbar-thumb,
-          [data-testid="cart-preview-scroll"]::-webkit-scrollbar-thumb {
+          [data-testid="cart-preview-scroll"]::-webkit-scrollbar-thumb,
+          .main-scroll-view::-webkit-scrollbar-thumb {
             background: #94A3B8 !important;
             border-radius: 6px !important;
+            border: 2px solid #F1F5F9 !important;
           }
+          [data-main-scroll="true"]::-webkit-scrollbar-thumb:hover,
           [data-cart-scroll="true"]::-webkit-scrollbar-thumb:hover,
-          [data-testid="cart-preview-scroll"]::-webkit-scrollbar-thumb:hover {
+          [data-testid="cart-preview-scroll"]::-webkit-scrollbar-thumb:hover,
+          .main-scroll-view::-webkit-scrollbar-thumb:hover {
             background: #64748B !important;
           }
         `}</style>

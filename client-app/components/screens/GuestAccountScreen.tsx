@@ -37,12 +37,18 @@ export function GuestAccountScreen() {
 
   return (
     <ScrollView
-      style={styles.scrollContainer}
+      style={[
+        styles.scrollContainer,
+        Platform.OS === 'web' && ({ overflowY: 'scroll' } as any),
+      ]}
       contentContainerStyle={[
         styles.contentContainer,
         isDesktop ? styles.contentContainerDesktop : styles.contentContainerMobile,
       ]}
-      showsVerticalScrollIndicator={false}
+      showsVerticalScrollIndicator={true}
+      persistentScrollbar={true}
+      // @ts-ignore
+      dataSet={{ mainScroll: 'true' }}
     >
       <View style={[styles.mainCard, isDesktop ? styles.mainCardDesktop : styles.mainCardMobile]}>
         {/* Badge Icono Principal */}
@@ -197,6 +203,9 @@ const styles = StyleSheet.create({
   scrollContainer: {
     flex: 1,
     backgroundColor: '#F8FAFC',
+    ...(Platform.OS === 'web' ? {
+      overflowY: 'scroll',
+    } : {}),
   },
   contentContainer: {
     paddingVertical: Spacing.xl,

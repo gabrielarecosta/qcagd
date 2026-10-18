@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   useWindowDimensions,
   AccessibilityInfo,
+  Platform,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Colors } from '../../constants/Colors';
@@ -315,9 +316,16 @@ export function MobileStartScreen() {
     <View style={styles.ordersMobilePage}>
       <MarqueeHeader />
       <ScrollView
-        showsVerticalScrollIndicator={false}
+        showsVerticalScrollIndicator={true}
+        persistentScrollbar={true}
+        style={[
+          { flex: 1 },
+          Platform.OS === 'web' && ({ overflowY: 'scroll' } as any),
+        ]}
         contentContainerStyle={{ flexGrow: 1 }}
         keyboardShouldPersistTaps="handled"
+        // @ts-ignore
+        dataSet={{ mainScroll: 'true' }}
       >
         {/* PORTADA SUPERIOR CON CARRUSEL */}
         <View style={[styles.ordersMobileHero, { width: heroWidth, marginTop: Math.max(insets.top, 16) }]}>

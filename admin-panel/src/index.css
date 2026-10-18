@@ -60,6 +60,37 @@ input, textarea, [contenteditable="true"] {
   min-height: 100vh;
 }
 
+/* Scrollbar estilizado y visible a la derecha */
+* {
+  scrollbar-width: thin !important;
+  scrollbar-color: #94A3B8 #F1F5F9 !important;
+}
+
+::-webkit-scrollbar,
+*::-webkit-scrollbar {
+  width: 8px !important;
+  height: 8px !important;
+  display: block !important;
+}
+
+::-webkit-scrollbar-track,
+*::-webkit-scrollbar-track {
+  background: #F1F5F9 !important;
+  border-radius: 6px !important;
+}
+
+::-webkit-scrollbar-thumb,
+*::-webkit-scrollbar-thumb {
+  background: #94A3B8 !important;
+  border-radius: 6px !important;
+  border: 2px solid #F1F5F9 !important;
+}
+
+::-webkit-scrollbar-thumb:hover,
+*::-webkit-scrollbar-thumb:hover {
+  background: #64748B !important;
+}
+
 /* ──────────────────────────────────────────────────────────────
    LAYOUT PRINCIPAL: SIDEBAR + MAIN CONTENT
    ────────────────────────────────────────────────────────────── */

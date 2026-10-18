@@ -676,7 +676,17 @@ export default function CarritoScreen() {
           <Text style={styles.headerTitle}>Mis Pedidos</Text>
         </View>
 
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: Spacing.xl }}>
+        <ScrollView
+          style={[
+            { flex: 1 },
+            Platform.OS === 'web' && ({ overflowY: 'scroll' } as any),
+          ]}
+          contentContainerStyle={{ paddingBottom: Spacing.xl }}
+          showsVerticalScrollIndicator={true}
+          persistentScrollbar={true}
+          // @ts-ignore
+          dataSet={{ mainScroll: 'true' }}
+        >
           <View style={styles.emptyState}>
             <Text style={styles.emptyIcon}>🛒</Text>
             <Text style={styles.emptyTitle}>Tu pedido está vacío</Text>
@@ -775,10 +785,15 @@ export default function CarritoScreen() {
         </View>
 
         <ScrollView
-          style={{ flex: 1 }}
+          style={[
+            { flex: 1 },
+            Platform.OS === 'web' && ({ overflowY: 'scroll' } as any),
+          ]}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={true}
           persistentScrollbar={true}
+          // @ts-ignore
+          dataSet={{ mainScroll: 'true' }}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
         >

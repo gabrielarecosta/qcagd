@@ -434,9 +434,15 @@ export default function RepartoScreen() {
       </View>
 
       <ScrollView
-        style={styles.scrollView}
+        style={[
+          styles.scrollView,
+          Platform.OS === 'web' && ({ overflowY: 'scroll' } as any),
+        ]}
         contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={false}
+        showsVerticalScrollIndicator={true}
+        persistentScrollbar={true}
+        // @ts-ignore
+        dataSet={{ mainScroll: 'true' }}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
@@ -1134,6 +1140,9 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
+    ...(Platform.OS === 'web' ? {
+      overflowY: 'scroll',
+    } : {}),
   },
   content: {
     paddingBottom: Spacing.huge,

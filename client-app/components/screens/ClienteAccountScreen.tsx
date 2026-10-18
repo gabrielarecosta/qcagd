@@ -529,7 +529,17 @@ export function ClienteAccountScreen() {
     .toUpperCase();
 
   return (
-    <ScrollView style={styles.scrollView} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+    <ScrollView
+      style={[
+        styles.scrollView,
+        Platform.OS === 'web' && ({ overflowY: 'scroll' } as any),
+      ]}
+      contentContainerStyle={styles.content}
+      showsVerticalScrollIndicator={true}
+      persistentScrollbar={true}
+      // @ts-ignore
+      dataSet={{ mainScroll: 'true' }}
+    >
       {/* Header Perfil */}
       <View style={[styles.header, { justifyContent: 'space-between', alignItems: 'center' }]}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.xl, flex: 1 }}>
@@ -1304,6 +1314,9 @@ export function ClienteAccountScreen() {
 }const styles = StyleSheet.create({
   scrollView: {
     flex: 1,
+    ...(Platform.OS === 'web' ? {
+      overflowY: 'scroll',
+    } : {}),
   },
   content: {
     paddingBottom: Spacing.huge,

@@ -573,9 +573,16 @@ export default function CatalogoScreen() {
             keyExtractor={keyExtractor}
             renderItem={renderItem}
             numColumns={numGridColumns}
+            style={[
+              { flex: 1 },
+              Platform.OS === 'web' && ({ overflowY: 'scroll' } as any),
+            ]}
             contentContainerStyle={[styles.productList, { paddingBottom: 120 }]}
             columnWrapperStyle={numGridColumns > 1 ? styles.productRow : undefined}
             showsVerticalScrollIndicator={true}
+            persistentScrollbar={true}
+            // @ts-ignore
+            dataSet={{ mainScroll: 'true' }}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="on-drag"
 
@@ -700,7 +707,13 @@ export default function CatalogoScreen() {
               <MaterialCommunityIcons name="close" size={24} color="#64748b" />
             </TouchableOpacity>
 
-            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalScrollContent}>
+            <ScrollView
+              showsVerticalScrollIndicator={true}
+              persistentScrollbar={true}
+              contentContainerStyle={styles.modalScrollContent}
+              // @ts-ignore
+              dataSet={{ mainScroll: 'true' }}
+            >
               {/* Image box */}
               {(() => {
                 const productImgs = [

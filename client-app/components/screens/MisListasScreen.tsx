@@ -10,6 +10,7 @@ import {
   Modal,
   Image,
   RefreshControl,
+  Platform,
 } from 'react-native';
 import { Colors } from '../../constants/Colors';
 import { FontSize, FontWeight } from '../../constants/Typography';
@@ -183,8 +184,15 @@ export function MisListasScreen({ onBackToAccount }: MisListasScreenProps) {
 
       <ScrollView
         ref={scrollRef}
+        style={[
+          { flex: 1 },
+          Platform.OS === 'web' && ({ overflowY: 'scroll' } as any),
+        ]}
         contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={false}
+        showsVerticalScrollIndicator={true}
+        persistentScrollbar={true}
+        // @ts-ignore
+        dataSet={{ mainScroll: 'true' }}
         refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} />}
       >
         {/* Banner explicativo */}
