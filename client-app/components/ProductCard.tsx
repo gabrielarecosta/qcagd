@@ -8,6 +8,7 @@ import {
   ViewStyle,
   Animated,
   Image,
+  Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Product } from '../types';
@@ -34,11 +35,27 @@ interface ProductCardProps {
 
 export function ProductCard({ product, style, onPress, delay = 0 }: ProductCardProps) {
   const router = useRouter();
-  const { isLoggedIn } = useAuthStore();
+  const { isLoggedIn, clientData } = useAuthStore();
   const { addProduct, getItemQuantity, updateQuantity } = useCartStore();
   const isProductInAnyList = useListsStore((state) => state.isProductInAnyList);
   const inAnyList = isProductInAnyList(product.id);
   const [showListModal, setShowListModal] = useState(false);
+
+  // Determinar lista de precios correspondiente según el rol del cliente
+  const customerType = clientData?.tipoCliente?.toLowerCase?.() || 'minorista';
+  const isMayorista = customerType === 'mayorista';
+  const isSocio = customerType === 'socio' || customerType === 'socios';
+
+  let displayPrice = product.precio;
+  let priceListTag = 'Lista 1 · Minorista';
+
+  if (isSocio && product.precioSocios && product.precioSocios > 0) {
+    displayPrice = product.precioSocios;
+    priceListTag = 'Lista 4 · Socio';
+  } else if (isMayorista && product.precioMayorista && product.precioMayorista > 0) {
+    displayPrice = product.precioMayorista;
+    priceListTag = 'Lista 3 · Mayorista';
+  }
 
   const quantity = getItemQuantity(product.id);
   const icon = CATEGORY_ICONS[product.categoria];
@@ -57,6 +74,8 @@ export function ProductCard({ product, style, onPress, delay = 0 }: ProductCardP
   const mainImageUri = productImages[0] || product.imagen;
 
   const [inputVal, setInputVal] = useState(String(quantity));
+  const [buyQty, setBuyQty] = useState('1');
+  const [isInputFocused, setIsInputFocused] = useState(false);
 
   useEffect(() => {
     setInputVal(String(quantity));
@@ -75,14 +94,16 @@ export function ProductCard({ product, style, onPress, delay = 0 }: ProductCardP
     }
   };
 
-  const handleIncrease = () => {
+  const handleIncrease = (e?: any) => {
+    e?.stopPropagation?.();
     const current = parseInt(inputVal, 10);
     const nextVal = (isNaN(current) ? quantity : current) + 1;
     setInputVal(String(nextVal));
     updateQuantity(product.id, nextVal);
   };
 
-  const handleDecrease = () => {
+  const handleDecrease = (e?: any) => {
+    e?.stopPropagation?.();
     const current = parseInt(inputVal, 10);
     const nextVal = (isNaN(current) ? quantity : current) - 1;
     if (nextVal <= 0) {
@@ -91,6 +112,28 @@ export function ProductCard({ product, style, onPress, delay = 0 }: ProductCardP
       setInputVal(String(nextVal));
       updateQuantity(product.id, nextVal);
     }
+  };
+
+  const handleIncreaseBuyQty = (e?: any) => {
+    e?.stopPropagation?.();
+    const current = parseInt(buyQty, 10);
+    const nextVal = (isNaN(current) ? 1 : current) + 1;
+    setBuyQty(String(nextVal));
+  };
+
+  const handleDecreaseBuyQty = (e?: any) => {
+    e?.stopPropagation?.();
+    const current = parseInt(buyQty, 10);
+    const nextVal = Math.max(1, (isNaN(current) ? 1 : current) - 1);
+    setBuyQty(String(nextVal));
+  };
+
+  const handleDirectBuy = (e?: any) => {
+    e?.stopPropagation?.();
+    const parsed = parseInt(buyQty, 10);
+    const finalQty = !isNaN(parsed) && parsed > 0 ? parsed : 1;
+    addProduct(product, finalQty);
+    setBuyQty('1');
   };
 
   return (
@@ -113,7 +156,7 @@ export function ProductCard({ product, style, onPress, delay = 0 }: ProductCardP
               imageUri={mainImageUri}
               images={productImages}
               name={product.nombre}
-              price={product.precio}
+              price={displayPrice}
               presentation={product.presentacion}
               codigo={product.codigo}
               style={{ width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' }}
@@ -182,64 +225,172 @@ export function ProductCard({ product, style, onPress, delay = 0 }: ProductCardP
             <Text style={styles.unidad}>por {product.unidad}</Text>
           </View>
 
-          {/* Footer: precio Lista 1 (minorista) + controles de compra */}
+          {/* Footer: precio según rol (Lista 1 / 3 / 4) + controles de compra */}
           <View style={styles.footer}>
             <View style={styles.priceContainer}>
-              <Text style={[styles.precio, (!product.precio || product.precio <= 0) && styles.sinPrecio]}>
-                {product.precio && product.precio > 0 ? formatPrice(product.precio) : 'Sin precio'}
+              <Text style={[styles.precio, (!displayPrice || displayPrice <= 0) && styles.sinPrecio]}>
+                {displayPrice && displayPrice > 0 ? formatPrice(displayPrice) : 'Sin precio'}
               </Text>
-              <Text style={styles.priceListTag}>Lista 1 · Minorista</Text>
+              <Text style={styles.priceListTag}>{priceListTag}</Text>
             </View>
 
-            {/* Botón "COMPRAR" o control +/− */}
-            {(!product.precio || product.precio <= 0) ? (
+            {/* Botón "COMPRAR" con selector de cantidad previa (−/+/typear), o control si ya está en carrito */}
+            {(!displayPrice || displayPrice <= 0) ? (
               <View style={styles.sinPrecioBtn}>
                 <Text style={styles.sinPrecioBtnText}>No disponible</Text>
               </View>
             ) : quantity === 0 ? (
-              <TouchableOpacity
-                style={styles.addButton}
-                onPress={() => addProduct(product)}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                accessibilityLabel={`Comprar ${product.nombre}`}
-                activeOpacity={0.8}
+              <View
+                style={styles.cardActionGroup}
+                onStartShouldSetResponder={() => true}
+                onTouchEnd={(e) => e?.stopPropagation?.()}
+                {...(Platform.OS === 'web' ? { onClick: (e: any) => e?.stopPropagation?.() } : {})}
               >
-                <MaterialCommunityIcons name="cart-outline" size={16} color={Colors.white} style={{ marginRight: 6 }} />
-                <Text style={styles.addButtonText}>COMPRAR</Text>
-              </TouchableOpacity>
-            ) : (
-              <View style={styles.quantityControl} onStartShouldSetResponder={() => true}>
+                {/* Stepper previo con −, input para typear y + */}
+                <View style={[styles.stepperRow, isInputFocused && styles.stepperRowFocused]}>
+                  <TouchableOpacity
+                    style={styles.stepBtn}
+                    onPress={handleDecreaseBuyQty}
+                    hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                    accessibilityLabel="Disminuir cantidad a comprar"
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.stepBtnText}>−</Text>
+                  </TouchableOpacity>
+
+                  <TextInput
+                    style={styles.stepperInput}
+                    value={buyQty}
+                    onChangeText={(text) => {
+                      const cleaned = text.replace(/[^0-9]/g, '');
+                      setBuyQty(cleaned);
+                    }}
+                    onFocus={() => setIsInputFocused(true)}
+                    onBlur={() => {
+                      setIsInputFocused(false);
+                      const parsed = parseInt(buyQty, 10);
+                      if (isNaN(parsed) || parsed <= 0) {
+                        setBuyQty('1');
+                      }
+                    }}
+                    onSubmitEditing={handleDirectBuy}
+                    keyboardType="numeric"
+                    selectTextOnFocus
+                    returnKeyType="done"
+                    maxLength={5}
+                    placeholder="1"
+                    placeholderTextColor="#94A3B8"
+                    accessibilityLabel={`Cantidad para comprar de ${product.nombre}`}
+                    {...(Platform.OS === 'web'
+                      ? {
+                          onKeyDown: (e: any) => {
+                            if (e.key === 'ArrowUp') {
+                              e.preventDefault();
+                              const current = parseInt(buyQty, 10);
+                              setBuyQty(String((isNaN(current) ? 1 : current) + 1));
+                            } else if (e.key === 'ArrowDown') {
+                              e.preventDefault();
+                              const current = parseInt(buyQty, 10);
+                              setBuyQty(String(Math.max(1, (isNaN(current) ? 1 : current) - 1)));
+                            }
+                          },
+                        }
+                      : {})}
+                  />
+
+                  <TouchableOpacity
+                    style={[styles.stepBtn, styles.stepBtnAdd]}
+                    onPress={handleIncreaseBuyQty}
+                    hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                    accessibilityLabel="Aumentar cantidad a comprar"
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.stepBtnText, styles.stepBtnAddText]}>+</Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Botón COMPRAR */}
                 <TouchableOpacity
-                  style={styles.qtyButton}
-                  onPress={handleDecrease}
+                  style={styles.addButton}
+                  onPress={handleDirectBuy}
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                  accessibilityLabel="Quitar uno"
+                  accessibilityLabel={`Comprar ${buyQty || 1} de ${product.nombre}`}
+                  activeOpacity={0.8}
                 >
-                  <Text style={styles.qtyButtonText}>−</Text>
+                  <MaterialCommunityIcons name="cart-outline" size={16} color={Colors.white} style={{ marginRight: 6 }} />
+                  <Text style={styles.addButtonText}>COMPRAR</Text>
                 </TouchableOpacity>
+              </View>
+            ) : (
+              <View
+                style={styles.cardActionGroup}
+                onStartShouldSetResponder={() => true}
+                onTouchEnd={(e) => e?.stopPropagation?.()}
+                {...(Platform.OS === 'web' ? { onClick: (e: any) => e?.stopPropagation?.() } : {})}
+              >
+                {/* Stepper en carrito con −, input para editar y + */}
+                <View style={styles.stepperRowInCart}>
+                  <TouchableOpacity
+                    style={styles.stepBtn}
+                    onPress={handleDecrease}
+                    hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                    accessibilityLabel="Quitar uno"
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.stepBtnText}>−</Text>
+                  </TouchableOpacity>
 
-                <TextInput
-                  style={styles.qtyInput}
-                  value={inputVal}
-                  onChangeText={(text) => {
-                    const cleaned = text.replace(/[^0-9]/g, '');
-                    setInputVal(cleaned);
-                  }}
-                  onBlur={commitQty}
-                  onSubmitEditing={commitQty}
-                  keyboardType="numeric"
-                  selectTextOnFocus
-                  returnKeyType="done"
-                  maxLength={5}
-                />
+                  <TextInput
+                    style={styles.stepperInputInCart}
+                    value={inputVal}
+                    onChangeText={(text) => {
+                      const cleaned = text.replace(/[^0-9]/g, '');
+                      setInputVal(cleaned);
+                    }}
+                    onBlur={commitQty}
+                    onSubmitEditing={commitQty}
+                    keyboardType="numeric"
+                    selectTextOnFocus
+                    returnKeyType="done"
+                    maxLength={5}
+                    {...(Platform.OS === 'web'
+                      ? {
+                          onKeyDown: (e: any) => {
+                            if (e.key === 'ArrowUp') {
+                              e.preventDefault();
+                              handleIncrease();
+                            } else if (e.key === 'ArrowDown') {
+                              e.preventDefault();
+                              handleDecrease();
+                            }
+                          },
+                        }
+                      : {})}
+                  />
 
+                  <TouchableOpacity
+                    style={[styles.stepBtn, styles.stepBtnInCartAdd]}
+                    onPress={handleIncrease}
+                    hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                    accessibilityLabel="Agregar uno más"
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.stepBtnText, styles.stepBtnAddText]}>+</Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Badge que indica que ya está en el carrito y permite ir */}
                 <TouchableOpacity
-                  style={[styles.qtyButton, styles.qtyButtonAdd]}
-                  onPress={handleIncrease}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                  accessibilityLabel="Agregar uno más"
+                  style={styles.inCartBadgeBtn}
+                  onPress={(e) => {
+                    e?.stopPropagation?.();
+                    router.push('/(tabs)/carrito' as any);
+                  }}
+                  activeOpacity={0.8}
+                  hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
                 >
-                  <Text style={[styles.qtyButtonText, styles.qtyButtonAddText]}>+</Text>
+                  <MaterialCommunityIcons name="cart-check" size={16} color={Colors.primary} style={{ marginRight: 6 }} />
+                  <Text style={styles.inCartBadgeText}>En el carrito · Ver</Text>
                 </TouchableOpacity>
               </View>
             )}
@@ -393,13 +544,102 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
   },
 
-  // Botón "COMPRAR"
+  // Controles de compra y Stepper con + y -
+  cardActionGroup: {
+    width: '100%',
+    gap: 6,
+  },
+  stepperRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '100%',
+    height: 32,
+    borderRadius: Radius.md,
+    borderWidth: 1.5,
+    borderColor: '#CBD5E1',
+    backgroundColor: '#F8FAFC',
+    overflow: 'hidden',
+  },
+  stepperRowFocused: {
+    borderColor: Colors.primary,
+    backgroundColor: '#FFFFFF',
+    ...(Platform.OS === 'web'
+      ? ({
+          boxShadow: '0 0 0 2px rgba(37, 99, 235, 0.15)',
+        } as any)
+      : {
+          elevation: 1,
+        }),
+  },
+  stepperRowInCart: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '100%',
+    height: 32,
+    borderRadius: Radius.md,
+    borderWidth: 1.5,
+    borderColor: Colors.primary,
+    backgroundColor: '#FFFFFF',
+    overflow: 'hidden',
+  },
+  stepBtn: {
+    width: 36,
+    height: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F1F5F9',
+  },
+  stepBtnText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#334155',
+    lineHeight: 18,
+  },
+  stepBtnAdd: {
+    backgroundColor: '#E2E8F0',
+  },
+  stepBtnInCartAdd: {
+    backgroundColor: Colors.primary,
+  },
+  stepBtnAddText: {
+    color: Colors.white,
+  },
+  stepperInput: {
+    flex: 1,
+    height: 32,
+    textAlign: 'center',
+    fontSize: 14,
+    fontWeight: '700',
+    color: Colors.textPrimary,
+    paddingVertical: 0,
+    paddingHorizontal: 2,
+    backgroundColor: 'transparent',
+    borderLeftWidth: 1,
+    borderRightWidth: 1,
+    borderColor: '#E2E8F0',
+    ...(Platform.OS === 'web' ? ({ outlineStyle: 'none' } as any) : {}),
+  },
+  stepperInputInCart: {
+    flex: 1,
+    height: 32,
+    textAlign: 'center',
+    fontSize: 14,
+    fontWeight: '700',
+    color: Colors.primary,
+    paddingVertical: 0,
+    paddingHorizontal: 2,
+    backgroundColor: '#FFFFFF',
+    borderLeftWidth: 1,
+    borderRightWidth: 1,
+    borderColor: '#DBEAFE',
+    ...(Platform.OS === 'web' ? ({ outlineStyle: 'none' } as any) : {}),
+  },
   addButton: {
     flexDirection: 'row',
     backgroundColor: Colors.primary,
     borderRadius: Radius.md,
     paddingHorizontal: Spacing.sm,
-    height: 36,
+    height: 34,
     width: '100%',
     justifyContent: 'center',
     alignItems: 'center',
@@ -410,50 +650,23 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 0.4,
   },
-
-  // Control +/−
-  quantityControl: {
+  inCartBadgeBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: Radius.md,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: Colors.primary,
-    width: '100%',
-    height: 36,
-  },
-  qtyButton: {
-    flex: 1,
-    height: 36,
     justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: Colors.white,
+    height: 34,
+    width: '100%',
+    borderRadius: Radius.md,
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    paddingHorizontal: Spacing.sm,
   },
-  qtyButtonAdd: {
-    backgroundColor: Colors.primary,
-  },
-  qtyButtonText: {
-    fontSize: FontSize.lg,
-    fontWeight: FontWeight.bold,
+  inCartBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
     color: Colors.primary,
-    lineHeight: 22,
-  },
-  qtyButtonAddText: {
-    color: Colors.white,
-  },
-  qtyInput: {
-    fontSize: 14,
-    fontWeight: FontWeight.bold,
-    color: Colors.primary,
-    minWidth: 40,
-    height: 36,
-    textAlign: 'center',
-    paddingVertical: 2,
-    paddingHorizontal: 4,
-    backgroundColor: '#F8FAFC',
-    borderLeftWidth: 1,
-    borderRightWidth: 1,
-    borderColor: '#E2E8F0',
+    letterSpacing: 0.2,
   },
   // Sin precio
   sinPrecio: {

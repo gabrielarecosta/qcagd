@@ -7,6 +7,8 @@ export interface StagedRow {
   marca: string;
   precio: number;
   stock: number;
+  precioMayorista?: number;
+  precioSocios?: number;
   estado: 'pending' | 'requires_review' | 'ready' | 'completed' | 'ignored' | 'error';
   action?: 'create_new' | 'update_by_code' | 'replace_code' | 'ignored';
   conflictReason?: 
@@ -24,6 +26,8 @@ export interface StagedRow {
   matchedProductPrice?: number;
   matchedProductStock?: number;
   matchedProductBrand?: string;
+  matchedProductPriceMayorista?: number;
+  matchedProductPriceSocios?: number;
 }
 
 export function normalizeCode(c: any): string {
@@ -60,7 +64,27 @@ export function analyzeImportRows(
   headerRow?: any[] // fila de encabezados si está disponible
 ): StagedRow[] {
   const stagedRows: StagedRow[] = [];
-  const indexes: HeaderIndexes = headerRow ? findHeaderIndexes(headerRow) : { codeIdx: 0, descIdx: 2, brandIdx: 3, priceIdx: 5, stockIdx: 6 };
+  const indexes: HeaderIndexes = headerRow 
+    ? findHeaderIndexes(headerRow) 
+    : { codeIdx: 0, descIdx: 2, brandIdx: 3, priceIdx: 5, stockIdx: 6, priceMayoristaIdx: 8, priceSociosIdx: 9 };
+
+  // Helper para parsear precios opcionales (Lista 3 y Lista 4)
+  const parseOptionalPrice = (val: any): number | undefined => {
+    if (val === undefined || val === null || val === '') return undefined;
+    let cleanStr: any = val;
+    if (typeof val === 'string') {
+      let clean = val.trim().replace(/\$/g, '').trim();
+      if (clean === '') return undefined;
+      if (clean.includes('.') && clean.includes(',')) {
+        clean = clean.replace(/\./g, '').replace(',', '.');
+      } else if (clean.includes(',')) {
+        clean = clean.replace(',', '.');
+      }
+      cleanStr = clean;
+    }
+    const num = Number(cleanStr);
+    return isNaN(num) ? undefined : num;
+  };
 
   // 1. Agrupar filas del Excel por descripción normalizada para detectar duplicados en el propio archivo
   const excelDescCounts: Record<string, number> = {};
@@ -94,6 +118,8 @@ export function analyzeImportRows(
     const rawBrand = indexes.brandIdx >= 0 ? row[indexes.brandIdx] : '';
     const rawPrice = indexes.priceIdx >= 0 ? row[indexes.priceIdx] : 0;
     const rawStock = indexes.stockIdx >= 0 ? row[indexes.stockIdx] : 0;
+    const rawPriceMayorista = indexes.priceMayoristaIdx >= 0 ? row[indexes.priceMayoristaIdx] : undefined;
+    const rawPriceSocios = indexes.priceSociosIdx >= 0 ? row[indexes.priceSociosIdx] : undefined;
 
     // Ignorar filas totalmente vacías (ej. al final de la planilla)
     if ((rawCode === undefined || rawCode === null || String(rawCode).trim() === '') &&
@@ -106,6 +132,8 @@ export function analyzeImportRows(
     const code = normalizeCode(rawCode);
     const desc = rawDesc ? String(rawDesc).trim() : '';
     const brand = rawBrand ? String(rawBrand).trim() : '';
+    const precioMayorista = parseOptionalPrice(rawPriceMayorista);
+    const precioSocios = parseOptionalPrice(rawPriceSocios);
 
     // Si este código se repite más adelante en el archivo, ignoramos esta fila para evitar duplicidades
     const lastIndex = lastIndexByCode.get(code);
@@ -117,6 +145,8 @@ export function analyzeImportRows(
         marca: brand,
         precio: Number(rawPrice) || 0,
         stock: Number(rawStock) || 0,
+        precioMayorista,
+        precioSocios,
         estado: 'ignored',
         action: 'ignored',
         validationErrors: ['Fila omitida: Existe un registro posterior en el archivo Excel con el mismo código comercial.']
@@ -180,6 +210,8 @@ export function analyzeImportRows(
         marca: brand,
         precio: isNaN(precio) ? 0 : precio,
         stock: isNaN(stock) ? 0 : stock,
+        precioMayorista,
+        precioSocios,
         estado: 'error',
         conflictReason: 'invalid_data',
         validationErrors,
@@ -226,6 +258,8 @@ export function analyzeImportRows(
         marca: brand || matchedProd.marca || '',
         precio,
         stock,
+        precioMayorista,
+        precioSocios,
         estado: 'ready',
         action,
         matchedProductId: String(matchedProd.id),
@@ -234,6 +268,8 @@ export function analyzeImportRows(
         matchedProductPrice: matchedProd.precio,
         matchedProductStock: matchedProd.stock ?? 0,
         matchedProductBrand: matchedProd.marca,
+        matchedProductPriceMayorista: matchedProd.precioMayorista,
+        matchedProductPriceSocios: matchedProd.precioSocios,
       });
       return;
     }
@@ -249,6 +285,8 @@ export function analyzeImportRows(
         marca: brand || productByCode.marca || '',
         precio,
         stock,
+        precioMayorista,
+        precioSocios,
         estado: 'ready',
         action: 'update_by_code',
         matchedProductId: String(productByCode.id),
@@ -257,6 +295,8 @@ export function analyzeImportRows(
         matchedProductPrice: productByCode.precio,
         matchedProductStock: productByCode.stock ?? 0,
         matchedProductBrand: productByCode.marca,
+        matchedProductPriceMayorista: productByCode.precioMayorista,
+        matchedProductPriceSocios: productByCode.precioSocios,
       });
       return;
     }
@@ -271,6 +311,8 @@ export function analyzeImportRows(
       marca: brand,
       precio,
       stock,
+      precioMayorista,
+      precioSocios,
       estado: 'ready',
       action: 'create_new',
     });

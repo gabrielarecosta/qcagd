@@ -293,7 +293,7 @@ export const useCartStore = create<CartStore>()((set, get) => ({
 
   totalPrice: () => {
     const { items, promotions } = get();
-    let customerType: 'mayorista' | 'minorista' = 'minorista';
+    let customerType: string = 'minorista';
     try {
       const { useAuthStore } = require('./authStore');
       customerType = useAuthStore.getState().clientData?.tipoCliente || 'minorista';

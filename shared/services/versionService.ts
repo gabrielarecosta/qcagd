@@ -109,8 +109,13 @@ export const versionService = {
 
     // Fallback seguro si la red o los servidores no responden
     return {
-      latest_version: '1.5.5',
+      latest_version: '1.6.0',
       history: [
+        {
+          version: '1.6.0',
+          fecha: '2026-10-21',
+          descripcion: 'Soporte completo para 3 listas de precios segmentadas por rol (Lista 1 Minorista, Lista 3 Mayorista, Lista 4 Socios) en importación Excel y catálogo; acciones masivas de actualización de precios por marca, categoría, subcategoría, búsqueda de texto o selección manual; nuevo panel de Solicitudes Mayoristas; corrección de búsqueda con letra ñ y optimización en carrito.',
+        },
         {
           version: '1.5.5',
           fecha: '2026-10-17',

@@ -12,7 +12,9 @@ export interface Product {
   nombre: string;
   descripcion?: string;
   presentacion?: string;    // "Bidón 5L", "Frasco 500ml", etc.
-  precio: number;           // Precio unitario en ARS
+  precio: number;           // Precio unitario en ARS (Lista 1 Minorista)
+  precioMayorista?: number;  // Precio mayorista en ARS (Lista 3 Mayoristas chicos)
+  precioSocios?: number;     // Precio socios en ARS (Lista 4 Socios)
   unidad: string;           // "litro", "kg", "unidad", "docena", etc.
   categoria: ProductCategory;
   subcategoria?: string;
@@ -209,7 +211,7 @@ export interface Customer {
   localidad: string;
   provincia: string;
   branchId?: string | number;
-  tipoCliente?: 'minorista' | 'mayorista' | 'sucursal' | 'consumidor_final';
+  tipoCliente?: 'minorista' | 'mayorista' | 'socio' | 'socios' | 'sucursal' | 'consumidor_final';
 }
 
 export interface CustomerAddress {

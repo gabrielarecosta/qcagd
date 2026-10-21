@@ -61,12 +61,23 @@ function useDebounce<T>(value: T, delay: number): T {
 // ──────────────────────────────────────────────────────────────
 export default function CatalogoScreen() {
   const router = useRouter();
-  const { isLoggedIn } = useAuthStore();
+  const { isLoggedIn, clientData } = useAuthStore();
   const { addProduct, updateQuantity, getItemQuantity } = useCartStore();
   const totalItems = useCartStore((state) => state.totalItems());
   const { width } = useWindowDimensions();
   const isDesktop = Platform.OS === 'web' && width >= 768;
   const numGridColumns = isDesktop ? (width >= 1200 ? 4 : 3) : (width < 360 ? 1 : 2);
+
+  // Rol del usuario y etiqueta de lista activa
+  const customerType = clientData?.tipoCliente?.toLowerCase?.() || 'minorista';
+  const isMayorista = customerType === 'mayorista';
+  const isSocio = customerType === 'socio' || customerType === 'socios';
+
+  const headerPricePillLabel = isSocio
+    ? '🏷️ Lista 4 · Precios Socios'
+    : isMayorista
+    ? '🏷️ Lista 3 · Precios Mayoristas'
+    : '🏷️ Lista 1 · Precios Minoristas';
 
   const {
     products,
@@ -378,7 +389,7 @@ export default function CatalogoScreen() {
             <View style={styles.desktopRightSection}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginRight: Spacing.md }}>
                 <View style={styles.headerPricePill}>
-                  <Text style={styles.headerPricePillText}>🏷️ Lista 1 · Precios Minoristas</Text>
+                  <Text style={styles.headerPricePillText}>{headerPricePillLabel}</Text>
                 </View>
               </View>
               <TouchableOpacity
@@ -442,7 +453,7 @@ export default function CatalogoScreen() {
 
                 <View style={{ alignItems: 'center', marginTop: 8 }}>
                   <View style={styles.headerPricePill}>
-                    <Text style={styles.headerPricePillText}>🏷️ Lista 1 · Precios Minoristas</Text>
+                    <Text style={styles.headerPricePillText}>{headerPricePillLabel}</Text>
                   </View>
                 </View>
           </View>
@@ -763,10 +774,25 @@ export default function CatalogoScreen() {
                   {selectedProductDetails.presentacion} · por {selectedProductDetails.unidad}
                 </Text>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 }}>
-                  <Text style={styles.modalPrice}>{formatPrice(selectedProductDetails.precio)}</Text>
-                  <View style={styles.headerPricePill}>
-                    <Text style={styles.headerPricePillText}>Lista 1 · Minorista</Text>
-                  </View>
+                  {(() => {
+                    let modalDisplayPrice = selectedProductDetails.precio;
+                    let modalPriceTag = 'Lista 1 · Minorista';
+                    if (isSocio && selectedProductDetails.precioSocios && selectedProductDetails.precioSocios > 0) {
+                      modalDisplayPrice = selectedProductDetails.precioSocios;
+                      modalPriceTag = 'Lista 4 · Socio';
+                    } else if (isMayorista && selectedProductDetails.precioMayorista && selectedProductDetails.precioMayorista > 0) {
+                      modalDisplayPrice = selectedProductDetails.precioMayorista;
+                      modalPriceTag = 'Lista 3 · Mayorista';
+                    }
+                    return (
+                      <>
+                        <Text style={styles.modalPrice}>{formatPrice(modalDisplayPrice)}</Text>
+                        <View style={styles.headerPricePill}>
+                          <Text style={styles.headerPricePillText}>{modalPriceTag}</Text>
+                        </View>
+                      </>
+                    );
+                  })()}
                 </View>
 
                 <View style={styles.modalDivider} />

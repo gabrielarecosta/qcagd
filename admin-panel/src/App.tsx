@@ -20,6 +20,8 @@ import { LoginView } from './views/LoginView';
 import { SystemAdminView } from './views/SystemAdminView';
 import { ResetPasswordView } from './views/ResetPasswordView';
 import { AbandonedCartsView } from './views/AbandonedCartsView';
+import { WholesaleApplicationsView } from './views/WholesaleApplicationsView';
+import { wholesaleService } from '@shared/services/wholesaleService';
 import { AdminPwaInstallBanner, triggerAdminPwaInstallModal } from './components/AdminPwaInstallBanner';
 import { ChangePasswordModal } from './components/ChangePasswordModal';
 import { AdminSidebarVersion } from './components/AdminSidebarVersion';
@@ -132,6 +134,17 @@ const getSidebarIcon = (id: TabType) => {
           <line x1="2" y1="10" x2="22" y2="10"/>
         </svg>
       );
+    case 'wholesaleApplications':
+      return (
+        <svg {...props}>
+          <path d="M3 21h18"/>
+          <path d="M5 21V7l8-4v18"/>
+          <path d="M19 21V11l-6-4"/>
+          <path d="M9 9h1"/>
+          <path d="M9 13h1"/>
+          <path d="M9 17h1"/>
+        </svg>
+      );
     case 'branches':
       return (
         <svg {...props}>
@@ -202,6 +215,12 @@ function App() {
       window.location.search.includes('reset=1')
     );
   });
+
+  const [pendingWholesaleCount, setPendingWholesaleCount] = useState<number>(0);
+
+  useEffect(() => {
+    wholesaleService.getPendingCount().then(setPendingWholesaleCount).catch(() => {});
+  }, [activeTab]);
 
   const handleNavigate = (tab: TabType, replace = false) => {
     setActiveTab(tab);
@@ -375,6 +394,7 @@ function App() {
     { id: 'superoffers', label: '🔥 Súper Ofertas', group: 'Catálogo & Clientes' },
     { id: 'excel', label: 'Cargar desde Excel', group: 'Catálogo & Clientes' },
     { id: 'clients', label: 'Directorio Clientes', group: 'Catálogo & Clientes' },
+    { id: 'wholesaleApplications', label: '🏢 Solicitudes Mayoristas', group: 'Catálogo & Clientes' },
     { id: 'ctaCte', label: '💳 Cuentas Corrientes', group: 'Catálogo & Clientes' },
     
     { id: 'clientConfig', label: 'Categorías & App', group: 'Catálogo & Clientes' },
@@ -413,6 +433,8 @@ function App() {
         return <ExcelImportView />;
       case 'clients':
         return <ClientsView initialSection="directorio" />;
+      case 'wholesaleApplications':
+        return <WholesaleApplicationsView />;
       case 'ctaCte':
         return <ClientsView initialSection="ctaCte" />;
       case 'orders':
@@ -558,6 +580,18 @@ function App() {
                           boxShadow: '0 0 0 2px var(--primary-color)'
                         }} />
                       )}
+                      {sidebarCollapsed && item.id === 'wholesaleApplications' && pendingWholesaleCount > 0 && (
+                        <span style={{
+                          position: 'absolute',
+                          top: '-2px',
+                          right: '-2px',
+                          width: '8px',
+                          height: '8px',
+                          borderRadius: '50%',
+                          backgroundColor: '#f59e0b',
+                          boxShadow: '0 0 0 2px var(--primary-color)'
+                        }} />
+                      )}
                     </div>
                     <span>{item.label}</span>
                     {!sidebarCollapsed && item.id === 'dashboard' && unreadNotifications.length > 0 && (
@@ -571,6 +605,19 @@ function App() {
                         fontWeight: 'bold'
                       }}>
                         {unreadNotifications.length}
+                      </span>
+                    )}
+                    {!sidebarCollapsed && item.id === 'wholesaleApplications' && pendingWholesaleCount > 0 && (
+                      <span style={{
+                        marginLeft: 'auto',
+                        background: '#f59e0b',
+                        color: 'white',
+                        fontSize: '10.5px',
+                        padding: '1px 6px',
+                        borderRadius: '10px',
+                        fontWeight: 'bold'
+                      }}>
+                        {pendingWholesaleCount}
                       </span>
                     )}
                   </button>

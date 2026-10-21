@@ -1,4 +1,4 @@
-export type ClientType = 'mayorista' | 'minorista' | 'sucursal' | 'consumidor_final';
+export type ClientType = 'mayorista' | 'minorista' | 'socio' | 'socios' | 'sucursal' | 'consumidor_final';
 
 export interface Customer {
   id: string | number;

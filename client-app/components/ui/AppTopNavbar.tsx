@@ -69,7 +69,7 @@ export function AppTopNavbar({ activeRoute }: AppTopNavbarProps) {
 
   if (isDesktop) {
     return (
-      <View style={{ width: '100%' }}>
+      <View style={[styles.navbarRoot, (showCartPreview || showUserDropdown) && styles.navbarRootActive]}>
         <TopMarqueeBar />
         <View style={styles.desktopHeader}>
         <View style={styles.desktopHeaderInner}>
@@ -398,7 +398,7 @@ export function AppTopNavbar({ activeRoute }: AppTopNavbarProps) {
 
   // Versión Móvil
   return (
-    <View style={{ width: '100%' }}>
+    <View style={styles.navbarRoot}>
       <TopMarqueeBar />
       <View style={styles.mobileHeader}>
         <TouchableOpacity
@@ -459,9 +459,19 @@ export function AppTopNavbar({ activeRoute }: AppTopNavbarProps) {
 }
 
 const styles = StyleSheet.create({
+  // Root navbar container with stacking context
+  navbarRoot: {
+    width: '100%',
+    zIndex: 1000,
+    ...(Platform.OS === 'web' ? { position: 'relative' } : {}),
+  },
+  navbarRootActive: {
+    zIndex: 10000,
+  },
+
   // Desktop Header
   desktopHeader: {
-    backgroundColor: Colors.white,
+    backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
     width: '100%',
@@ -565,7 +575,7 @@ const styles = StyleSheet.create({
     top: 50,
     right: 0,
     width: 220,
-    backgroundColor: Colors.white,
+    backgroundColor: '#FFFFFF',
     borderRadius: Radius.md,
     borderWidth: 1,
     borderColor: '#E2E8F0',
@@ -573,9 +583,9 @@ const styles = StyleSheet.create({
     zIndex: 10000,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
+    shadowOpacity: 0.12,
     shadowRadius: 12,
-    elevation: 8,
+    elevation: 12,
   },
   userDropdownHeader: {
     paddingHorizontal: 14,
@@ -669,15 +679,15 @@ const styles = StyleSheet.create({
     top: 50,
     right: 0,
     width: 390,
-    backgroundColor: Colors.white,
+    backgroundColor: '#FFFFFF',
     borderRadius: Radius.lg,
     borderWidth: 1,
     borderColor: Colors.border,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.12,
-    shadowRadius: 20,
-    elevation: 10,
+    shadowOpacity: 0.18,
+    shadowRadius: 24,
+    elevation: 20,
     paddingVertical: 12,
     zIndex: 10000,
   },

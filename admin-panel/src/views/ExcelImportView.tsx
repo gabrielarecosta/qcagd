@@ -658,8 +658,8 @@ export function ExcelImportView() {
                 style={{ cursor: 'pointer' }}
               />
               <p style={{ fontSize: '12px', color: 'var(--text-disabled)', marginTop: '12px' }}>
-                Columnas requeridas por posición:<br />
-                A → Codigo | C → Descripcion | D → Marca | F → Lista1 | G → Stock
+                Columnas leídas del archivo Excel:<br />
+                <strong>Col A</strong>: Código | <strong>Col C</strong>: Descripción | <strong>Col D</strong>: Marca | <strong>Col F</strong>: Lista 1 (Minorista) | <strong>Col G</strong>: Stock | <strong>Col I</strong>: Lista 3 (Mayorista chicos) | <strong>Col J</strong>: Lista 4 (Socios)
               </p>
             </div>
           </div>
@@ -756,14 +756,24 @@ export function ExcelImportView() {
                       <div style={{ color: '#fca5a5', fontWeight: 600, marginBottom: '4px' }}>Datos en Excel:</div>
                       <div><strong>Descripción:</strong> {row.descripcion}</div>
                       <div><strong>Marca:</strong> {row.marca || '(vacía)'}</div>
-                      <div><strong>Precio:</strong> {formatPrice(row.precio)} | <strong>Stock:</strong> {row.stock}</div>
+                      <div>
+                        <strong>L1 Minorista:</strong> {formatPrice(row.precio)}
+                        {row.precioMayorista !== undefined && <span> | <strong>L3 Mayorista:</strong> {formatPrice(row.precioMayorista)}</span>}
+                        {row.precioSocios !== undefined && <span> | <strong>L4 Socios:</strong> {formatPrice(row.precioSocios)}</span>}
+                        <span> | <strong>Stock:</strong> {row.stock}</span>
+                      </div>
                     </div>
                     {row.matchedProductId && (
                       <div>
                         <div style={{ color: '#93c5fd', fontWeight: 600, marginBottom: '4px' }}>Coincidencia Base de Datos:</div>
                         <div><strong>Nombre actual:</strong> {row.matchedProductName}</div>
                         <div><strong>Código actual:</strong> {row.matchedProductCode}</div>
-                        <div><strong>Precio actual:</strong> {formatPrice(row.matchedProductPrice || 0)} | <strong>Stock actual:</strong> {row.matchedProductStock}</div>
+                        <div>
+                          <strong>L1 actual:</strong> {formatPrice(row.matchedProductPrice || 0)}
+                          {row.matchedProductPriceMayorista !== undefined && <span> | <strong>L3 actual:</strong> {formatPrice(row.matchedProductPriceMayorista)}</span>}
+                          {row.matchedProductPriceSocios !== undefined && <span> | <strong>L4 actual:</strong> {formatPrice(row.matchedProductPriceSocios)}</span>}
+                          <span> | <strong>Stock actual:</strong> {row.matchedProductStock}</span>
+                        </div>
                       </div>
                     )}
                   </div>

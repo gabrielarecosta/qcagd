@@ -53,9 +53,13 @@ export function ProductsView({
   const [sortBy, setSortBy] = useState<'name' | 'category' | 'price' | 'stock' | 'code'>('name');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [currentPage, setCurrentPage] = useState(1);
+  const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
 
   // State for Bulk Price Update Modal
   const [showBulkPriceModal, setShowBulkPriceModal] = useState(false);
+  const [bulkScope, setBulkScope] = useState<'filters' | 'selected'>('filters');
+  const [bulkSearchTerm, setBulkSearchTerm] = useState('');
+  const [bulkSubcategory, setBulkSubcategory] = useState('all');
   const [brandsList, setBrandsList] = useState<string[]>([]);
   const [bulkBrand, setBulkBrand] = useState('all');
   const [bulkCategory, setBulkCategory] = useState('all');
@@ -63,8 +67,8 @@ export function ProductsView({
   const [bulkCodigoDesde, setBulkCodigoDesde] = useState('');
   const [bulkCodigoHasta, setBulkCodigoHasta] = useState('');
   const [bulkVariacionTipo, setBulkVariacionTipo] = useState<'costo' | 'precio_venta'>('precio_venta');
-  const [bulkListaAfectada, setBulkListaAfectada] = useState<'precio_venta' | 'precio_mayorista'>('precio_venta');
-  const [bulkListaBase, setBulkListaBase] = useState<'misma_lista' | 'precio_venta' | 'precio_mayorista'>('misma_lista');
+  const [bulkListaAfectada, setBulkListaAfectada] = useState<'precio_venta' | 'precio_mayorista' | 'precio_socios'>('precio_venta');
+  const [bulkListaBase, setBulkListaBase] = useState<'misma_lista' | 'precio_venta' | 'precio_mayorista' | 'precio_socios'>('misma_lista');
   const [bulkModo, setBulkModo] = useState<'porcentaje' | 'monto'>('porcentaje');
   const [bulkValor, setBulkValor] = useState<string>('10');
   const [bulkRedondeo, setBulkRedondeo] = useState<number>(1);
@@ -82,11 +86,14 @@ export function ProductsView({
       setIsLoadingPreview(true);
       try {
         const prods = await productService.getMatchingProductsForPriceUpdate({
-          brand: bulkBrand,
-          category: bulkCategory,
-          supplier: bulkProveedor,
-          codeFrom: bulkCodigoDesde,
-          codeTo: bulkCodigoHasta,
+          productIds: bulkScope === 'selected' ? selectedProductIds : undefined,
+          brand: bulkScope === 'filters' ? bulkBrand : undefined,
+          category: bulkScope === 'filters' ? bulkCategory : undefined,
+          subcategory: bulkScope === 'filters' ? bulkSubcategory : undefined,
+          searchTerm: bulkScope === 'filters' ? bulkSearchTerm : undefined,
+          supplier: bulkScope === 'filters' ? bulkProveedor : undefined,
+          codeFrom: bulkScope === 'filters' ? bulkCodigoDesde : undefined,
+          codeTo: bulkScope === 'filters' ? bulkCodigoHasta : undefined,
           variationType: bulkVariacionTipo,
           targetList: bulkListaAfectada,
           baseList: bulkListaBase,
@@ -110,6 +117,10 @@ export function ProductsView({
     };
   }, [
     showBulkPriceModal,
+    bulkScope,
+    selectedProductIds,
+    bulkSearchTerm,
+    bulkSubcategory,
     bulkBrand,
     bulkCategory,
     bulkProveedor,
@@ -124,7 +135,8 @@ export function ProductsView({
     bulkSucursalId
   ]);
 
-  const handleOpenBulkPriceModal = async () => {
+  const handleOpenBulkPriceModal = async (scope: 'filters' | 'selected' = 'filters') => {
+    setBulkScope(scope === 'selected' && selectedProductIds.length > 0 ? 'selected' : 'filters');
     setBulkSucursalId(activeBranchId);
     setShowBulkPriceModal(true);
     try {
@@ -147,18 +159,25 @@ export function ProductsView({
       return;
     }
 
-    const confirmText = `¿Está seguro de aplicar una modificación de ${bulkModo === 'porcentaje' ? `${val}%` : `$${val}`} a ${matchingCount ?? 'los'} producto(s) seleccionados?`;
+    const scopeDesc = bulkScope === 'selected'
+      ? `${selectedProductIds.length} productos seleccionados con tilde`
+      : `${matchingCount ?? 'los'} producto(s) coincidentes con los filtros`;
+
+    const confirmText = `¿Está seguro de aplicar una modificación de ${bulkModo === 'porcentaje' ? `${val}%` : `$${val}`} sobre ${scopeDesc}?`;
     if (!window.confirm(confirmText)) return;
 
     setIsSubmittingBulk(true);
     try {
       const userEmail = useAdminStore.getState().currentUser?.email || '';
       const res = await bulkUpdatePrices({
-        brand: bulkBrand,
-        category: bulkCategory,
-        supplier: bulkProveedor,
-        codeFrom: bulkCodigoDesde,
-        codeTo: bulkCodigoHasta,
+        productIds: bulkScope === 'selected' ? selectedProductIds : undefined,
+        brand: bulkScope === 'filters' ? bulkBrand : undefined,
+        category: bulkScope === 'filters' ? bulkCategory : undefined,
+        subcategory: bulkScope === 'filters' ? bulkSubcategory : undefined,
+        searchTerm: bulkScope === 'filters' ? bulkSearchTerm : undefined,
+        supplier: bulkScope === 'filters' ? bulkProveedor : undefined,
+        codeFrom: bulkScope === 'filters' ? bulkCodigoDesde : undefined,
+        codeTo: bulkScope === 'filters' ? bulkCodigoHasta : undefined,
         variationType: bulkVariacionTipo,
         targetList: bulkListaAfectada,
         baseList: bulkListaBase,
@@ -263,8 +282,6 @@ export function ProductsView({
 
   const [formStocks, setFormStocks] = useState<Record<string, { stock: number; stockMinimo: number }>>({});
   const [stockReason, setStockReason] = useState('Ajuste de emergencia');
-
-  const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
   const [isCreatingOffer, setIsCreatingOffer] = useState(false);
   const [offerForm, setOfferForm] = useState({
     nombre: '',
@@ -777,9 +794,18 @@ export function ProductsView({
         </div>
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
           {selectedProductIds.length > 0 && (
-            <button className="btn btn-warning" onClick={handleOpenCreateOffer} style={{ background: '#fbbf24', color: '#0f172a', fontWeight: '700', border: 'none', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              🎁 Crear Oferta ({selectedProductIds.length})
-            </button>
+            <>
+              <button className="btn btn-warning" onClick={handleOpenCreateOffer} style={{ background: '#fbbf24', color: '#0f172a', fontWeight: '700', border: 'none', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                🎁 Crear Oferta ({selectedProductIds.length})
+              </button>
+              <button 
+                className="btn btn-secondary" 
+                onClick={() => handleOpenBulkPriceModal('selected')} 
+                style={{ background: '#0d9488', color: '#ffffff', fontWeight: '700', border: 'none', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
+              >
+                💲 Precios ({selectedProductIds.length} seleccionados)
+              </button>
+            </>
           )}
           <button className="btn btn-secondary" onClick={handleExportProducts}>
             📤 Exportar Excel
@@ -794,7 +820,7 @@ export function ProductsView({
           </button>
           <button
             className="btn btn-secondary"
-            onClick={handleOpenBulkPriceModal}
+            onClick={() => handleOpenBulkPriceModal('filters')}
             style={{ background: '#059669', color: '#fff', border: 'none', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: '600' }}
           >
             💲 Modificación Masiva de Precios
@@ -2338,77 +2364,136 @@ export function ProductsView({
               
               {/* Sección 1: Criterios de Selección */}
               <fieldset style={{ border: '1px solid #cbd5e1', borderRadius: '8px', padding: '16px', background: '#f8fafc', margin: 0 }}>
-                <legend style={{ fontWeight: '600', fontSize: '14px', color: '#1e293b', padding: '0 8px' }}>🔍 Criterios de Selección de Artículos</legend>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                  
-                  {/* Marca */}
-                  <div>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#475569', marginBottom: '4px' }}>Marca:</label>
-                    <select 
-                      className="form-select" 
-                      value={bulkBrand} 
-                      onChange={e => setBulkBrand(e.target.value)}
-                      style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
-                    >
-                      <option value="all">-- Todas las Marcas --</option>
-                      {brandsList.map(b => (
-                        <option key={b} value={b}>{b}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Rubro / Categoría */}
-                  <div>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#475569', marginBottom: '4px' }}>Rubro / Categoría:</label>
-                    <select 
-                      className="form-select" 
-                      value={bulkCategory} 
-                      onChange={e => setBulkCategory(e.target.value)}
-                      style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
-                    >
-                      <option value="all">-- Todos los Rubros --</option>
-                      {categories.map(c => (
-                        <option key={c.value} value={c.value}>{c.label}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Proveedor */}
-                  <div>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#475569', marginBottom: '4px' }}>Proveedor:</label>
+                <legend style={{ fontWeight: '600', fontSize: '14px', color: '#1e293b', padding: '0 8px' }}>🔍 Alcance y Criterios de Selección</legend>
+                
+                {/* Selector de Alcance */}
+                <div style={{ display: 'flex', gap: '16px', marginBottom: '14px', background: '#ffffff', padding: '10px 14px', borderRadius: '6px', border: '1px solid #e2e8f0', flexWrap: 'wrap' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: bulkScope === 'filters' ? '700' : '500', color: bulkScope === 'filters' ? '#0f172a' : '#64748b' }}>
                     <input 
-                      type="text" 
-                      className="form-input"
-                      placeholder="Todos o nombre proveedor..." 
-                      value={bulkProveedor === 'all' ? '' : bulkProveedor} 
-                      onChange={e => setBulkProveedor(e.target.value ? e.target.value : 'all')}
-                      style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+                      type="radio" 
+                      name="bulk_scope" 
+                      checked={bulkScope === 'filters'} 
+                      onChange={() => setBulkScope('filters')} 
                     />
-                  </div>
+                    <span>Filtros y Criterios Masivos (Rubro, Marca, Búsqueda, etc.)</span>
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: selectedProductIds.length > 0 ? 'pointer' : 'not-allowed', opacity: selectedProductIds.length > 0 ? 1 : 0.5, fontSize: '13px', fontWeight: bulkScope === 'selected' ? '700' : '500', color: bulkScope === 'selected' ? '#0f172a' : '#64748b' }}>
+                    <input 
+                      type="radio" 
+                      name="bulk_scope" 
+                      disabled={selectedProductIds.length === 0}
+                      checked={bulkScope === 'selected'} 
+                      onChange={() => setBulkScope('selected')} 
+                    />
+                    <span>Solo Artículos Marcados ({selectedProductIds.length} seleccionados con tilde)</span>
+                  </label>
+                </div>
 
-                  {/* Rango de Códigos */}
-                  <div>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#475569', marginBottom: '4px' }}>Rango de Código:</label>
-                    <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                {bulkScope === 'selected' ? (
+                  <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', padding: '12px 14px', borderRadius: '6px', fontSize: '13px', color: '#166534', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span>✅</span>
+                    <span>Se aplicará la modificación de precios exclusivamente a los <strong>{selectedProductIds.length}</strong> artículos seleccionados previamente con la casilla de verificación en la tabla.</span>
+                  </div>
+                ) : (
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    
+                    {/* Búsqueda por Texto / Nombre (ej: con cloro) */}
+                    <div style={{ gridColumn: 'span 2' }}>
+                      <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#475569', marginBottom: '4px' }}>
+                        Búsqueda en Nombre / Descripción (opcional):
+                      </label>
                       <input 
                         type="text" 
-                        placeholder="Desde" 
-                        value={bulkCodigoDesde} 
-                        onChange={e => setBulkCodigoDesde(e.target.value)}
-                        style={{ width: '50%', padding: '8px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px' }}
-                      />
-                      <span style={{ fontSize: '12px', color: '#64748b' }}>a</span>
-                      <input 
-                        type="text" 
-                        placeholder="Hasta" 
-                        value={bulkCodigoHasta} 
-                        onChange={e => setBulkCodigoHasta(e.target.value)}
-                        style={{ width: '50%', padding: '8px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px' }}
+                        className="form-input"
+                        placeholder="Ej: con cloro, lavandina, perfumado... (dejar vacío para no filtrar por texto)" 
+                        value={bulkSearchTerm} 
+                        onChange={e => setBulkSearchTerm(e.target.value)}
+                        style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
                       />
                     </div>
-                  </div>
 
-                </div>
+                    {/* Marca */}
+                    <div>
+                      <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#475569', marginBottom: '4px' }}>Marca:</label>
+                      <select 
+                        className="form-select" 
+                        value={bulkBrand} 
+                        onChange={e => setBulkBrand(e.target.value)}
+                        style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+                      >
+                        <option value="all">-- Todas las Marcas --</option>
+                        {brandsList.map(b => (
+                          <option key={b} value={b}>{b}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Rubro / Categoría */}
+                    <div>
+                      <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#475569', marginBottom: '4px' }}>Rubro / Categoría:</label>
+                      <select 
+                        className="form-select" 
+                        value={bulkCategory} 
+                        onChange={e => setBulkCategory(e.target.value)}
+                        style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+                      >
+                        <option value="all">-- Todos los Rubros --</option>
+                        {categories.map(c => (
+                          <option key={c.value} value={c.value}>{c.label}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Subcategoría */}
+                    <div>
+                      <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#475569', marginBottom: '4px' }}>Subcategoría (opcional):</label>
+                      <input 
+                        type="text" 
+                        className="form-input"
+                        placeholder="Todas o texto subcategoría..." 
+                        value={bulkSubcategory === 'all' ? '' : bulkSubcategory} 
+                        onChange={e => setBulkSubcategory(e.target.value ? e.target.value : 'all')}
+                        style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+                      />
+                    </div>
+
+                    {/* Proveedor */}
+                    <div>
+                      <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#475569', marginBottom: '4px' }}>Proveedor:</label>
+                      <input 
+                        type="text" 
+                        className="form-input"
+                        placeholder="Todos o nombre proveedor..." 
+                        value={bulkProveedor === 'all' ? '' : bulkProveedor} 
+                        onChange={e => setBulkProveedor(e.target.value ? e.target.value : 'all')}
+                        style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+                      />
+                    </div>
+
+                    {/* Rango de Códigos */}
+                    <div style={{ gridColumn: 'span 2' }}>
+                      <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#475569', marginBottom: '4px' }}>Rango de Código (opcional):</label>
+                      <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                        <input 
+                          type="text" 
+                          placeholder="Desde" 
+                          value={bulkCodigoDesde} 
+                          onChange={e => setBulkCodigoDesde(e.target.value)}
+                          style={{ width: '50%', padding: '8px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px' }}
+                        />
+                        <span style={{ fontSize: '12px', color: '#64748b' }}>a</span>
+                        <input 
+                          type="text" 
+                          placeholder="Hasta" 
+                          value={bulkCodigoHasta} 
+                          onChange={e => setBulkCodigoHasta(e.target.value)}
+                          style={{ width: '50%', padding: '8px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px' }}
+                        />
+                      </div>
+                    </div>
+
+                  </div>
+                )}
               </fieldset>
 
               {/* Sección 2: Variación del */}
@@ -2440,10 +2525,9 @@ export function ProductsView({
                       onChange={e => setBulkListaAfectada(e.target.value as any)}
                       style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
                     >
-                      <option value="precio_venta">Precio Venta (General)</option>
-                      <option value="precio_mayorista">Lista Mayorista</option>
-                      <option value="minorista" disabled>Lista Minorista (No habilitado)</option>
-                      <option value="tarjeta" disabled>Lista Tarjeta (No habilitado)</option>
+                      <option value="precio_venta">Lista 1 (Minorista / General)</option>
+                      <option value="precio_mayorista">Lista 3 (Mayoristas chicos)</option>
+                      <option value="precio_socios">Lista 4 (Socios)</option>
                     </select>
                   </div>
 
@@ -2457,8 +2541,9 @@ export function ProductsView({
                       style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
                     >
                       <option value="misma_lista">Misma Lista (Precio Actual)</option>
-                      <option value="precio_venta">Precio Venta General</option>
-                      <option value="precio_mayorista">Lista Mayorista</option>
+                      <option value="precio_venta">Lista 1 (Minorista / General)</option>
+                      <option value="precio_mayorista">Lista 3 (Mayoristas chicos)</option>
+                      <option value="precio_socios">Lista 4 (Socios)</option>
                     </select>
                   </div>
                 </div>
@@ -2557,8 +2642,16 @@ export function ProductsView({
                     </div>
                     <div style={{ fontSize: '12px', color: '#0284c7' }}>
                       {bulkModo === 'porcentaje' 
-                        ? `Ajuste de ${bulkValor}% en ${bulkListaAfectada === 'precio_venta' ? 'Precio Venta General' : 'Lista Mayorista'}`
-                        : `Ajuste de $${bulkValor} en ${bulkListaAfectada === 'precio_venta' ? 'Precio Venta General' : 'Lista Mayorista'}`
+                        ? `Ajuste de ${bulkValor}% en ${
+                            bulkListaAfectada === 'precio_venta' ? 'Lista 1 (Minorista / General)' :
+                            bulkListaAfectada === 'precio_mayorista' ? 'Lista 3 (Mayoristas chicos)' :
+                            'Lista 4 (Socios)'
+                          }`
+                        : `Ajuste de $${bulkValor} en ${
+                            bulkListaAfectada === 'precio_venta' ? 'Lista 1 (Minorista / General)' :
+                            bulkListaAfectada === 'precio_mayorista' ? 'Lista 3 (Mayoristas chicos)' :
+                            'Lista 4 (Socios)'
+                          }`
                       }
                     </div>
                   </div>
