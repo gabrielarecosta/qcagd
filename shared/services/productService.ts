@@ -1267,6 +1267,8 @@ export const productService = {
           codigo: codeStr,
           nombre: String(p.nombre || 'Producto importado').trim(),
           precio: Number(p.precio) || 0,
+          precio_mayorista: p.precio_mayorista !== undefined ? (p.precio_mayorista ? Number(p.precio_mayorista) : null) : (p.precioMayorista ? Number(p.precioMayorista) : null),
+          precio_socios: p.precio_socios !== undefined ? (p.precio_socios ? Number(p.precio_socios) : null) : (p.precioSocios ? Number(p.precioSocios) : null),
           branch_id: p.branch_id ? Number(p.branch_id) : branchId,
           marca: p.marca ? String(p.marca).trim() : null,
           activo: p.activo ?? true,

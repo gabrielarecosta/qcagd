@@ -164,10 +164,17 @@ export function analyzeImportRows(
       validationErrors.push('La descripción (nombre) es obligatoria y no puede estar vacía.');
     }
 
-    // Validación de precio (Lista 1 - Columna F precio al público minorista)
+    // Validación de precio (Lista 1 precio al público minorista)
     let precio = 0;
-    if (rawPrice === undefined || rawPrice === null || rawPrice === '') {
-      validationErrors.push('El precio al público minorista (Lista 1 - Columna F) está vacío.');
+    if (rawPrice === undefined || rawPrice === null || String(rawPrice).trim() === '') {
+      // Si no tiene precio minorista pero sí mayorista o socio, usarlo como base
+      if (precioMayorista !== undefined && precioMayorista > 0) {
+        precio = precioMayorista;
+      } else if (precioSocios !== undefined && precioSocios > 0) {
+        precio = precioSocios;
+      } else {
+        validationErrors.push('El precio al público minorista (Lista 1) está vacío.');
+      }
     } else {
       let parsedVal: any = rawPrice;
       if (typeof rawPrice === 'string') {
@@ -185,11 +192,9 @@ export function analyzeImportRows(
       }
     }
 
-    // Validación de stock
+    // Validación de stock (si viene vacío o no especificado, se asume 0 unidades)
     let stock = 0;
-    if (rawStock === undefined || rawStock === null || rawStock === '') {
-      validationErrors.push('El stock está vacío.');
-    } else {
+    if (rawStock !== undefined && rawStock !== null && String(rawStock).trim() !== '') {
       let parsedStock: any = rawStock;
       if (typeof rawStock === 'string') {
         let clean = rawStock.trim().replace(/\./g, '').replace(',', '.');
