@@ -263,12 +263,27 @@ export function ProductsView({
   const [isCreating, setIsCreating] = useState(false);
 
   // Form State for Editing/Creating
-  const [formProduct, setFormProduct] = useState({
+  const [formProduct, setFormProduct] = useState<{
+    codigo: string;
+    nombre: string;
+    categoria: ProductCategory;
+    presentacion: string;
+    precio: number;
+    precioMayorista?: number;
+    precioSocios?: number;
+    unidad: string;
+    destacado: boolean;
+    imagen: string;
+    imagenSecundaria: string;
+    descripcion: string;
+  }>({
     codigo: '',
     nombre: '',
     categoria: 'limpieza' as ProductCategory,
     presentacion: '',
     precio: 0,
+    precioMayorista: undefined,
+    precioSocios: undefined,
     unidad: 'U',
     destacado: false,
     imagen: '',
@@ -357,6 +372,8 @@ export function ProductsView({
       categoria: p.categoria,
       presentacion: p.presentacion || '',
       precio: p.precio,
+      precioMayorista: p.precioMayorista,
+      precioSocios: p.precioSocios,
       unidad: p.unidad,
       destacado: p.destacado || false,
       imagen: primaryImg,
@@ -383,6 +400,8 @@ export function ProductsView({
       categoria: 'limpieza',
       presentacion: '',
       precio: 0,
+      precioMayorista: undefined,
+      precioSocios: undefined,
       unidad: 'U',
       destacado: false,
       imagen: '',
@@ -560,6 +579,8 @@ export function ProductsView({
       categoria: formProduct.categoria,
       presentacion: formProduct.presentacion,
       precio: formProduct.precio,
+      precioMayorista: formProduct.precioMayorista ? Number(formProduct.precioMayorista) : undefined,
+      precioSocios: formProduct.precioSocios ? Number(formProduct.precioSocios) : undefined,
       unidad: formProduct.unidad,
       destacado: formProduct.destacado,
       imagen: img1 || (imgsList[0] || undefined),
@@ -591,6 +612,8 @@ export function ProductsView({
       categoria: formProduct.categoria,
       presentacion: formProduct.presentacion,
       precio: formProduct.precio,
+      precioMayorista: formProduct.precioMayorista ? Number(formProduct.precioMayorista) : undefined,
+      precioSocios: formProduct.precioSocios ? Number(formProduct.precioSocios) : undefined,
       unidad: formProduct.unidad,
       destacado: formProduct.destacado,
       imagen: img1 || (imgsList[0] || undefined),
@@ -613,9 +636,10 @@ export function ProductsView({
         Categoría: p.categoria,
         Presentación: p.presentacion || '',
         Unidad: p.unidad,
-        Precio: p.precio,
-        PrecioMayorista: p.precioMayorista || '',
+        'Precio Lista 1 (Minorista)': p.precio,
         Stock: stockInfo.stock,
+        'Precio Lista 3 (Mayorista)': p.precioMayorista || '',
+        'Precio Lista 4 (Socios)': p.precioSocios || '',
       };
     });
 
@@ -1066,8 +1090,10 @@ export function ProductsView({
                 </th>
                 <th>Presentación</th>
                 <th style={{ cursor: 'pointer' }} onClick={() => handleSort('price')}>
-                  Precio {sortBy === 'price' ? (sortOrder === 'asc' ? '▲' : '▼') : ''}
+                  Precio L1 (Minorista) {sortBy === 'price' ? (sortOrder === 'asc' ? '▲' : '▼') : ''}
                 </th>
+                <th>Lista 3 (Mayorista)</th>
+                <th>Lista 4 (Socios)</th>
                 <th style={{ cursor: 'pointer' }} onClick={() => handleSort('stock')}>
                   Stock Activo {sortBy === 'stock' ? (sortOrder === 'asc' ? '▲' : '▼') : ''}
                 </th>
@@ -1079,13 +1105,13 @@ export function ProductsView({
             <tbody>
               {isLoadingProducts && paginatedProducts.length === 0 ? (
                 <tr>
-                  <td colSpan={10} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-secondary)' }}>
+                  <td colSpan={12} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-secondary)' }}>
                     ⏳ Cargando productos desde Supabase...
                   </td>
                 </tr>
               ) : totalProductsCount === 0 && !isLoadingProducts ? (
                 <tr>
-                  <td colSpan={10} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-disabled)' }}>
+                  <td colSpan={12} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-disabled)' }}>
                     No se encontraron productos con los filtros aplicados.
                   </td>
                 </tr>
@@ -1108,6 +1134,12 @@ export function ProductsView({
                       <td><span className="badge badge-neutral" style={{ textTransform: 'capitalize' }}>{p.categoria}</span></td>
                       <td>{p.presentacion || '-'}</td>
                       <td style={{ fontWeight: '600' }}>{formatPrice(p.precio)}</td>
+                      <td style={{ color: p.precioMayorista ? '#38bdf8' : 'var(--text-disabled)', fontSize: '13px' }}>
+                        {p.precioMayorista ? formatPrice(p.precioMayorista) : '-'}
+                      </td>
+                      <td style={{ color: p.precioSocios ? '#a855f7' : 'var(--text-disabled)', fontSize: '13px' }}>
+                        {p.precioSocios ? formatPrice(p.precioSocios) : '-'}
+                      </td>
                       <td>
                         <span className={`badge ${stockInfo.isLowStock ? 'badge-error' : 'badge-success'}`}>
                           {stockInfo.stock} {p.unidad}
@@ -1280,9 +1312,9 @@ export function ProductsView({
                   </div>
                 </div>
 
-                <div className="form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px', alignItems: 'center' }}>
+                <div className="form-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '16px', alignItems: 'center' }}>
                   <div className="form-group">
-                    <label className="form-label" style={{ color: '#94a3b8', fontSize: '12px', marginBottom: '4px', display: 'block' }}>Precio ($ ARS)</label>
+                    <label className="form-label" style={{ color: '#94a3b8', fontSize: '12px', marginBottom: '4px', display: 'block' }}>L1 Minorista ($ ARS)</label>
                     <input 
                       type="number" 
                       className="form-input" 
@@ -1291,15 +1323,27 @@ export function ProductsView({
                       disabled
                     />
                   </div>
-                  <div className="form-group" style={{ display: 'flex', alignItems: 'center', marginTop: '20px' }}>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: '500', fontSize: '13px', color: '#e2e8f0' }}>
-                      <input 
-                        type="checkbox" 
-                        checked={formProduct.destacado} 
-                        onChange={e => setFormProduct({ ...formProduct, destacado: e.target.checked })}
-                      />
-                      Destacar producto (inicio de app)
-                    </label>
+                  <div className="form-group">
+                    <label className="form-label" style={{ color: '#38bdf8', fontSize: '12px', marginBottom: '4px', display: 'block', fontWeight: '600' }}>L3 Mayorista ($ ARS)</label>
+                    <input 
+                      type="number" 
+                      className="form-input" 
+                      style={{ background: '#1e293b', border: '1px solid #38bdf8', color: '#fff', borderRadius: '6px', width: '100%', padding: '8px 12px' }}
+                      value={formProduct.precioMayorista ?? ''}
+                      placeholder="Igual a L1 si vacío"
+                      onChange={e => setFormProduct({ ...formProduct, precioMayorista: e.target.value ? parseFloat(e.target.value) : undefined })}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label" style={{ color: '#c084fc', fontSize: '12px', marginBottom: '4px', display: 'block', fontWeight: '600' }}>L4 Socios ($ ARS)</label>
+                    <input 
+                      type="number" 
+                      className="form-input" 
+                      style={{ background: '#1e293b', border: '1px solid #c084fc', color: '#fff', borderRadius: '6px', width: '100%', padding: '8px 12px' }}
+                      value={formProduct.precioSocios ?? ''}
+                      placeholder="Igual a L1 si vacío"
+                      onChange={e => setFormProduct({ ...formProduct, precioSocios: e.target.value ? parseFloat(e.target.value) : undefined })}
+                    />
                   </div>
                 </div>
 

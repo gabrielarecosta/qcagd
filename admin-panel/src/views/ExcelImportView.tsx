@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import { useAdminStore } from '../store/adminStore';
-import { validateExcelHeaders } from '@shared/utils/excelValidator';
+import { validateExcelHeaders, detectHeaderRowIndex } from '@shared/utils/excelValidator';
 import { analyzeImportRows, StagedRow } from '@shared/utils/conflictDetector';
 import { formatPrice } from '@shared/utils/formatCurrency';
 import { processLogService, ProcessExecution } from '@shared/services/processLogService';
@@ -153,10 +153,18 @@ export function ExcelImportView() {
       try {
         const data = new Uint8Array(e.target?.result as ArrayBuffer);
         const workbook = XLSX.read(data, { type: 'array' });
-        // Usar siempre la primera hoja (Hoja 1). La columna F tiene el encabezado "lista 1".
-        const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+        // Buscar la hoja con contenido si el archivo tiene varias hojas
+        let targetSheetName = workbook.SheetNames[0];
+        for (const sName of workbook.SheetNames) {
+          const testSheet = workbook.Sheets[sName];
+          if (testSheet && testSheet['!ref']) {
+            targetSheetName = sName;
+            break;
+          }
+        }
+        const worksheet = workbook.Sheets[targetSheetName];
         
-        // Obtener filas como array de arrays para validar por posición de celda
+        // Obtener filas como array de arrays para validar por posición o encabezados dinámicos
         const rawRows = XLSX.utils.sheet_to_json<any[]>(worksheet, { header: 1, defval: '' });
         
         if (rawRows.length === 0) {
@@ -165,7 +173,9 @@ export function ExcelImportView() {
           return;
         }
 
-        const headers = rawRows[0];
+        // Detectar de forma inteligente en qué fila están los encabezados (evita títulos o líneas vacías)
+        const headerRowIndex = detectHeaderRowIndex(rawRows);
+        const headers = rawRows[headerRowIndex];
         const headerValidationError = validateExcelHeaders(headers);
 
         if (headerValidationError) {
@@ -174,8 +184,9 @@ export function ExcelImportView() {
           return;
         }
 
-        // Analizar filas (excluyendo el encabezado en fila 0) pasando el encabezado para detección dinámica
-        const parsedRows = analyzeImportRows(rawRows.slice(1), productsWithStock, headers);
+        // Analizar filas de productos pasando los encabezados detectados
+        const dataRows = rawRows.slice(headerRowIndex + 1);
+        const parsedRows = analyzeImportRows(dataRows, productsWithStock, headers);
         setStagedRows(parsedRows);
         setStep('preview');
       } catch (err) {
@@ -246,6 +257,30 @@ export function ExcelImportView() {
     const ws = XLSX.utils.aoa_to_sheet(wsData);
     XLSX.utils.book_append_sheet(wb, ws, 'Errores de Importación');
     XLSX.writeFile(wb, `errores_importacion_${importId}.xlsx`);
+  };
+
+  // Descargar plantilla Excel modelo con todas las columnas configuradas
+  const handleDownloadSampleTemplate = () => {
+    const templateData = [
+      ['Código', 'Descripción', 'Marca', 'Precio Lista 1 (Minorista)', 'Stock', 'Precio Lista 3 (Mayorista)', 'Precio Lista 4 (Socios)'],
+      ['LIM-001', 'Lavandina Concentrada 1L', 'Química General Deheza', 1200, 150, 980, 900],
+      ['LIM-002', 'Detergente Vajilla 750ml', 'Química General Deheza', 1850, 80, 1550, 1400],
+      ['LIM-003', 'Desengrasante Multiuso 5L', 'Química General Deheza', 4500, 45, 3800, 3500],
+      ['PIS-001', 'Cloro Líquido 10L', 'Química General Deheza', 7200, 60, 6100, 5600]
+    ];
+    const ws = XLSX.utils.aoa_to_sheet(templateData);
+    ws['!cols'] = [
+      { wch: 14 },
+      { wch: 32 },
+      { wch: 24 },
+      { wch: 26 },
+      { wch: 12 },
+      { wch: 26 },
+      { wch: 26 },
+    ];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Plantilla Catálogo');
+    XLSX.writeFile(wb, 'plantilla_articulos_quimica.xlsx');
   };
 
   // Contadores locales para vista previa
@@ -657,10 +692,27 @@ export function ExcelImportView() {
                 onChange={handleFileChange} 
                 style={{ cursor: 'pointer' }}
               />
-              <p style={{ fontSize: '12px', color: 'var(--text-disabled)', marginTop: '12px' }}>
-                Columnas leídas del archivo Excel:<br />
-                <strong>Col A</strong>: Código | <strong>Col C</strong>: Descripción | <strong>Col D</strong>: Marca | <strong>Col F</strong>: Lista 1 (Minorista) | <strong>Col G</strong>: Stock | <strong>Col I</strong>: Lista 3 (Mayorista chicos) | <strong>Col J</strong>: Lista 4 (Socios)
-              </p>
+              <div style={{ marginTop: '16px', padding: '14px', background: 'rgba(59, 130, 246, 0.08)', borderRadius: '10px', border: '1px solid rgba(59, 130, 246, 0.2)', textAlign: 'left' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+                  <div>
+                    <span style={{ fontSize: '12px', fontWeight: 700, color: '#60A5FA', display: 'block', marginBottom: '4px' }}>
+                      📋 Formatos de Excel Compatibles:
+                    </span>
+                    <span style={{ fontSize: '11.5px', color: '#94A3B8', lineHeight: '18px' }}>
+                      • <strong>Con nombres de columna</strong> (en cualquier orden): <code>Código</code>, <code>Descripción</code>, <code>Marca</code>, <code>Lista 1</code> (Minorista), <code>Stock</code>, <code>Lista 3</code> (Mayorista), <code>Lista 4</code> (Socios).<br />
+                      • <strong>Posicional tradicional de sistema</strong>: Col A (Código), Col C (Descripción), Col D (Marca), Col F (Lista 1), Col G (Stock), Col H/I (Lista 3), Col I/J (Lista 4).
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    className="btn btn-outline"
+                    onClick={handleDownloadSampleTemplate}
+                    style={{ fontSize: '11.5px', padding: '6px 12px', borderColor: '#3B82F6', color: '#60A5FA', background: 'rgba(59, 130, 246, 0.1)' }}
+                  >
+                    📥 Descargar Plantilla Modelo (.xlsx)
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
 
