@@ -42,7 +42,7 @@ export default function ProductDetailScreen() {
   const isDesktop = width >= 860;
 
   // Stores
-  const { isLoggedIn } = useAuthStore();
+  const { isLoggedIn, clientData } = useAuthStore();
   const { addProduct, updateQuantity, getItemQuantity, totalItems } = useCartStore();
   const { isProductInAnyList } = useListsStore();
   const cartBadgeCount = totalItems();
@@ -328,7 +328,24 @@ export default function ProductDetailScreen() {
   const categoryLabel = CATEGORY_LABELS[product.categoria] || product.categoria;
   const categoryIcon = CATEGORY_ICONS[product.categoria] || 'package-variant';
   const inAnyList = isProductInAnyList(product.id);
-  const subtotalPrice = (product.precio || 0) * qty;
+
+  // Determinar lista de precios y valor correspondiente según rol
+  const customerType = clientData?.tipoCliente?.toLowerCase?.() || 'minorista';
+  const isMayorista = customerType === 'mayorista';
+  const isSocio = customerType === 'socio' || customerType === 'socios';
+
+  let displayPrice = product.precio || 0;
+  let priceListTag = 'LISTA 1 · MINORISTA';
+
+  if (isSocio && product.precioSocios && product.precioSocios > 0) {
+    displayPrice = product.precioSocios;
+    priceListTag = 'LISTA 4 · SOCIO';
+  } else if (isMayorista && product.precioMayorista && product.precioMayorista > 0) {
+    displayPrice = product.precioMayorista;
+    priceListTag = 'LISTA 3 · MAYORISTA';
+  }
+
+  const subtotalPrice = displayPrice * qty;
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -376,19 +393,21 @@ export default function ProductDetailScreen() {
           </View>
         )}
 
-        {/* Acceso rápido a carrito */}
-        <TouchableOpacity
-          style={styles.cartShortcutBtn}
-          onPress={() => router.push('/(tabs)/carrito' as any)}
-          activeOpacity={0.75}
-        >
-          <MaterialCommunityIcons name="cart-outline" size={22} color={Colors.primary} />
-          {cartBadgeCount > 0 && (
-            <View style={styles.cartShortcutBadge}>
-              <Text style={styles.cartShortcutBadgeText}>{cartBadgeCount}</Text>
-            </View>
-          )}
-        </TouchableOpacity>
+        {/* Acceso rápido a carrito en móvil */}
+        {!isDesktop && (
+          <TouchableOpacity
+            style={styles.cartShortcutBtn}
+            onPress={() => router.push('/(tabs)/carrito' as any)}
+            activeOpacity={0.75}
+          >
+            <MaterialCommunityIcons name="cart-outline" size={22} color={Colors.primary} />
+            {cartBadgeCount > 0 && (
+              <View style={styles.cartShortcutBadge}>
+                <Text style={styles.cartShortcutBadgeText}>{cartBadgeCount}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        )}
       </View>
 
       <ScrollView
@@ -593,13 +612,13 @@ export default function ProductDetailScreen() {
             <View style={styles.priceSectionCard}>
               <View style={styles.priceRow}>
                 <Text style={styles.priceAmount}>
-                  {product.precio && product.precio > 0 ? formatPrice(product.precio) : 'Sin precio'}
+                  {displayPrice && displayPrice > 0 ? formatPrice(displayPrice) : 'Sin precio'}
                 </Text>
                 <Text style={styles.priceSubunit}>/ {product.unidad || 'unidad'}</Text>
               </View>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4, flexWrap: 'wrap' }}>
                 <View style={styles.listaBadge}>
-                  <Text style={styles.listaBadgeText}>LISTA 1 · MINORISTA</Text>
+                  <Text style={styles.listaBadgeText}>{priceListTag}</Text>
                 </View>
                 <Text style={styles.priceClarification}>Precios finales vigentes con IVA incluido.</Text>
               </View>
@@ -1016,6 +1035,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#E2E8F0',
+    zIndex: 1,
   },
   backButton: {
     flexDirection: 'row',

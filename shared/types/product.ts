@@ -18,6 +18,7 @@ export interface Product {
   unidad: string;
   precio: number;
   precioMayorista?: number;
+  precioSocios?: number;
   descripcion?: string;
   imagen?: string;
   imagenSecundaria?: string;

@@ -8,6 +8,7 @@ import { supabase } from '@shared/services/supabaseClient';
 
 import { AddressLocationPicker } from '../components/AddressLocationPicker';
 import { ExtraModuleWrapper } from '../components/ExtraModuleWrapper';
+import { navigateToTab } from '../router';
 
 interface ClientsViewProps {
   initialSection?: 'directorio' | 'ctaCte';
@@ -309,7 +310,10 @@ export function ClientsView({ initialSection = 'directorio' }: ClientsViewProps)
 
       const globalBranchFilter = activeBranchId === 'all' || String(c.branchId) === String(activeBranchId);
       const localBranchFilter = selectedBranch === 'all' || String(c.branchId) === String(selectedBranch);
-      const matchesType = selectedType === 'all' || c.tipoCliente === selectedType;
+      const matchesType = selectedType === 'all' || 
+        c.tipoCliente === selectedType || 
+        (selectedType === 'socio' && (c.tipoCliente === 'socio' || c.tipoCliente === 'socios')) ||
+        (selectedType === 'minorista' && (c.tipoCliente === 'minorista' || c.tipoCliente === 'consumidor_final'));
 
       const matchesStatus = selectedActiveStatus === 'all' || 
         (selectedActiveStatus === 'activo' && c.activo) ||
@@ -555,6 +559,16 @@ export function ClientsView({ initialSection = 'directorio' }: ClientsViewProps)
             Opcional
           </span>
         </button>
+        <button
+          className="btn btn-secondary"
+          onClick={() => navigateToTab('wholesaleApplications')}
+          style={{ padding: '9px 18px', fontSize: '13.5px', fontWeight: 700, borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: '#fffbeb', borderColor: '#fde68a', color: '#b45309' }}
+        >
+          <span>🏢 Solicitudes Mayoristas</span>
+          <span style={{ backgroundColor: '#f59e0b', color: '#fff', fontSize: '10px', fontWeight: 800, padding: '2px 6px', borderRadius: '4px' }}>
+            Nuevo
+          </span>
+        </button>
       </div>
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
@@ -637,8 +651,9 @@ export function ClientsView({ initialSection = 'directorio' }: ClientsViewProps)
                   style={{ fontSize: '13px' }}
                 >
                   <option value="all">Todos los segmentos</option>
-                  <option value="minorista">Minorista</option>
-                  <option value="mayorista">Mayorista</option>
+                  <option value="minorista">Minorista (Lista 1)</option>
+                  <option value="mayorista">Mayorista (Lista 3)</option>
+                  <option value="socio">Socios (Lista 4)</option>
                 </select>
               </div>
 
@@ -862,9 +877,12 @@ export function ClientsView({ initialSection = 'directorio' }: ClientsViewProps)
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                             <span className={`badge ${
                               c.tipoCliente === 'mayorista' ? 'badge-warning' : 
+                              c.tipoCliente === 'socio' || c.tipoCliente === 'socios' ? 'badge-info' :
                               c.tipoCliente === 'sucursal' ? 'badge-primary' : 'badge-neutral'
                             }`}>
-                              {c.tipoCliente === 'sucursal' ? 'SUCURSAL' : c.tipoCliente.toUpperCase()}
+                              {c.tipoCliente === 'sucursal' 
+                                ? 'SUCURSAL' 
+                                : (c.tipoCliente === 'socio' || c.tipoCliente === 'socios' ? 'SOCIOS' : c.tipoCliente.toUpperCase())}
                             </span>
                             {c.ctaCteAutorizada ? (
                               <span style={{ fontSize: '10px', color: '#10b981', fontWeight: 'bold' }}>✓ Cta. Cte. OK</span>
@@ -1367,8 +1385,9 @@ export function ClientsView({ initialSection = 'directorio' }: ClientsViewProps)
                       value={formClient.tipoCliente}
                       onChange={e => setFormClient({ ...formClient, tipoCliente: e.target.value as ClientType })}
                     >
-                      <option value="minorista">Minorista (Consumidor Final)</option>
-                      <option value="mayorista">Mayorista (Precios diferenciados)</option>
+                      <option value="minorista">Minorista (Lista 1 · Consumidor Final)</option>
+                      <option value="mayorista">Mayorista (Lista 3 · Precios mayoristas chicos)</option>
+                      <option value="socio">Socio (Lista 4 · Precios socios)</option>
                     </select>
                   </div>
                   <div className="form-group">
@@ -1717,8 +1736,9 @@ export function ClientsView({ initialSection = 'directorio' }: ClientsViewProps)
                       value={formClient.tipoCliente}
                       onChange={e => setFormClient({ ...formClient, tipoCliente: e.target.value as ClientType })}
                     >
-                      <option value="minorista">Minorista (Consumidor Final)</option>
-                      <option value="mayorista">Mayorista (Precios diferenciados)</option>
+                      <option value="minorista">Minorista (Lista 1 · Consumidor Final)</option>
+                      <option value="mayorista">Mayorista (Lista 3 · Precios mayoristas chicos)</option>
+                      <option value="socio">Socio (Lista 4 · Precios socios)</option>
                     </select>
                   </div>
                 </div>

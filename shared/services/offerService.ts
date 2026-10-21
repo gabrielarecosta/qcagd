@@ -8,7 +8,7 @@ export interface Promotion {
   cantidad_minima: number;
   fecha_inicio: string;
   fecha_fin: string;
-  tipo_cliente: 'mayorista' | 'minorista' | 'todos';
+  tipo_cliente: 'mayorista' | 'minorista' | 'socio' | 'socios' | 'todos';
   activo: boolean;
 }
 
@@ -41,6 +41,9 @@ export const offerService = {
 
   /**
    * Calcula el precio final, descuento aplicado y subtotal para un producto y cantidad dados
+   * - Minorista / Público General: Lista 1 (product.precio)
+   * - Mayorista: Lista 3 (product.precioMayorista)
+   * - Socio / Socios: Lista 4 (product.precioSocios)
    */
   calculateFinalPrice: (
     product: Product,
@@ -52,16 +55,31 @@ export const offerService = {
     const mayoristaBasePrice = product.precioMayorista && Number(product.precioMayorista) > 0
       ? Number(product.precioMayorista)
       : minoristaBasePrice;
+    const sociosBasePrice = product.precioSocios && Number(product.precioSocios) > 0
+      ? Number(product.precioSocios)
+      : minoristaBasePrice;
+
+    const normType = String(customerType || '').toLowerCase().trim();
+    const isMayorista = normType === 'mayorista';
+    const isSocio = normType === 'socio' || normType === 'socios';
 
     // Determinar precio base inicial según rol
-    const basePrice = customerType === 'mayorista' ? mayoristaBasePrice : minoristaBasePrice;
+    let basePrice = minoristaBasePrice;
+    if (isSocio) {
+      basePrice = sociosBasePrice;
+    } else if (isMayorista) {
+      basePrice = mayoristaBasePrice;
+    }
 
     // Filtrar promociones aplicables para este producto y tipo de cliente
     const applicablePromos = promotions.filter(
       (p) =>
         p.product_id === product.id &&
         p.activo &&
-        (p.tipo_cliente === 'todos' || p.tipo_cliente === customerType)
+        (p.tipo_cliente === 'todos' || 
+         p.tipo_cliente === customerType || 
+         (isSocio && (p.tipo_cliente === 'socio' || p.tipo_cliente === 'socios')) ||
+         (isMayorista && p.tipo_cliente === 'mayorista'))
     );
 
     // Encontrar la mejor promoción que califique según cantidad_minima

@@ -5,6 +5,7 @@ export type TabType =
   | 'superoffers'
   | 'excel'
   | 'clients'
+  | 'wholesaleApplications'
   | 'ctaCte'
   | 'orders'
   | 'deliveries'
@@ -86,6 +87,11 @@ export const ROUTE_CONFIGS: Record<TabType, RouteConfig> = {
     path: '/clients',
     aliases: ['/clientsview', '/clientes', '/directorio-clientes', '/directorio'],
     title: 'Directorio de Clientes',
+  },
+  wholesaleApplications: {
+    path: '/solicitudes-mayoristas',
+    aliases: ['/solicitudes', '/solicitudes-mayorista', '/mayoristas', '/wholesale', '/wholesale-applications'],
+    title: 'Solicitudes Mayoristas',
   },
   ctaCte: {
     path: '/ctacte',

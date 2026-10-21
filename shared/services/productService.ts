@@ -18,6 +18,7 @@ const mapProduct = (d: any, rate: number = 1000, isPublic: boolean = false): Pro
     unidad: d.unidad || 'unidad',
     precio: precioArs,
     precioMayorista: isPublic ? undefined : (d.precio_mayorista ? Number(d.precio_mayorista) : undefined),
+    precioSocios: isPublic ? undefined : (d.precio_socios ? Number(d.precio_socios) : undefined),
     descripcion: d.descripcion || undefined,
     imagen: d.imagen || undefined,
     imagenSecundaria: d.imagen_secundaria || (d.imagenes && d.imagenes[1]) || undefined,
@@ -154,8 +155,11 @@ export const productService = {
     // 4. Búsqueda segura por texto (nombre, código, descripción, presentación)
     if (options.search && options.search.trim()) {
       const clean = options.search.trim();
-      // Normalizar tildes/acentos (NFD) para que "líquido" encuentre "LIQUIDO" y viceversa
-      const normalized = clean.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      // Normalizar tildes/acentos (NFD) para que "líquido" encuentre "LIQUIDO" y viceversa, pero preservando la letra Ñ / ñ (\u0303)
+      const normalized = clean
+        .normalize('NFD')
+        .replace(/[\u0300-\u0302\u0304-\u036f]/g, '')
+        .normalize('NFC');
       const terms = Array.from(new Set([clean, normalized].filter(Boolean)));
 
       const clauses: string[] = [];
@@ -531,6 +535,7 @@ export const productService = {
       unidad: product.unidad || 'unidad',
       precio: product.precio ?? 0.0,
       precio_mayorista: product.precioMayorista,
+      precio_socios: product.precioSocios,
       descripcion: product.descripcion,
       imagen: product.imagen,
       imagen_secundaria: product.imagenSecundaria || (product.imagenes && product.imagenes[1]) || null,
@@ -587,6 +592,7 @@ export const productService = {
       unidad: updates.unidad,
       precio: updates.precio,
       precio_mayorista: updates.precioMayorista,
+      precio_socios: updates.precioSocios,
       descripcion: updates.descripcion,
       imagen: updates.imagen,
       imagen_secundaria: updates.imagenSecundaria !== undefined ? updates.imagenSecundaria : (updates.imagenes && updates.imagenes[1] ? updates.imagenes[1] : undefined),
@@ -974,7 +980,13 @@ export const productService = {
 
       const cleanNameStr = (n: any) => {
         if (!n) return '';
-        return String(n).toLowerCase().trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ');
+        return String(n)
+          .toLowerCase()
+          .trim()
+          .normalize('NFD')
+          .replace(/[\u0300-\u0302\u0304-\u036f]/g, '')
+          .normalize('NFC')
+          .replace(/\s+/g, ' ');
       };
 
       dbProducts?.forEach(p => {
@@ -1029,6 +1041,8 @@ export const productService = {
             codigo: rawCode,
             nombre: rawDesc,
             precio: rawPrice,
+            precio_mayorista: sRow.precioMayorista !== undefined ? sRow.precioMayorista : null,
+            precio_socios: sRow.precioSocios !== undefined ? sRow.precioSocios : null,
             branch_id: branchId,
             activo: true,
             visible_en_app: true,
@@ -1041,7 +1055,6 @@ export const productService = {
             subcategoria: null,
             descripcion: null,
             imagen: null,
-            precio_mayorista: null,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString()
           };
@@ -1067,6 +1080,8 @@ export const productService = {
               updated_at: new Date().toISOString()
             };
             if (sRow.marca) updates.marca = String(sRow.marca).trim();
+            if (sRow.precioMayorista !== undefined) updates.precio_mayorista = sRow.precioMayorista;
+            if (sRow.precioSocios !== undefined) updates.precio_socios = sRow.precioSocios;
 
             productsUpsert.push({
               ...dbProdByCode,
@@ -1117,6 +1132,8 @@ export const productService = {
               updates.id = Number(targetProductId);
             }
             if (sRow.marca) updates.marca = String(sRow.marca).trim();
+            if (sRow.precioMayorista !== undefined) updates.precio_mayorista = sRow.precioMayorista;
+            if (sRow.precioSocios !== undefined) updates.precio_socios = sRow.precioSocios;
 
             const baseProd = dbProd || prodData;
             productsUpsert.push({
@@ -1151,6 +1168,8 @@ export const productService = {
               updates.id = Number(targetProductId);
             }
             if (sRow.marca) updates.marca = String(sRow.marca).trim();
+            if (sRow.precioMayorista !== undefined) updates.precio_mayorista = sRow.precioMayorista;
+            if (sRow.precioSocios !== undefined) updates.precio_socios = sRow.precioSocios;
 
             const baseProd = dbProd || prodData;
             productsUpsert.push({
@@ -1584,20 +1603,33 @@ export const productService = {
   getMatchingProductsForPriceUpdate: async (options: Partial<BulkPriceUpdateOptions>): Promise<any[]> => {
     let query = supabase
       .from('products')
-      .select('id, codigo, nombre, categoria, marca, precio, precio_mayorista')
+      .select('id, codigo, nombre, categoria, subcategoria, marca, precio, precio_mayorista, precio_socios')
       .is('deleted_at', null)
       .eq('activo', true);
 
+    const productIds = options.productIds || options.selectedIds;
+    if (productIds && productIds.length > 0) {
+      query = query.in('id', productIds);
+    }
+
     const category = options.categoria || options.category;
+    const subcategory = options.subcategoria || options.subcategory;
     const marca = options.marca || options.brand;
     const codigoDesde = options.codigoDesde || options.codeFrom;
     const codigoHasta = options.codigoHasta || options.codeTo;
+    const searchTerm = options.searchTerm || options.search || options.texto;
 
     if (category && category !== 'todos' && category !== 'all') {
       query = query.eq('categoria', category);
     }
+    if (subcategory && subcategory.trim() && subcategory !== 'all' && subcategory !== 'todos') {
+      query = query.ilike('subcategoria', `%${subcategory.trim()}%`);
+    }
     if (marca && marca !== 'todas' && marca !== 'all') {
       query = query.eq('marca', marca);
+    }
+    if (searchTerm && searchTerm.trim()) {
+      query = query.ilike('nombre', `%${searchTerm.trim()}%`);
     }
     if (codigoDesde && codigoDesde.trim()) {
       query = query.gte('codigo', codigoDesde.trim().toUpperCase());
@@ -1658,8 +1690,8 @@ export const productService = {
     const categoria = options.categoria || options.category;
     const marca = options.marca || options.brand;
 
-    const targetCol = targetList === 'precio_mayorista' ? 'precio_mayorista' : 'precio';
-    const baseCol = baseList === 'precio_mayorista' ? 'precio_mayorista' : 'precio';
+    const targetCol = targetList === 'precio_socios' ? 'precio_socios' : (targetList === 'precio_mayorista' ? 'precio_mayorista' : 'precio');
+    const baseCol = baseList === 'precio_socios' ? 'precio_socios' : (baseList === 'precio_mayorista' ? 'precio_mayorista' : 'precio');
 
     const updatesBatch: any[] = [];
     const priceLogsBatch: any[] = [];
@@ -1751,6 +1783,13 @@ export const productService = {
 };
 
 export interface BulkPriceUpdateOptions {
+  productIds?: (string | number)[];
+  selectedIds?: (string | number)[];
+  searchTerm?: string;
+  search?: string;
+  texto?: string;
+  subcategoria?: string;
+  subcategory?: string;
   marca?: string;
   brand?: string;
   categoria?: string;
@@ -1763,10 +1802,10 @@ export interface BulkPriceUpdateOptions {
   codeTo?: string;
   variacionTipo?: 'costo' | 'precio_venta';
   variationType?: 'costo' | 'precio_venta';
-  listaAfectada?: 'precio' | 'precio_venta' | 'precio_mayorista';
-  targetList?: 'precio' | 'precio_venta' | 'precio_mayorista';
-  listaBase?: 'misma_lista' | 'precio' | 'precio_venta' | 'precio_mayorista';
-  baseList?: 'misma_lista' | 'precio' | 'precio_venta' | 'precio_mayorista';
+  listaAfectada?: 'precio' | 'precio_venta' | 'precio_mayorista' | 'precio_socios';
+  targetList?: 'precio' | 'precio_venta' | 'precio_mayorista' | 'precio_socios';
+  listaBase?: 'misma_lista' | 'precio' | 'precio_venta' | 'precio_mayorista' | 'precio_socios';
+  baseList?: 'misma_lista' | 'precio' | 'precio_venta' | 'precio_mayorista' | 'precio_socios';
   modoCalculo?: 'porcentaje' | 'monto';
   adjustmentMode?: 'porcentaje' | 'monto';
   valor?: number;
