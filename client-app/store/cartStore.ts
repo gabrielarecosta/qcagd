@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { CartItem, Product, Order } from '../types';
 import { offerService, Promotion } from '@shared/services/offerService';
-import { cartService } from '@shared/services/cartService';
+import { cartService, normalizeCustomerRole, applyPriceListToProduct } from '@shared/services/cartService';
 
 const GUEST_CART_STORAGE_KEY = 'qgd_guest_cart';
 
@@ -119,7 +119,13 @@ export const useCartStore = create<CartStore>()((set, get) => ({
     if (!userId) return;
     set({ isLoadingServerCart: true });
     try {
-      const serverItems = await cartService.getByUserId(String(userId));
+      let customerType: string | undefined = undefined;
+      try {
+        const { useAuthStore } = require('./authStore');
+        customerType = useAuthStore.getState().clientData?.tipoCliente;
+      } catch (_) {}
+
+      const serverItems = await cartService.refreshUserCartPrices(String(userId), customerType);
       const currentGuestItems = get().items;
 
       let merged: CartItem[] = [];
@@ -139,6 +145,13 @@ export const useCartStore = create<CartStore>()((set, get) => ({
       } else if (currentGuestItems && currentGuestItems.length > 0) {
         merged = currentGuestItems;
       }
+
+      // Asegurar que todos los productos del carrito tengan el precio correspondiente al rol (socio, mayorista, minorista)
+      const role = normalizeCustomerRole(customerType);
+      merged = merged.map((mItem) => ({
+        ...mItem,
+        producto: applyPriceListToProduct(mItem.producto, role),
+      }));
 
       const sorted = sortItemsAlphabetically(merged);
       saveLocalCartItems(sorted);
@@ -163,9 +176,19 @@ export const useCartStore = create<CartStore>()((set, get) => ({
       get().fetchPromotions();
     }
 
+    let productToAdd = producto;
+    try {
+      const { useAuthStore } = require('./authStore');
+      const client = useAuthStore.getState().clientData;
+      if (client?.tipoCliente) {
+        const role = normalizeCustomerRole(client.tipoCliente);
+        productToAdd = applyPriceListToProduct(producto, role);
+      }
+    } catch (_) {}
+
     set((state) => {
       const existingIndex = state.items.findIndex(
-        (item) => String(item.producto.id) === String(producto.id)
+        (item) => String(item.producto.id) === String(productToAdd.id)
       );
 
       let newItems = [...state.items];
@@ -175,7 +198,7 @@ export const useCartStore = create<CartStore>()((set, get) => ({
           cantidad: newItems[existingIndex].cantidad + cantidad,
         };
       } else {
-        newItems.push({ producto, cantidad });
+        newItems.push({ producto: productToAdd, cantidad });
       }
 
       // Ordenar alfabéticamente los productos en el carrito

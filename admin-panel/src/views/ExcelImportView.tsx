@@ -939,6 +939,12 @@ export function ExcelImportView() {
               <span>Filas con Fallas / Rechazadas:</span>
               <strong>{summaryResult.filas_rechazadas}</strong>
             </div>
+            {summaryResult.carritos_actualizados !== undefined && summaryResult.carritos_actualizados > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderTop: '1px solid rgba(255,255,255,0.05)', color: '#38BDF8' }}>
+                <span>🛒 Carritos de Usuarios Actualizados:</span>
+                <strong>{summaryResult.carritos_actualizados} carritos (socio, mayorista, minorista)</strong>
+              </div>
+            )}
           </div>
 
           {summaryResult.filas_rechazadas > 0 && (
