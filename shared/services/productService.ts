@@ -1,5 +1,6 @@
 import { supabase } from './supabaseClient';
 import { processLogService } from './processLogService';
+import { cartService } from './cartService';
 import { Product, ProductStock, ProductCategory } from '../types/product';
 
 const mapProduct = (d: any, rate: number = 1000, isPublic: boolean = false): Product => {
@@ -618,6 +619,14 @@ export const productService = {
       .single();
 
     if (error) throw error;
+
+    // Actualizar carritos guardados si se modificó alguna lista de precios
+    if (dbUpdates.precio !== undefined || dbUpdates.precio_mayorista !== undefined || dbUpdates.precio_socios !== undefined) {
+      cartService.updateAllSavedCartsWithPriceLists().catch(err => {
+        console.warn('Advertencia actualizando carritos guardados tras update de producto:', err);
+      });
+    }
+
     return mapProduct(data, rate);
   },
 
@@ -1481,12 +1490,27 @@ export const productService = {
         .single();
 
       if (finalImpErr) throw finalImpErr;
+
+      // 6. Actualizar carritos guardados de los usuarios con sus respectivas listas de precios (socio, minorista, mayorista)
+      let cartsUpdateSummary = { cartsUpdated: 0, itemsUpdated: 0, totalCarts: 0 };
+      try {
+        cartsUpdateSummary = await cartService.updateAllSavedCartsWithPriceLists();
+        console.log(`[confirmImport] Carritos de usuarios actualizados con nuevas listas de precios:`, cartsUpdateSummary);
+      } catch (cartSyncErr: any) {
+        console.warn('Advertencia actualizando carritos guardados tras importación:', cartSyncErr?.message || cartSyncErr);
+      }
+
       await processLogService.finishProcess(procLogId, 'completado', {
         productos_creados: createdCount,
         productos_actualizados: updatedCount + codeReplacedCount,
-        filas_rechazadas: failedCount
+        filas_rechazadas: failedCount,
+        carritos_actualizados: cartsUpdateSummary.cartsUpdated,
       });
-      return finalImp;
+
+      return {
+        ...finalImp,
+        carritos_actualizados: cartsUpdateSummary.cartsUpdated,
+      };
     } catch (err: any) {
       console.error('Error fatal durante confirmImport:', err);
       try {
@@ -1779,6 +1803,13 @@ export const productService = {
         fecha_fin: new Date().toISOString(),
       });
     } catch (_) {}
+
+    // Actualizar carritos guardados con las nuevas listas de precios
+    try {
+      await cartService.updateAllSavedCartsWithPriceLists();
+    } catch (cartSyncErr: any) {
+      console.warn('Advertencia actualizando carritos guardados tras ajuste masivo de precios:', cartSyncErr?.message || cartSyncErr);
+    }
 
     return { updatedCount: updatesBatch.length };
   }
