@@ -328,8 +328,18 @@ export function ListaDetalleScreen({ listId, onBack }: ListaDetalleScreenProps) 
                         )}
 
                         <View style={styles.resultInfo}>
-                          <Text style={styles.resultName} numberOfLines={1}>
-                            {prod.nombre}
+                          <Text 
+                            style={styles.resultName} 
+                            numberOfLines={1}
+                            {...(Platform.OS === 'web' ? ({ translate: 'no', className: 'notranslate' } as any) : {})}
+                          >
+                            {Platform.OS === 'web' ? (
+                              <span className="notranslate" translate="no">
+                                {prod.nombre}
+                              </span>
+                            ) : (
+                              prod.nombre
+                            )}
                           </Text>
                           <Text style={styles.resultMeta}>
                             {prod.presentacion || prod.codigo} • {prod.precio > 0 ? formatPrice(prod.precio) : 'Sin precio'}
@@ -400,8 +410,18 @@ export function ListaDetalleScreen({ listId, onBack }: ListaDetalleScreenProps) 
 
                   {/* Datos del producto */}
                   <View style={styles.productInfo}>
-                    <Text style={styles.productName} numberOfLines={2}>
-                      {p.nombre}
+                    <Text 
+                      style={styles.productName} 
+                      numberOfLines={2}
+                      {...(Platform.OS === 'web' ? ({ translate: 'no', className: 'notranslate' } as any) : {})}
+                    >
+                      {Platform.OS === 'web' ? (
+                        <span className="notranslate" translate="no">
+                          {p.nombre}
+                        </span>
+                      ) : (
+                        p.nombre
+                      )}
                     </Text>
                     <Text style={styles.productDetails}>
                       {p.presentacion || p.codigo} • por {p.unidad || 'unidad'}

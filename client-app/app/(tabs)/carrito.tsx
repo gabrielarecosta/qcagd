@@ -1707,8 +1707,18 @@ function CartItemRow({
 
       {/* Info del producto */}
       <View style={rowStyles.info}>
-        <Text style={rowStyles.nombre} numberOfLines={2}>
-          {producto.nombre}
+        <Text 
+          style={rowStyles.nombre} 
+          numberOfLines={2}
+          {...(Platform.OS === 'web' ? ({ translate: 'no', className: 'notranslate' } as any) : {})}
+        >
+          {Platform.OS === 'web' ? (
+            <span className="notranslate" translate="no">
+              {producto.nombre}
+            </span>
+          ) : (
+            producto.nombre
+          )}
         </Text>
         {producto.presentacion && (
           <Text style={rowStyles.presentacion}>{producto.presentacion}</Text>

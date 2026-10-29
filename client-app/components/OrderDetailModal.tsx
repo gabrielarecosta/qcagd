@@ -344,8 +344,18 @@ export function OrderDetailModal({ order, onClose, onRepeat }: OrderDetailModalP
               })).map((item, idx) => (
                 <View key={idx} style={styles.itemRow}>
                   <View style={styles.itemMain}>
-                    <Text style={styles.itemName} numberOfLines={2}>
-                      {item.producto.nombre}
+                    <Text 
+                      style={styles.itemName} 
+                      numberOfLines={2}
+                      {...(Platform.OS === 'web' ? ({ translate: 'no', className: 'notranslate' } as any) : {})}
+                    >
+                      {Platform.OS === 'web' ? (
+                        <span className="notranslate" translate="no">
+                          {item.producto.nombre}
+                        </span>
+                      ) : (
+                        item.producto.nombre
+                      )}
                     </Text>
                     <Text style={styles.itemSub}>
                       {item.cantidad} x {formatPrice(item.precioUnitario)}

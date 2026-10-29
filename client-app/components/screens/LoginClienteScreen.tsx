@@ -41,6 +41,7 @@ function AnimatedInput({
   autoCapitalize?: any;
   delay?: number;
 }) {
+  const [showPassword, setShowPassword] = useState(false);
   const [focused, setFocused] = useState(false);
   const borderColor = useRef(new Animated.Value(0)).current;
   const { animatedStyle } = useEntrance({ delay, fromY: 10 });
@@ -64,22 +65,37 @@ function AnimatedInput({
       <Animated.View
         style={[
           styles.inputContainer,
-          { borderColor: animatedBorder },
+          { borderColor: animatedBorder, flexDirection: 'row', alignItems: 'center' },
         ]}
       >
         <TextInput
-          style={styles.input}
+          style={[styles.input, { flex: 1 }]}
           placeholder={placeholder}
           placeholderTextColor="#94a3b8"
           value={value}
           onChangeText={onChangeText}
-          secureTextEntry={secureTextEntry}
+          secureTextEntry={secureTextEntry && !showPassword}
           keyboardType={keyboardType}
           autoCapitalize={autoCapitalize}
           autoCorrect={false}
           onFocus={handleFocus}
           onBlur={handleBlur}
         />
+        {secureTextEntry && (
+          <TouchableOpacity
+            onPress={() => setShowPassword(!showPassword)}
+            style={{ padding: 8, marginLeft: 6, justifyContent: 'center', alignItems: 'center' }}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            activeOpacity={0.7}
+            accessibilityLabel={showPassword ? 'Ocultar contraseña' : 'Ver contraseña'}
+          >
+            <MaterialCommunityIcons
+              name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+              size={22}
+              color={showPassword ? Colors.primary : '#94A3B8'}
+            />
+          </TouchableOpacity>
+        )}
       </Animated.View>
     </Animated.View>
   );

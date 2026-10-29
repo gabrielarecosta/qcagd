@@ -476,8 +476,18 @@ export function MisListasScreen({ onBackToAccount }: MisListasScreenProps) {
 
                         {/* Info producto */}
                         <View style={styles.resultInfo}>
-                          <Text style={styles.resultName} numberOfLines={1}>
-                            {prod.nombre}
+                          <Text 
+                            style={styles.resultName} 
+                            numberOfLines={1}
+                            {...(Platform.OS === 'web' ? ({ translate: 'no', className: 'notranslate' } as any) : {})}
+                          >
+                            {Platform.OS === 'web' ? (
+                              <span className="notranslate" translate="no">
+                                {prod.nombre}
+                              </span>
+                            ) : (
+                              prod.nombre
+                            )}
                           </Text>
                           <Text style={styles.resultMeta}>
                             {prod.presentacion || prod.codigo} • {prod.precio > 0 ? formatPrice(prod.precio) : 'Sin precio'}
