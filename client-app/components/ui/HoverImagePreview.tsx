@@ -279,6 +279,8 @@ export function HoverImagePreview({
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           {name ? (
             <div
+              className="notranslate"
+              translate="no"
               style={{
                 fontSize: 15,
                 fontWeight: 700,

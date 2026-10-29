@@ -71,8 +71,18 @@ export function CartPreviewItemRow({
 
       <View style={styles.infoCol}>
         <TouchableOpacity onPress={onOpenProduct} activeOpacity={0.8}>
-          <Text style={styles.name} numberOfLines={1}>
-            {item.producto.nombre}
+          <Text 
+            style={styles.name} 
+            numberOfLines={1}
+            {...(Platform.OS === 'web' ? ({ translate: 'no', className: 'notranslate' } as any) : {})}
+          >
+            {Platform.OS === 'web' ? (
+              <span className="notranslate" translate="no">
+                {item.producto.nombre}
+              </span>
+            ) : (
+              item.producto.nombre
+            )}
           </Text>
         </TouchableOpacity>
         <Text style={styles.price}>

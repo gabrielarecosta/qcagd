@@ -6,6 +6,7 @@ import {
   StyleSheet,
   ViewStyle,
   Animated,
+  Platform,
 } from 'react-native';
 import { Order, ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from '../types';
 import { Colors } from '../constants/Colors';
@@ -86,7 +87,14 @@ export function OrderCard({ order, onPress, onRepeat, style, compact = false, de
           <View style={styles.itemsPreview}>
             {order.items.slice(0, 2).map((item, i) => (
               <Text key={i} style={styles.itemPreviewText} numberOfLines={1}>
-                • {item.cantidad}x {item.producto.nombre}
+                • {item.cantidad}x{' '}
+                {Platform.OS === 'web' ? (
+                  <span className="notranslate" translate="no">
+                    {item.producto.nombre}
+                  </span>
+                ) : (
+                  item.producto.nombre
+                )}
               </Text>
             ))}
             {order.items.length > 2 && (

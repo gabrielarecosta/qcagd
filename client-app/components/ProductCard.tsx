@@ -210,8 +210,18 @@ export function ProductCard({ product, style, onPress, delay = 0 }: ProductCardP
         <View style={styles.info}>
           <View>
             <Text style={styles.codigo}>{product.codigo}</Text>
-            <Text style={styles.nombre} numberOfLines={2}>
-              {product.nombre}
+            <Text 
+              style={styles.nombre} 
+              numberOfLines={2}
+              {...(Platform.OS === 'web' ? ({ translate: 'no', className: 'notranslate' } as any) : {})}
+            >
+              {Platform.OS === 'web' ? (
+                <span className="notranslate" translate="no">
+                  {product.nombre}
+                </span>
+              ) : (
+                product.nombre
+              )}
             </Text>
             {product.presentacion ? (
               <Text style={styles.presentacion} numberOfLines={1}>

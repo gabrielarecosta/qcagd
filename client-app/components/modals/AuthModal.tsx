@@ -44,6 +44,7 @@ export function AuthModal({ visible, onClose, initialTab = 'login' }: AuthModalP
   const [regPhone, setRegPhone] = useState('');
   const [regPassword, setRegPassword] = useState('');
   const [regConfirmPassword, setRegConfirmPassword] = useState('');
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [regAddress, setRegAddress] = useState('');
   const [regAcceptTerms, setRegAcceptTerms] = useState(true);
   const [isRegisterLoading, setIsRegisterLoading] = useState(false);
@@ -434,9 +435,12 @@ export function AuthModal({ visible, onClose, initialTab = 'login' }: AuthModalP
                       onChangeText={setRegConfirmPassword}
                       placeholder="••••••••"
                       placeholderTextColor="#94A3B8"
-                      secureTextEntry={!showPassword}
+                      secureTextEntry={!showConfirmPassword}
                       autoCapitalize="none"
                     />
+                    <TouchableOpacity onPress={() => setShowConfirmPassword(!showConfirmPassword)} style={styles.eyeBtn}>
+                      <MaterialCommunityIcons name={showConfirmPassword ? 'eye-off-outline' : 'eye-outline'} size={18} color={Colors.textSecondary} />
+                    </TouchableOpacity>
                   </View>
                 </View>
 

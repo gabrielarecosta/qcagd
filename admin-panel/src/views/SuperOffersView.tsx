@@ -586,7 +586,7 @@ export function SuperOffersView() {
                         onMouseLeave={e => (e.currentTarget.style.background = '#0f172a')}
                       >
                         <div>
-                          <div style={{ fontSize: '13px', fontWeight: '700', color: '#f8fafc' }}>{p.nombre}</div>
+                          <div className="notranslate" translate="no" style={{ fontSize: '13px', fontWeight: '700', color: '#f8fafc' }}>{p.nombre}</div>
                           <div style={{ fontSize: '11px', color: '#94a3b8' }}>{p.codigo} · Presentación: {p.presentacion || '1 U'}</div>
                         </div>
                         <div style={{ textAlign: 'right' }}>
@@ -604,7 +604,7 @@ export function SuperOffersView() {
                     {selectedItems.map((item, idx) => (
                       <div key={item.productId} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#0f172a', padding: '10px 12px', borderRadius: '8px', gap: '10px' }}>
                         <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: '13px', fontWeight: '700' }}>{idx + 1}. {item.nombre}</div>
+                          <div className="notranslate" translate="no" style={{ fontSize: '13px', fontWeight: '700' }}>{idx + 1}. {item.nombre}</div>
                           <div style={{ fontSize: '11px', color: '#94a3b8' }}>Precio unitario: {formatPrice(item.precio)}</div>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>

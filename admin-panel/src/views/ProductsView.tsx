@@ -1130,7 +1130,11 @@ export function ProductsView({
                         />
                       </td>
                       <td style={{ fontFamily: 'monospace', fontWeight: 'bold' }}>{p.codigo}</td>
-                      <td style={{ fontWeight: '500' }}>{p.nombre}</td>
+                      <td style={{ fontWeight: '500' }}>
+                        <div className="notranslate" translate="no">
+                          {p.nombre}
+                        </div>
+                      </td>
                       <td><span className="badge badge-neutral" style={{ textTransform: 'capitalize' }}>{p.categoria}</span></td>
                       <td>{p.presentacion || '-'}</td>
                       <td style={{ fontWeight: '600' }}>{formatPrice(p.precio)}</td>
@@ -1732,7 +1736,7 @@ export function ProductsView({
                   {offerItems.map((item, idx) => (
                     <div key={item.productId} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: '#0f172a', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
                       <div style={{ flex: 1, paddingRight: '12px' }}>
-                        <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#fff' }}>{item.nombre}</div>
+                        <div className="notranslate" translate="no" style={{ fontSize: '13px', fontWeight: 'bold', color: '#fff' }}>{item.nombre}</div>
                         <div style={{ fontSize: '11px', color: '#94a3b8' }}>Precio original: {formatPrice(item.precio)}</div>
                       </div>
                       
@@ -2242,7 +2246,7 @@ export function ProductsView({
                     {viewingProduct.destacado && <span style={{ background: '#fbbf24', color: '#0f172a', fontSize: '11px', fontWeight: 'bold', padding: '2px 8px', borderRadius: '12px' }}>⭐ Destacado</span>}
                   </div>
 
-                  <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '700', color: '#fff' }}>{viewingProduct.nombre}</h3>
+                  <h3 className="notranslate" translate="no" style={{ margin: 0, fontSize: '18px', fontWeight: '700', color: '#fff' }}>{viewingProduct.nombre}</h3>
                   
                   <div style={{ display: 'flex', gap: '16px', marginTop: '4px', fontSize: '14px', flexWrap: 'wrap' }}>
                     <div><span style={{ color: '#94a3b8', fontSize: '12px' }}>Precio:</span> <strong style={{ color: '#4ade80', fontSize: '16px' }}>{formatPrice(viewingProduct.precio)}</strong></div>
