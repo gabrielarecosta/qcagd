@@ -51,6 +51,21 @@ export const offerService = {
     customerType: string = 'minorista',
     promotions: Promotion[] = []
   ) => {
+    // Si el producto pertenece a una súper oferta, respetar siempre el precio especial de la oferta
+    if ((product as any)?.isSuperOffer || (product as any)?.superOfferId || (product as any)?.esSuperOferta) {
+      const promoUnit = Number((product as any).precioFinal ?? product.precio ?? (product as any).precio_venta ?? (product as any).precio_oferta ?? 0);
+      const originalUnit = Number((product as any).precioOriginal ?? (product as any).precioOriginalLista ?? (product as any).precioMinorista ?? promoUnit);
+      const discount = Math.max(0, originalUnit - promoUnit);
+      const discountPercent = originalUnit > promoUnit ? Math.round(((originalUnit - promoUnit) / originalUnit) * 100) : 0;
+      return {
+        priceOriginal: originalUnit,
+        discountApplied: discount,
+        discountPercent,
+        priceFinal: promoUnit,
+        subtotal: promoUnit * quantity,
+      };
+    }
+
     const minoristaBasePrice = Number(product.precio || 0);
     const mayoristaBasePrice = product.precioMayorista && Number(product.precioMayorista) > 0
       ? Number(product.precioMayorista)

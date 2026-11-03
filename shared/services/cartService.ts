@@ -79,6 +79,41 @@ export function applyPriceListToProduct(
   customerRole: CustomerPriceRole,
   dbProd?: any
 ): any {
+  if (!prod) return prod;
+
+  // Si el producto proviene de una súper oferta o combo promocional, preservar estrictamente su precio de oferta
+  if (prod.isSuperOffer || prod.superOfferId || prod.esSuperOferta) {
+    const offerPrice = Number(prod.precioFinal ?? prod.precio ?? prod.precioVenta ?? prod.precio_venta ?? 0);
+    const origPrice = Number(prod.precioOriginal ?? prod.precioOriginalLista ?? prod.precioMinorista ?? dbProd?.precio ?? offerPrice);
+    return {
+      ...prod,
+      ...(dbProd ? {
+        nombre: dbProd.nombre || prod.nombre,
+        presentacion: dbProd.presentacion !== undefined ? dbProd.presentacion : prod.presentacion,
+        unidad: dbProd.unidad || prod.unidad || 'unidad',
+        categoria: dbProd.categoria || prod.categoria,
+        marca: dbProd.marca !== undefined ? dbProd.marca : prod.marca,
+        imagen: dbProd.imagen || prod.imagen,
+        activo: dbProd.activo ?? true,
+      } : {}),
+      isSuperOffer: true,
+      superOfferId: prod.superOfferId,
+      superOfferName: prod.superOfferName,
+      precio: offerPrice,
+      precioFinal: offerPrice,
+      precioVenta: offerPrice,
+      precio_venta: offerPrice,
+      precioMinorista: offerPrice,
+      precioMayorista: offerPrice,
+      precioSocios: offerPrice,
+      precio_mayorista: offerPrice,
+      precio_socios: offerPrice,
+      precioOriginal: origPrice,
+      precioOriginalLista: origPrice,
+      roleListaAplicada: 'Súper Oferta',
+    };
+  }
+
   const source = dbProd || prod;
   const minoristaPrice = Number(source.precio ?? source.precioMinorista ?? 0);
   const mayoristaPrice = (source.precioMayorista ?? source.precio_mayorista) != null && Number(source.precioMayorista ?? source.precio_mayorista) > 0
@@ -214,23 +249,42 @@ export const cartService = {
     if (!userId) return [];
     try {
       const cleanId = String(userId).trim();
-      const currentItems = await this.getByUserId(cleanId);
-      if (!currentItems || currentItems.length === 0) return [];
-
+      let currentItems = await this.getByUserId(cleanId);
+      let targetUserId = cleanId;
+      let altUserId: string | null = null;
       let role = normalizeCustomerRole(explicitCustomerType);
 
-      // Si no se pasó explícito, consultar tipo_cliente en Supabase
-      if (!explicitCustomerType) {
-        const { data: cust } = await supabase
-          .from('customers')
-          .select('tipo_cliente')
-          .or(`id.eq.${cleanId},user_id.eq.${cleanId}`)
-          .maybeSingle();
-
+      // Consultar siempre cliente en Supabase para tener la fuente de verdad actualizada (rol e id alternativo)
+      try {
+        const isNum = /^\d+$/.test(cleanId);
+        let custQuery = supabase.from('customers').select('id, user_id, tipo_cliente');
+        if (isNum) {
+          custQuery = custQuery.or(`id.eq.${cleanId},user_id.eq.${cleanId}`);
+        } else {
+          custQuery = custQuery.eq('user_id', cleanId);
+        }
+        const { data: cust } = await custQuery.maybeSingle();
         if (cust) {
-          role = normalizeCustomerRole(cust.tipo_cliente);
+          if (cust.tipo_cliente) {
+            role = normalizeCustomerRole(cust.tipo_cliente);
+          }
+          const alt = isNum ? cust.user_id : (cust.id ? String(cust.id) : null);
+          if (alt && String(alt).trim() !== cleanId) {
+            altUserId = String(alt).trim();
+          }
+        }
+      } catch (_) {}
+
+      // Si no encontró items con cleanId pero tiene id alternativo, buscar con el alternativo
+      if ((!currentItems || currentItems.length === 0) && altUserId) {
+        const altItems = await this.getByUserId(altUserId);
+        if (altItems && altItems.length > 0) {
+          currentItems = altItems;
+          targetUserId = altUserId;
         }
       }
+
+      if (!currentItems || currentItems.length === 0) return [];
 
       // Obtener productos de los ítems en el carrito
       const productIds = currentItems
@@ -260,6 +314,9 @@ export const cartService = {
 
         if (
           Number(item.producto.precio ?? 0) !== Number(updatedProd.precio ?? 0) ||
+          Number(item.producto.precioFinal ?? 0) !== Number(updatedProd.precioFinal ?? 0) ||
+          Number(item.producto.precioVenta ?? 0) !== Number(updatedProd.precioVenta ?? 0) ||
+          item.producto.roleListaAplicada !== updatedProd.roleListaAplicada ||
           item.producto.precioMayorista !== updatedProd.precioMayorista ||
           item.producto.precioSocios !== updatedProd.precioSocios
         ) {
@@ -273,7 +330,13 @@ export const cartService = {
       });
 
       if (changed) {
-        await this.saveUserCart(cleanId, updatedItems);
+        await this.saveUserCart(targetUserId, updatedItems);
+        if (altUserId && altUserId !== targetUserId) {
+          await this.saveUserCart(altUserId, updatedItems);
+        }
+        if (cleanId !== targetUserId && cleanId !== altUserId) {
+          await this.saveUserCart(cleanId, updatedItems);
+        }
       }
 
       return updatedItems;
@@ -511,13 +574,26 @@ export const cartService = {
 
         const role = normalizeCustomerRole(cust?.tipo_cliente);
         const rawItems: CartItemPayload[] = cart.items || [];
+        let pricesChanged = false;
         const items: CartItemPayload[] = rawItems.map(it => {
           if (!it || !it.producto) return it;
+          const updatedProd = applyPriceListToProduct(it.producto, role);
+          const oldPrice = Number(it.producto.precioFinal ?? it.producto.precioVenta ?? it.producto.precio_venta ?? it.producto.precio ?? 0);
+          const newPrice = Number(updatedProd.precioFinal ?? updatedProd.precioVenta ?? updatedProd.precio_venta ?? updatedProd.precio ?? 0);
+          if (oldPrice !== newPrice || it.producto.roleListaAplicada !== updatedProd.roleListaAplicada) {
+            pricesChanged = true;
+          }
           return {
             ...it,
-            producto: applyPriceListToProduct(it.producto, role),
+            producto: updatedProd,
           };
         });
+
+        if (pricesChanged) {
+          this.saveUserCart(uid, items).catch(err => {
+            console.warn('[CartService] Error sincronizando user_carts en getAbandonedCarts:', err);
+          });
+        }
 
         let totalEstimated = 0;
         let totalQuantity = 0;

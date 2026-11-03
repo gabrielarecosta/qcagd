@@ -23,8 +23,10 @@ import { ListaDetalleScreen } from './ListaDetalleScreen';
 import { AddToListModal } from '../ui/AddToListModal';
 import { Product } from '../../types';
 import { supabase } from '@shared/services/supabaseClient';
+import { buildSearchOrClause } from '@shared/utils/searchUtils';
 import MaterialCommunityIcons from '../icons/MaterialCommunityIcons';
 import { HoverImagePreview } from '../ui/HoverImagePreview';
+import { getProductPriceForCustomerRole, normalizeCustomerRole } from '@shared/services/cartService';
 
 interface MisListasScreenProps {
   onBackToAccount?: () => void;
@@ -32,7 +34,8 @@ interface MisListasScreenProps {
 
 export function MisListasScreen({ onBackToAccount }: MisListasScreenProps) {
   const scrollRef = useRef<ScrollView>(null);
-  const { isLoggedIn } = useAuthStore();
+  const { isLoggedIn, clientData } = useAuthStore();
+  const customerRole = normalizeCustomerRole(clientData?.tipoCliente);
   const {
     lists,
     isLoading,
@@ -94,12 +97,23 @@ export function MisListasScreen({ onBackToAccount }: MisListasScreenProps) {
     if (!q) return;
     setIsSearching(true);
     try {
-      const { data, error } = await supabase
+      const orClause = buildSearchOrClause(
+        ['nombre', 'codigo', 'descripcion', 'presentacion'],
+        q
+      );
+
+      let query = supabase
         .from('products')
-        .select('id, codigo, nombre, descripcion, presentacion, precio, unidad, categoria, subcategoria, imagen, destacado, activo, marca')
-        .eq('activo', true)
-        .or(`nombre.ilike.%${q}%,codigo.ilike.%${q}%,descripcion.ilike.%${q}%,presentacion.ilike.%${q}%`)
-        .limit(30);
+        .select('id, codigo, nombre, descripcion, presentacion, precio, precio_mayorista, precio_socios, unidad, categoria, subcategoria, imagen, destacado, activo, marca')
+        .eq('activo', true);
+
+      if (orClause) {
+        query = query.or(orClause);
+      } else {
+        query = query.or(`nombre.ilike.%${q}%,codigo.ilike.%${q}%,descripcion.ilike.%${q}%,presentacion.ilike.%${q}%`);
+      }
+
+      const { data, error } = await query.limit(30);
 
       if (error) {
         console.error('Error al buscar productos para listas:', error);
@@ -278,16 +292,18 @@ export function MisListasScreen({ onBackToAccount }: MisListasScreenProps) {
                     {/* Previews de productos */}
                     {list.items.length > 0 ? (
                       <View style={styles.previewRow}>
-                        {previewItems.map((it, idx) => (
-                          <View key={it.id || idx} style={styles.previewThumbBox}>
-                            {it.product?.imagen ? (
-                              <HoverImagePreview
-                                imageUri={it.product.imagen}
-                                name={it.product.nombre}
-                                price={it.product.precio}
-                                presentation={it.product.presentacion}
-                                codigo={it.product.codigo}
-                              >
+                        {previewItems.map((it, idx) => {
+                          const previewPrice = it.product ? getProductPriceForCustomerRole(it.product, customerRole) : 0;
+                          return (
+                            <View key={it.id || idx} style={styles.previewThumbBox}>
+                              {it.product?.imagen ? (
+                                <HoverImagePreview
+                                  imageUri={it.product.imagen}
+                                  name={it.product.nombre}
+                                  price={previewPrice}
+                                  presentation={it.product.presentacion}
+                                  codigo={it.product.codigo}
+                                >
                                 <Image
                                   source={{ uri: it.product.imagen }}
                                   style={styles.previewThumbImg}
@@ -298,7 +314,8 @@ export function MisListasScreen({ onBackToAccount }: MisListasScreenProps) {
                               <MaterialCommunityIcons name="cube-outline" size={18} color={Colors.primary} />
                             )}
                           </View>
-                        ))}
+                        );
+                      })}
                         {list.items.length > 4 && (
                           <View style={[styles.previewThumbBox, styles.previewThumbMore]}>
                             <Text style={styles.previewThumbMoreText}>+{list.items.length - 4}</Text>
@@ -454,6 +471,7 @@ export function MisListasScreen({ onBackToAccount }: MisListasScreenProps) {
                   {searchResults.map((prod) => {
                     // Si hay lista enfocada, verificar si ya está en esa lista
                     const inFocused = focusedTargetListId ? isProductInList(focusedTargetListId, prod.id) : false;
+                    const effectivePrice = getProductPriceForCustomerRole(prod, customerRole);
 
                     return (
                       <View key={prod.id} style={styles.resultItemRow}>
@@ -462,7 +480,7 @@ export function MisListasScreen({ onBackToAccount }: MisListasScreenProps) {
                           <HoverImagePreview
                             imageUri={prod.imagen}
                             name={prod.nombre}
-                            price={prod.precio}
+                            price={effectivePrice}
                             presentation={prod.presentacion}
                             codigo={prod.codigo}
                           >
@@ -490,7 +508,7 @@ export function MisListasScreen({ onBackToAccount }: MisListasScreenProps) {
                             )}
                           </Text>
                           <Text style={styles.resultMeta}>
-                            {prod.presentacion || prod.codigo} • {prod.precio > 0 ? formatPrice(prod.precio) : 'Sin precio'}
+                            {prod.presentacion || prod.codigo} • {effectivePrice > 0 ? formatPrice(effectivePrice) : 'Sin precio'}
                           </Text>
                         </View>
 

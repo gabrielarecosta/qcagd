@@ -207,8 +207,13 @@ app.get('/api/version', async (_req: Request, res: Response): Promise<void> => {
   res.setHeader('Expires', '0');
 
   const defaultVersionData = {
-    latest_version: '1.6.0',
+    latest_version: '1.6.1',
     history: [
+      {
+        version: '1.6.1',
+        fecha: '2026-11-03',
+        descripcion: 'Precios de Súper Ofertas aplicados fielmente en el carrito; segmentación de ofertas por categoría de cliente (minorista, mayorista, socio); visualización precisa del rol del cliente en Pedidos Recientes; sincronización de precios de carritos según categoría; y búsqueda insensible a tildes.',
+      },
       {
         version: '1.6.0',
         fecha: '2026-10-21',

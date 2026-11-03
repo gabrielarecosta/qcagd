@@ -157,6 +157,20 @@ export const clientService = {
       throw error;
     }
 
+    // Si cambió el tipo de cliente (ej: asignado como socio o mayorista),
+    // actualizar de inmediato los productos del carrito abandonado en user_carts
+    if (updates.tipoCliente) {
+      try {
+        const { cartService } = await import('./cartService');
+        await cartService.refreshUserCartPrices(String(id), updates.tipoCliente);
+        if (data?.user_id && String(data.user_id) !== String(id)) {
+          await cartService.refreshUserCartPrices(String(data.user_id), updates.tipoCliente);
+        }
+      } catch (cartSyncErr) {
+        console.warn('Advertencia al sincronizar precios de carrito tras cambio de rol de cliente:', cartSyncErr);
+      }
+    }
+
     return mapCustomer(data);
   },
 

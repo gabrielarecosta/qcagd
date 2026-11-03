@@ -176,15 +176,23 @@ export const useCartStore = create<CartStore>()((set, get) => ({
       get().fetchPromotions();
     }
 
+    const isSuperOffer = Boolean(
+      (producto as any)?.isSuperOffer ||
+      (producto as any)?.superOfferId ||
+      (producto as any)?.esSuperOferta
+    );
+
     let productToAdd = producto;
-    try {
-      const { useAuthStore } = require('./authStore');
-      const client = useAuthStore.getState().clientData;
-      if (client?.tipoCliente) {
-        const role = normalizeCustomerRole(client.tipoCliente);
-        productToAdd = applyPriceListToProduct(producto, role);
-      }
-    } catch (_) {}
+    if (!isSuperOffer) {
+      try {
+        const { useAuthStore } = require('./authStore');
+        const client = useAuthStore.getState().clientData;
+        if (client?.tipoCliente) {
+          const role = normalizeCustomerRole(client.tipoCliente);
+          productToAdd = applyPriceListToProduct(producto, role);
+        }
+      } catch (_) {}
+    }
 
     set((state) => {
       const existingIndex = state.items.findIndex(
@@ -193,10 +201,19 @@ export const useCartStore = create<CartStore>()((set, get) => ({
 
       let newItems = [...state.items];
       if (existingIndex >= 0) {
-        newItems[existingIndex] = {
-          ...newItems[existingIndex],
-          cantidad: newItems[existingIndex].cantidad + cantidad,
-        };
+        const existing = newItems[existingIndex];
+        if (isSuperOffer) {
+          newItems[existingIndex] = {
+            ...existing,
+            producto: productToAdd,
+            cantidad: existing.cantidad + cantidad,
+          };
+        } else {
+          newItems[existingIndex] = {
+            ...existing,
+            cantidad: existing.cantidad + cantidad,
+          };
+        }
       } else {
         newItems.push({ producto: productToAdd, cantidad });
       }

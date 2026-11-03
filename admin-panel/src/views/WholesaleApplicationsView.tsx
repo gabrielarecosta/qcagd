@@ -98,26 +98,36 @@ export function WholesaleApplicationsView() {
     return result;
   }, [applications, statusFilter, selectedRubro, search]);
 
-  // Acción: Aprobar mayorista
-  const handleApprove = async (app: WholesaleApplication) => {
+  // Acción: Aprobar (mayorista o socio)
+  const handleApprove = async (app: WholesaleApplication, role: 'mayorista' | 'socio' = 'mayorista') => {
+    const roleLabel = role === 'socio' ? 'Socio (Lista 4 · Precios Socios)' : 'Mayorista (Lista 3 · Precios Mayoristas)';
     const confirmApprove = window.confirm(
-      `¿Aprobar solicitud de "${app.razon_social || app.nombre}"?\n\nEl cliente pasará a tener perfil Mayorista Habilitado y podrá comprar con precios de lista mayorista.`
+      `¿Aprobar solicitud de "${app.razon_social || app.nombre}" como ${roleLabel}?\n\nEl cliente pasará a tener perfil habilitado y comprará con dicha lista de precios.`
     );
     if (!confirmApprove) return;
 
     setIsProcessingAction(true);
     try {
-      const res = await wholesaleService.approve(app, currentUser?.email || currentUser?.nombre || 'admin@quimicadeheza.com');
+      const res = await wholesaleService.approve(app, currentUser?.email || currentUser?.nombre || 'admin@quimicadeheza.com', role);
       if (res.success) {
         // Actualizar estado local
-        setApplications(prev => prev.map(item => item.id === app.id ? { ...item, estado: 'aprobada', fecha_resolucion: new Date().toISOString() } : item));
+        setApplications(prev => prev.map(item => item.id === app.id ? { 
+          ...item, 
+          estado: 'aprobada', 
+          notas: `[Aprobado como ${role.toUpperCase()}] ${item.notas || ''}`.trim(),
+          fecha_resolucion: new Date().toISOString() 
+        } : item));
         if (selectedAppModal?.id === app.id) {
-          setSelectedAppModal(prev => prev ? { ...prev, estado: 'aprobada' } : null);
+          setSelectedAppModal(prev => prev ? { 
+            ...prev, 
+            estado: 'aprobada',
+            notas: `[Aprobado como ${role.toUpperCase()}] ${prev.notas || ''}`.trim()
+          } : null);
         }
         alert(`✅ ${res.message}`);
       }
     } catch (err: any) {
-      alert('Error al aprobar solicitud mayorista: ' + (err?.message || err));
+      alert('Error al aprobar solicitud: ' + (err?.message || err));
     } finally {
       setIsProcessingAction(false);
     }
@@ -519,8 +529,8 @@ export function WholesaleApplicationsView() {
                           </span>
                         )}
                         {isAprobada && (
-                          <span className="badge badge-success" style={{ fontWeight: 800 }}>
-                            ✓ Aprobada
+                          <span className={`badge ${app.notas?.includes('SOCIO') ? 'badge-info' : 'badge-success'}`} style={{ fontWeight: 800 }}>
+                            {app.notas?.includes('SOCIO') ? '👑 Socio (L4)' : '✓ Mayorista (L3)'}
                           </span>
                         )}
                         {isRechazada && (
@@ -553,12 +563,22 @@ export function WholesaleApplicationsView() {
                             <>
                               <button
                                 className="btn btn-primary"
-                                style={{ padding: '5px 10px', fontSize: '11px', backgroundColor: '#16a34a', borderColor: '#15803d', color: '#ffffff' }}
-                                onClick={() => handleApprove(app)}
+                                style={{ padding: '5px 8px', fontSize: '11px', backgroundColor: '#16a34a', borderColor: '#15803d', color: '#ffffff' }}
+                                onClick={() => handleApprove(app, 'mayorista')}
                                 disabled={isProcessingAction}
-                                title="Aceptar y habilitar como cliente mayorista"
+                                title="Aceptar y habilitar como cliente mayorista (Lista 3)"
                               >
-                                ✅ Aprobar
+                                ✅ Mayorista
+                              </button>
+
+                              <button
+                                className="btn btn-primary"
+                                style={{ padding: '5px 8px', fontSize: '11px', backgroundColor: '#9333ea', borderColor: '#7e22ce', color: '#ffffff' }}
+                                onClick={() => handleApprove(app, 'socio')}
+                                disabled={isProcessingAction}
+                                title="Aceptar y habilitar como socio de la empresa (Lista 4)"
+                              >
+                                👑 Socio
                               </button>
 
                               <button
@@ -566,7 +586,7 @@ export function WholesaleApplicationsView() {
                                 style={{ padding: '5px 8px', fontSize: '11px', backgroundColor: '#fee2e2', color: '#dc2626', borderColor: '#fca5a5' }}
                                 onClick={() => handleOpenReject(app)}
                                 disabled={isProcessingAction}
-                                title="Rechazar postulación mayorista"
+                                title="Rechazar postulación"
                               >
                                 ❌ Rechazar
                               </button>
@@ -689,14 +709,21 @@ export function WholesaleApplicationsView() {
                       handleOpenReject(app);
                     }}
                   >
-                    ❌ Rechazar Solicitud
+                    ❌ Rechazar
                   </button>
                   <button
                     className="btn btn-primary"
                     style={{ backgroundColor: '#16a34a', borderColor: '#15803d' }}
-                    onClick={() => handleApprove(selectedAppModal)}
+                    onClick={() => handleApprove(selectedAppModal, 'mayorista')}
                   >
-                    ✅ Aprobar como Mayorista
+                    ✅ Aprobar como Mayorista (L3)
+                  </button>
+                  <button
+                    className="btn btn-primary"
+                    style={{ backgroundColor: '#9333ea', borderColor: '#7e22ce' }}
+                    onClick={() => handleApprove(selectedAppModal, 'socio')}
+                  >
+                    👑 Aprobar como Socio (L4)
                   </button>
                 </>
               )}

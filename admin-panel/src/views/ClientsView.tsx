@@ -471,6 +471,7 @@ export function ClientsView({ initialSection = 'directorio' }: ClientsViewProps)
   const ctaCteSummary = useMemo(() => {
     let deudaMinoristas = 0;
     let deudaMayoristas = 0;
+    let deudaSocios = 0;
     let pendientesAutorizacionCount = 0;
 
     clients.forEach(c => {
@@ -479,7 +480,9 @@ export function ClientsView({ initialSection = 'directorio' }: ClientsViewProps)
       if (!globalBranchFilter) return;
 
       const { totalDeuda } = getClientCtaCteDetails(c);
-      if (c.tipoCliente === 'mayorista') {
+      if (c.tipoCliente === 'socio' || c.tipoCliente === 'socios') {
+        deudaSocios += totalDeuda;
+      } else if (c.tipoCliente === 'mayorista') {
         deudaMayoristas += totalDeuda;
       } else {
         deudaMinoristas += totalDeuda;
@@ -492,7 +495,7 @@ export function ClientsView({ initialSection = 'directorio' }: ClientsViewProps)
       }
     });
 
-    return { deudaMinoristas, deudaMayoristas, pendientesAutorizacionCount };
+    return { deudaMinoristas, deudaMayoristas, deudaSocios, pendientesAutorizacionCount };
   }, [clients, orders, activeBranchId]);
 
   const handleToggleCtaCteAuth = async (client: Customer) => {
@@ -1105,8 +1108,11 @@ export function ClientsView({ initialSection = 'directorio' }: ClientsViewProps)
                       )}
                     </td>
                     <td>
-                      <span className={`badge ${esMayorista ? 'badge-warning' : 'badge-neutral'}`}>
-                        {c.tipoCliente.toUpperCase()}
+                      <span className={`badge ${
+                        c.tipoCliente === 'socio' || c.tipoCliente === 'socios' ? 'badge-info' :
+                        esMayorista ? 'badge-warning' : 'badge-neutral'
+                      }`}>
+                        {c.tipoCliente === 'socio' || c.tipoCliente === 'socios' ? 'SOCIOS (L4)' : c.tipoCliente.toUpperCase()}
                       </span>
                     </td>
                     <td>
@@ -1117,7 +1123,9 @@ export function ClientsView({ initialSection = 'directorio' }: ClientsViewProps)
                       )}
                     </td>
                     <td>
-                      {esMayorista ? (
+                      {c.tipoCliente === 'socio' || c.tipoCliente === 'socios' ? (
+                        <span className="badge badge-info">👑 Socio Activo</span>
+                      ) : esMayorista ? (
                         c.mayoristaAutorizado ? (
                           <span className="badge badge-success">✓ Mayorista Aprobado</span>
                         ) : (

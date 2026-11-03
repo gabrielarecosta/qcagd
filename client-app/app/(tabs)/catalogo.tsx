@@ -292,33 +292,48 @@ export default function CatalogoScreen() {
 
     const totalOriginalComboPrice = items.reduce((sum: number, it: any) => {
       const p = it.products;
-      const unitOrigPrice = p ? (p.precio || 0) : 0;
-      const qty = Math.max(1, Math.ceil(it.cantidad || 1));
+      const unitOrigPrice = Number(p ? (p.precio || p.precio_original || 0) : 0);
+      const qty = Math.max(1, Math.ceil(Number(it.cantidad) || 1));
       return sum + (unitOrigPrice * qty);
     }, 0);
 
-    const offerPrice = offer.precio_oferta || 0;
+    const offerPrice = Number(offer.precio_oferta || 0);
 
     items.forEach((it: any) => {
       if (it.products) {
-        const qty = Math.max(1, Math.ceil(it.cantidad || 1));
-        const unitOrigPrice = it.products.precio || 0;
+        const qty = Math.max(1, Math.ceil(Number(it.cantidad) || 1));
+        const unitOrigPrice = Number(it.products.precio || it.products.precio_original || 0);
         const itemOriginalTotal = unitOrigPrice * qty;
 
         let effectiveUnitPrice = 0;
         if (totalOriginalComboPrice > 0) {
           const itemEffectiveTotal = offerPrice * (itemOriginalTotal / totalOriginalComboPrice);
-          effectiveUnitPrice = itemEffectiveTotal / qty;
+          effectiveUnitPrice = Math.round((itemEffectiveTotal / qty) * 100) / 100;
         } else {
-          const totalUnits = items.reduce((sum: number, i: any) => sum + Math.max(1, Math.ceil(i.cantidad || 1)), 0);
-          effectiveUnitPrice = offerPrice / (totalUnits || 1);
+          const totalUnits = items.reduce((sum: number, i: any) => sum + Math.max(1, Math.ceil(Number(i.cantidad) || 1)), 0);
+          effectiveUnitPrice = Math.round((offerPrice / (totalUnits || 1)) * 100) / 100;
         }
 
-        addProduct(
-          { ...it.products, precio: effectiveUnitPrice },
-          qty,
-          true
-        );
+        const superOfferProduct = {
+          ...it.products,
+          isSuperOffer: true,
+          superOfferId: offer.id,
+          superOfferName: offer.nombre,
+          precio: effectiveUnitPrice,
+          precioFinal: effectiveUnitPrice,
+          precioVenta: effectiveUnitPrice,
+          precio_venta: effectiveUnitPrice,
+          precioMinorista: effectiveUnitPrice,
+          precioMayorista: effectiveUnitPrice,
+          precioSocios: effectiveUnitPrice,
+          precio_mayorista: effectiveUnitPrice,
+          precio_socios: effectiveUnitPrice,
+          precioOriginal: unitOrigPrice > 0 ? unitOrigPrice : effectiveUnitPrice,
+          precioOriginalLista: unitOrigPrice > 0 ? unitOrigPrice : effectiveUnitPrice,
+          roleListaAplicada: 'Súper Oferta',
+        };
+
+        addProduct(superOfferProduct, qty, true);
       }
     });
 
@@ -637,6 +652,21 @@ export default function CatalogoScreen() {
                             {discount > 0 && (
                               <View style={styles.offerBadge}>
                                 <Text style={styles.offerBadgeText}>-{discount}%</Text>
+                              </View>
+                            )}
+                            {offer.tipo_cliente === 'socio' && (
+                              <View style={{ backgroundColor: '#EDE9FE', paddingHorizontal: 6, paddingVertical: 1, borderRadius: 4, alignSelf: 'flex-start', marginBottom: 4 }}>
+                                <Text style={{ color: '#6D28D9', fontSize: 9, fontWeight: 'bold' }}>💎 SOCIOS</Text>
+                              </View>
+                            )}
+                            {offer.tipo_cliente === 'mayorista' && (
+                              <View style={{ backgroundColor: '#DBEAFE', paddingHorizontal: 6, paddingVertical: 1, borderRadius: 4, alignSelf: 'flex-start', marginBottom: 4 }}>
+                                <Text style={{ color: '#1D4ED8', fontSize: 9, fontWeight: 'bold' }}>🏢 MAYORISTAS</Text>
+                              </View>
+                            )}
+                            {offer.tipo_cliente === 'minorista' && (
+                              <View style={{ backgroundColor: '#CCFBF1', paddingHorizontal: 6, paddingVertical: 1, borderRadius: 4, alignSelf: 'flex-start', marginBottom: 4 }}>
+                                <Text style={{ color: '#0F766E', fontSize: 9, fontWeight: 'bold' }}>👤 MINORISTAS</Text>
                               </View>
                             )}
                             <Text style={styles.offerName} numberOfLines={1}>{offer.nombre}</Text>

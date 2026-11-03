@@ -15,6 +15,7 @@ import MaterialCommunityIcons from '../icons/MaterialCommunityIcons';
 import { Colors } from '../../constants/Colors';
 import { FontSize, FontWeight } from '../../constants/Typography';
 import { Radius, Spacing } from '../../constants/Spacing';
+import { matchesAnySearch } from '@shared/utils/searchUtils';
 
 interface FaqItem {
   id: string;
@@ -101,9 +102,7 @@ export function FaqsModal({ visible, onClose }: FaqsModalProps) {
 
   const filteredFaqs = FAQS_DATA.filter(faq => {
     const matchesCategory = selectedCategory === 'all' || faq.category === selectedCategory;
-    const matchesSearch =
-      faq.question.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      faq.answer.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesSearch = matchesAnySearch([faq.question, faq.answer], searchQuery);
     return matchesCategory && matchesSearch;
   });
 

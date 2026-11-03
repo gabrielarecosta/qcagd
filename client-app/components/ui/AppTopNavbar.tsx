@@ -24,6 +24,7 @@ import { AuthModal } from '../modals/AuthModal';
 import { TopMarqueeBar } from './TopMarqueeBar';
 import { useAccountTabStore } from '../../store/accountTabStore';
 import { CartPreviewItemRow } from './CartPreviewItemRow';
+import { matchesAnySearch } from '@shared/utils/searchUtils';
 
 interface AppTopNavbarProps {
   activeRoute?: string;
@@ -49,14 +50,17 @@ export function AppTopNavbar({ activeRoute }: AppTopNavbarProps) {
 
   const filteredPreviewItems = useMemo(() => {
     if (!cartPreviewSearch.trim()) return items;
-    const q = cartPreviewSearch.trim().toLowerCase();
-    return items.filter((item) => {
-      const name = (item.producto?.nombre || '').toLowerCase();
-      const code = (item.producto?.codigo || '').toLowerCase();
-      const pres = (item.producto?.presentacion || '').toLowerCase();
-      const cat = (item.producto?.categoria || '').toLowerCase();
-      return name.includes(q) || code.includes(q) || pres.includes(q) || cat.includes(q);
-    });
+    return items.filter((item) =>
+      matchesAnySearch(
+        [
+          item.producto?.nombre,
+          item.producto?.codigo,
+          item.producto?.presentacion,
+          item.producto?.categoria,
+        ],
+        cartPreviewSearch
+      )
+    );
   }, [items, cartPreviewSearch]);
 
   const checkIsActive = (path: string) => {

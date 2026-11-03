@@ -190,6 +190,18 @@ export interface Order {
   locationVerified?: boolean;
   customerName?: string;
   customerPhone?: string;
+  customerType?: string;
+  customer?: {
+    id?: string | number;
+    userId?: string;
+    nombre?: string;
+    razonSocial?: string;
+    tipoCliente?: string;
+    telefono?: string;
+    email?: string;
+    cuit?: string;
+    direccion?: string;
+  };
   outOfStockPreference?: 'llamar' | 'reemplazar' | 'cancelar';
   mpPreferenceId?: string;
   mpInitPoint?: string;

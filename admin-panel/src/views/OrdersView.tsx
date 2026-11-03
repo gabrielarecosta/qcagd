@@ -7,6 +7,7 @@ import { getOrderStatusLabel, getOrderStatusColor } from '@shared/utils/orderSta
 import { getPaymentMethodLabel, getPaymentStatusLabel } from '@shared/utils/paymentUtils';
 import * as XLSX from 'xlsx';
 import { supabase } from '@shared/services/supabaseClient';
+import { matchesAnySearch } from '@shared/utils/searchUtils';
 
 export function OrdersView() {
   const { 
@@ -19,6 +20,7 @@ export function OrdersView() {
     globalMinOrderAmount,
     updateGlobalMinOrderAmount,
     fetchOrdersOnly,
+    fetchClientsOnly,
     fetchOrderItems,
     confirmOrderDelivery
   } = useAdminStore();
@@ -48,6 +50,7 @@ export function OrdersView() {
 
   React.useEffect(() => {
     fetchOrdersOnly();
+    fetchClientsOnly();
   }, []);
 
   React.useEffect(() => {
@@ -121,15 +124,15 @@ export function OrdersView() {
       const client = clients.find(c => String(c.id) === String(o.clienteId) || (c.userId && String(c.userId) === String(o.clienteId)));
       const clientId = client ? String(client.id) : String(o.clienteId || '');
       const clientName = o.customerName || (client ? (client.razonSocial || client.nombre || '') : '');
-      const query = search.trim().toLowerCase();
+      const query = search.trim();
       const queryClean = query.replace(/^#/, '');
+
+      const productNames = (o.items || []).map((it: any) => it.producto?.nombre || it.product?.nombre || it.nombre || '');
 
       const matchesSearch = 
         !query ||
-        o.numero.toLowerCase().includes(query) ||
-        clientName.toLowerCase().includes(query) ||
-        clientId.toLowerCase().includes(query) ||
-        (queryClean && clientId.toLowerCase() === queryClean);
+        matchesAnySearch([o.numero, clientName, clientId, ...productNames], query) ||
+        (queryClean && clientId.toLowerCase() === queryClean.toLowerCase());
 
       const globalBranchFilter = activeBranchId === 'all' || o.branchId === activeBranchId;
       const matchesStatus = selectedStatus === 'all' || o.estado === selectedStatus;
@@ -140,13 +143,30 @@ export function OrdersView() {
   }, [orders, clients, search, activeBranchId, selectedStatus, selectedPaymentStatus]);
 
   const getClientInfo = (clienteId: string | number, order?: Order) => {
-    const c = clients.find(item => String(item.id) === String(clienteId) || (item.userId && String(item.userId) === String(clienteId)));
+    const c = clients.find(item => 
+      (clienteId != null && String(item.id).trim() === String(clienteId).trim()) || 
+      (item.userId && clienteId != null && String(item.userId).trim() === String(clienteId).trim()) ||
+      (order?.customerName && (
+        (item.nombre && item.nombre.trim().toUpperCase() === order.customerName.trim().toUpperCase()) ||
+        (item.razonSocial && item.razonSocial.trim().toUpperCase() === order.customerName.trim().toUpperCase())
+      )) ||
+      (order?.observacionesCliente && (
+        (item.nombre && order.observacionesCliente.toUpperCase().includes(item.nombre.trim().toUpperCase())) ||
+        (item.razonSocial && order.observacionesCliente.toUpperCase().includes(item.razonSocial.trim().toUpperCase()))
+      ))
+    );
+
+    const rawType = (order as any)?.customerType || (order as any)?.customer?.tipoCliente || (order as any)?.customer?.tipo_cliente || c?.tipoCliente || 'minorista';
+    const norm = String(rawType).toLowerCase().trim();
+    const finalType = norm === 'socio' || norm === 'socios' ? 'socio' : norm === 'mayorista' ? 'mayorista' : 'minorista';
+
     return {
       id: c ? c.id : (order?.clienteId || '-'),
-      name: order?.customerName || (c ? (c.razonSocial || c.nombre) : 'Cliente Desconocido'),
-      cuit: c ? c.cuit : '',
-      tel: order?.customerPhone || (c ? c.telefono : ''),
-      dir: order?.originalAddress || (c ? c.direccion : 'Sin dirección')
+      name: order?.customerName || (order as any)?.customer?.razonSocial || (order as any)?.customer?.nombre || (c ? (c.razonSocial || c.nombre) : 'Cliente Desconocido'),
+      cuit: (order as any)?.customer?.cuit || (c ? c.cuit : ''),
+      tel: order?.customerPhone || (order as any)?.customer?.telefono || (c ? c.telefono : ''),
+      dir: order?.originalAddress || (order as any)?.customer?.direccion || (c ? c.direccion : 'Sin dirección'),
+      tipoCliente: finalType
     };
   };
 
@@ -470,7 +490,22 @@ export function OrdersView() {
                       </span>
                     </td>
                     <td>
-                      <div style={{ fontWeight: '600' }}>{client.name}</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                        <span style={{ fontWeight: '600' }}>{client.name}</span>
+                        {client.tipoCliente === 'socio' || client.tipoCliente === 'socios' ? (
+                          <span style={{ fontSize: '10px', backgroundColor: '#f3e8ff', color: '#7e22ce', border: '1px solid #d8b4fe', padding: '1px 6px', borderRadius: '4px', fontWeight: '700' }}>
+                            👑 Socio (L4)
+                          </span>
+                        ) : client.tipoCliente === 'mayorista' ? (
+                          <span style={{ fontSize: '10px', backgroundColor: '#fef3c7', color: '#b45309', border: '1px solid #fcd34d', padding: '1px 6px', borderRadius: '4px', fontWeight: '700' }}>
+                            🏢 Mayorista (L3)
+                          </span>
+                        ) : (
+                          <span style={{ fontSize: '10px', backgroundColor: '#f1f5f9', color: '#64748b', border: '1px solid #e2e8f0', padding: '1px 6px', borderRadius: '4px', fontWeight: '600' }}>
+                            🛒 Minorista
+                          </span>
+                        )}
+                      </div>
                       <div style={{ fontSize: '11px', color: '#0284c7', fontWeight: 600 }}>Número de cliente: {client.id}</div>
                       <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>📍 Dir: {client.dir}</div>
                     </td>
@@ -638,7 +673,31 @@ export function OrdersView() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px', background: '#f8fafc', padding: '14px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
                 <div>
                   <h4 style={{ margin: '0 0 6px 0', fontSize: '12px', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>👤 CLIENTE</h4>
-                  <div style={{ fontWeight: 'bold', fontSize: '14px' }}>{getClientInfo(selectedOrder.clienteId, selectedOrder).name}</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                    <div style={{ fontWeight: 'bold', fontSize: '14px' }}>{getClientInfo(selectedOrder.clienteId, selectedOrder).name}</div>
+                    {(() => {
+                      const cInfo = getClientInfo(selectedOrder.clienteId, selectedOrder);
+                      if (cInfo.tipoCliente === 'socio' || cInfo.tipoCliente === 'socios') {
+                        return (
+                          <span style={{ fontSize: '11px', backgroundColor: '#f3e8ff', color: '#7e22ce', border: '1px solid #d8b4fe', padding: '2px 8px', borderRadius: '4px', fontWeight: '700' }}>
+                            👑 Socio (Lista 4)
+                          </span>
+                        );
+                      }
+                      if (cInfo.tipoCliente === 'mayorista') {
+                        return (
+                          <span style={{ fontSize: '11px', backgroundColor: '#fef3c7', color: '#b45309', border: '1px solid #fcd34d', padding: '2px 8px', borderRadius: '4px', fontWeight: '700' }}>
+                            🏢 Mayorista (Lista 3)
+                          </span>
+                        );
+                      }
+                      return (
+                        <span style={{ fontSize: '11px', backgroundColor: '#f1f5f9', color: '#64748b', border: '1px solid #e2e8f0', padding: '2px 8px', borderRadius: '4px', fontWeight: '600' }}>
+                          🛒 Minorista (Lista 1)
+                        </span>
+                      );
+                    })()}
+                  </div>
                   <div style={{ fontSize: '12px', color: '#0284c7', fontWeight: 600, marginTop: '2px' }}>
                     Número de cliente: {getClientInfo(selectedOrder.clienteId, selectedOrder).id}
                   </div>

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-export type AccountTab = 'datos' | 'pedidos' | 'listas' | 'reparto' | 'todos';
+export type AccountTab = 'datos' | 'pedidos' | 'listas' | 'reparto' | 'ofertas' | 'todos';
 
 interface AccountTabStore {
   activeTab: AccountTab;

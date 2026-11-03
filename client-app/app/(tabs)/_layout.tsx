@@ -16,6 +16,7 @@ import { AuthModal } from '../../components/modals/AuthModal';
 import { TopMarqueeBar } from '../../components/ui/TopMarqueeBar';
 import { useAccountTabStore } from '../../store/accountTabStore';
 import { CartPreviewItemRow } from '../../components/ui/CartPreviewItemRow';
+import { matchesAnySearch } from '@shared/utils/searchUtils';
 
 // Íconos con MaterialCommunityIcons para mayor calidad visual
 function HomeIcon({ focused }: { focused: boolean }) {
@@ -58,19 +59,28 @@ export default function TabsLayout() {
   const [cartPreviewSearch, setCartPreviewSearch] = useState('');
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
-  const { isLoggedIn, userRole, logout, clientData } = useAuthStore();
+  const { isLoggedIn, userRole, logout, clientData, refreshClientProfile } = useAuthStore();
   const isRepartidor = isLoggedIn && userRole === 'repartidor';
+
+  React.useEffect(() => {
+    if (isLoggedIn) {
+      refreshClientProfile();
+    }
+  }, [isLoggedIn, pathname]);
 
   const filteredPreviewItems = useMemo(() => {
     if (!cartPreviewSearch.trim()) return items;
-    const q = cartPreviewSearch.trim().toLowerCase();
-    return items.filter((item) => {
-      const name = (item.producto?.nombre || '').toLowerCase();
-      const code = (item.producto?.codigo || '').toLowerCase();
-      const pres = (item.producto?.presentacion || '').toLowerCase();
-      const cat = (item.producto?.categoria || '').toLowerCase();
-      return name.includes(q) || code.includes(q) || pres.includes(q) || cat.includes(q);
-    });
+    return items.filter((item) =>
+      matchesAnySearch(
+        [
+          item.producto?.nombre,
+          item.producto?.codigo,
+          item.producto?.presentacion,
+          item.producto?.categoria,
+        ],
+        cartPreviewSearch
+      )
+    );
   }, [items, cartPreviewSearch]);
 
   const isActive = (path: string) => {

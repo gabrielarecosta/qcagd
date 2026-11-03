@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from 'react';
 import logoImg from './assets/logo2.png';
 import { useAdminStore } from './store/adminStore';
 import { supabase } from '@shared/services';
+import { matchesAnySearch } from '@shared/utils/searchUtils';
 
 import { DashboardView } from './views/DashboardView';
 import { BranchesView } from './views/BranchesView';
@@ -324,26 +325,22 @@ function App() {
     return notifications.filter(n => !n.leido);
   }, [notifications]);
 
-  // Resultados de búsqueda global
+  // Resultados de búsqueda global indiferente a tildes
   const searchResults = useMemo(() => {
     if (!searchQuery.trim()) return null;
-    const query = searchQuery.toLowerCase();
 
     const matchingOrders = orders.filter(o => {
       const client = clients.find(c => String(c.id) === String(o.clienteId) || (c.userId && String(c.userId) === String(o.clienteId)));
-      const clientName = o.customerName ? o.customerName.toLowerCase() : (client ? (client.razonSocial || client.nombre).toLowerCase() : '');
-      return o.numero.toLowerCase().includes(query) || clientName.includes(query);
+      const clientName = o.customerName || (client ? (client.razonSocial || client.nombre) : '');
+      return matchesAnySearch([o.numero, clientName], searchQuery);
     }).slice(0, 3);
 
     const matchingClients = clients.filter(c => 
-      c.nombre.toLowerCase().includes(query) || 
-      (c.telefono && c.telefono.toLowerCase().includes(query)) ||
-      (c.email && c.email.toLowerCase().includes(query))
+      matchesAnySearch([c.nombre, c.razonSocial, c.telefono, c.email], searchQuery)
     ).slice(0, 3);
 
     const matchingProducts = products.filter(p => 
-      p.nombre.toLowerCase().includes(query) || 
-      p.codigo.toLowerCase().includes(query)
+      matchesAnySearch([p.nombre, p.codigo, p.presentacion, p.categoria], searchQuery)
     ).slice(0, 3);
 
     return {

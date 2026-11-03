@@ -8,6 +8,8 @@ import {
   SafeAreaView, 
   Linking,
   Platform,
+  ActivityIndicator,
+  Image,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import MaterialCommunityIcons from '../components/icons/MaterialCommunityIcons';
@@ -16,6 +18,7 @@ import { FontSize, FontWeight } from '../constants/Typography';
 import { Radius, Spacing } from '../constants/Spacing';
 import { Button } from '../components/ui/Button';
 import { companySettingsService } from '@shared/services/companySettingsService';
+import { orderService } from '@shared/services/orderService';
 import { formatPrice } from '../utils/formatters';
 import { buildWhatsAppOrderMessage, WhatsAppOrderItem } from '@shared/utils/whatsappOrderMessage';
 import { useAuthStore } from '../store/authStore';
@@ -66,7 +69,7 @@ export default function PedidoConfirmadoScreen() {
   const outOfStockPreference = params.outOfStockPreference || 'llamar';
   const observaciones = params.observaciones || '';
 
-  const parsedItems: WhatsAppOrderItem[] = React.useMemo(() => {
+  const parsedItems: any[] = React.useMemo(() => {
     if (!params.itemsJson) return [];
     try {
       return JSON.parse(params.itemsJson);
@@ -75,12 +78,41 @@ export default function PedidoConfirmadoScreen() {
     }
   }, [params.itemsJson]);
 
+  const [dbItems, setDbItems] = useState<any[]>([]);
+  const [isLoadingDbItems, setIsLoadingDbItems] = useState(false);
+
+  useEffect(() => {
+    if (parsedItems.length === 0 && params.orderId) {
+      setIsLoadingDbItems(true);
+      orderService.getOrderItems(params.orderId)
+        .then(items => {
+          setDbItems(items.map(it => ({
+            name: it.producto?.nombre || 'Producto',
+            presentation: it.producto?.presentacion,
+            imagen: it.producto?.imagen,
+            qty: it.cantidad,
+            unitPrice: it.precioUnitario,
+            subtotal: it.subtotal,
+          })));
+        })
+        .catch(err => console.warn('No se pudieron cargar artículos de la BD:', err))
+        .finally(() => setIsLoadingDbItems(false));
+    }
+  }, [params.orderId, parsedItems.length]);
+
+  const itemsList = parsedItems.length > 0 ? parsedItems : dbItems;
+  const totalArticulos = itemsList.reduce((acc, it) => acc + (Number(it.qty) || 1), 0);
+
   const selectedOption = DELIVERY_OPTIONS[deliveryMethod] || DELIVERY_OPTIONS['reparto'];
   const paymentLabel =
     paymentMethod === 'efectivo'
       ? 'Efectivo / Contra entrega'
       : paymentMethod === 'mercadopago'
       ? 'Mercado Pago'
+      : paymentMethod === 'cuenta_corriente'
+      ? 'Cuenta Corriente'
+      : paymentMethod === 'pago_a_acordar'
+      ? 'Pago a acordar'
       : 'Transferencia Bancaria';
 
   useEffect(() => {
@@ -100,7 +132,13 @@ export default function PedidoConfirmadoScreen() {
       orderNum: orderNum,
       customerName: clientData?.nombre || 'Cliente',
       customerPhone: clientData?.telefono || '',
-      items: parsedItems,
+      items: itemsList.map(it => ({
+        name: it.name,
+        presentation: it.presentation,
+        qty: it.qty,
+        unitPrice: it.unitPrice,
+        subtotal: it.subtotal,
+      })),
       total: orderTotal,
       deliveryMethod: deliveryMethod,
       deliveryDate: deliveryDate || undefined,
@@ -179,6 +217,75 @@ export default function PedidoConfirmadoScreen() {
                     </Text>
                   )}
                 </View>
+              </View>
+            )}
+          </View>
+
+          {/* ======================================================== */}
+          {/* ARTÍCULOS PEDIDOS EN EL PEDIDO CONFIRMADO                */}
+          {/* ======================================================== */}
+          <View style={styles.confirmedItemsCard}>
+            <View style={styles.confirmedItemsHeader}>
+              <View style={styles.confirmedItemsHeaderLeft}>
+                <MaterialCommunityIcons name="package-variant-closed" size={22} color={Colors.primary} style={{ marginRight: 8 }} />
+                <Text style={styles.confirmedItemsTitle}>Artículos pedidos</Text>
+              </View>
+              {totalArticulos > 0 && (
+                <View style={styles.itemsCountBadge}>
+                  <Text style={styles.itemsCountBadgeText}>
+                    {totalArticulos} {totalArticulos === 1 ? 'artículo' : 'artículos'}
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            {isLoadingDbItems ? (
+              <View style={{ paddingVertical: 20, alignItems: 'center' }}>
+                <ActivityIndicator size="small" color={Colors.primary} />
+                <Text style={{ marginTop: 8, fontSize: FontSize.sm, color: Colors.textSecondary }}>Cargando artículos...</Text>
+              </View>
+            ) : itemsList.length > 0 ? (
+              <View style={styles.itemsListWrapper}>
+                {itemsList.map((item, idx) => (
+                  <View key={idx} style={[styles.confirmedItemRow, idx > 0 && styles.itemRowBorder]}>
+                    <View style={styles.itemQtyBadge}>
+                      <Text style={styles.itemQtyBadgeText}>{item.qty}x</Text>
+                    </View>
+                    <View style={styles.itemInfoCol}>
+                      <Text
+                        style={styles.confirmedItemName}
+                        numberOfLines={2}
+                        {...(Platform.OS === 'web' ? ({ translate: 'no', className: 'notranslate' } as any) : {})}
+                      >
+                        {Platform.OS === 'web' ? (
+                          <span className="notranslate" translate="no">
+                            {item.name}
+                          </span>
+                        ) : (
+                          item.name
+                        )}
+                      </Text>
+                      {!!item.presentation && item.presentation !== 'Presentación Importada' && (
+                        <Text style={styles.confirmedItemPresentation}>{item.presentation}</Text>
+                      )}
+                      <Text style={styles.confirmedItemUnitPrice}>
+                        {formatPrice(item.unitPrice)} c/u
+                      </Text>
+                    </View>
+                    <Text style={styles.confirmedItemSubtotal}>{formatPrice(item.subtotal)}</Text>
+                  </View>
+                ))}
+
+                <View style={styles.confirmedItemsTotalRow}>
+                  <Text style={styles.confirmedTotalLabel}>Total del Pedido:</Text>
+                  <Text style={styles.confirmedTotalValue}>{formatPrice(orderTotal)}</Text>
+                </View>
+              </View>
+            ) : (
+              <View style={{ paddingVertical: 8 }}>
+                <Text style={{ fontSize: FontSize.sm, color: Colors.textSecondary, fontStyle: 'italic' }}>
+                  Pedido registrado con éxito por un total de {formatPrice(orderTotal)}.
+                </Text>
               </View>
             )}
           </View>
@@ -395,5 +502,117 @@ const styles = StyleSheet.create({
   confirmedActions: {
     width: '100%',
     gap: Spacing.md,
+  },
+  confirmedItemsCard: {
+    width: '100%',
+    backgroundColor: Colors.white,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    padding: Spacing.lg,
+    marginBottom: Spacing.xl,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  confirmedItemsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+    paddingBottom: Spacing.sm,
+  },
+  confirmedItemsHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  confirmedItemsTitle: {
+    fontSize: FontSize.md,
+    fontWeight: FontWeight.bold,
+    color: Colors.textPrimary,
+  },
+  itemsCountBadge: {
+    backgroundColor: '#EFF6FF',
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: Radius.full,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+  },
+  itemsCountBadgeText: {
+    fontSize: FontSize.xs,
+    fontWeight: FontWeight.semibold,
+    color: '#1E40AF',
+  },
+  itemsListWrapper: {
+    width: '100%',
+  },
+  confirmedItemRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: Spacing.sm,
+  },
+  itemRowBorder: {
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+  },
+  itemQtyBadge: {
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: Radius.sm,
+    marginRight: Spacing.md,
+  },
+  itemQtyBadgeText: {
+    fontSize: FontSize.sm,
+    fontWeight: FontWeight.bold,
+    color: Colors.textPrimary,
+  },
+  itemInfoCol: {
+    flex: 1,
+    marginRight: Spacing.sm,
+  },
+  confirmedItemName: {
+    fontSize: FontSize.md,
+    fontWeight: FontWeight.medium,
+    color: Colors.textPrimary,
+  },
+  confirmedItemPresentation: {
+    fontSize: FontSize.xs,
+    color: Colors.textSecondary,
+    marginTop: 1,
+  },
+  confirmedItemUnitPrice: {
+    fontSize: FontSize.xs,
+    color: Colors.textSecondary,
+    marginTop: 2,
+  },
+  confirmedItemSubtotal: {
+    fontSize: FontSize.md,
+    fontWeight: FontWeight.bold,
+    color: Colors.textPrimary,
+  },
+  confirmedItemsTotalRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: Spacing.md,
+    paddingTop: Spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: '#E2E8F0',
+  },
+  confirmedTotalLabel: {
+    fontSize: FontSize.md,
+    fontWeight: FontWeight.bold,
+    color: Colors.textPrimary,
+  },
+  confirmedTotalValue: {
+    fontSize: FontSize.xl,
+    fontWeight: FontWeight.bold,
+    color: Colors.primary,
   },
 });
