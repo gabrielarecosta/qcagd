@@ -20,8 +20,11 @@ import { useListsStore } from '../../store/listsStore';
 import { useCartStore } from '../../store/cartStore';
 import { Product } from '../../types';
 import { supabase } from '@shared/services/supabaseClient';
+import { buildSearchOrClause } from '@shared/utils/searchUtils';
 import MaterialCommunityIcons from '../icons/MaterialCommunityIcons';
 import { HoverImagePreview } from '../ui/HoverImagePreview';
+import { useAuthStore } from '../../store/authStore';
+import { getProductPriceForCustomerRole, normalizeCustomerRole } from '@shared/services/cartService';
 
 interface ListaDetalleScreenProps {
   listId: string | number;
@@ -43,6 +46,8 @@ export function ListaDetalleScreen({ listId, onBack }: ListaDetalleScreenProps) 
 
   const currentList = lists.find((l) => String(l.id) === String(listId));
   const cartItems = useCartStore((state) => state.items);
+  const clientData = useAuthStore((state) => state.clientData);
+  const customerRole = normalizeCustomerRole(clientData?.tipoCliente);
 
   // Estados de edición de lista
   const [isEditing, setIsEditing] = useState(false);
@@ -60,12 +65,23 @@ export function ListaDetalleScreen({ listId, onBack }: ListaDetalleScreenProps) 
     if (!q) return;
     setIsSearching(true);
     try {
-      const { data, error } = await supabase
+      const orClause = buildSearchOrClause(
+        ['nombre', 'codigo', 'descripcion', 'presentacion'],
+        q
+      );
+
+      let query = supabase
         .from('products')
-        .select('id, codigo, nombre, descripcion, presentacion, precio, unidad, categoria, subcategoria, imagen, destacado, activo, marca')
-        .eq('activo', true)
-        .or(`nombre.ilike.%${q}%,codigo.ilike.%${q}%,descripcion.ilike.%${q}%,presentacion.ilike.%${q}%`)
-        .limit(30);
+        .select('id, codigo, nombre, descripcion, presentacion, precio, precio_mayorista, precio_socios, unidad, categoria, subcategoria, imagen, destacado, activo, marca')
+        .eq('activo', true);
+
+      if (orClause) {
+        query = query.or(orClause);
+      } else {
+        query = query.or(`nombre.ilike.%${q}%,codigo.ilike.%${q}%,descripcion.ilike.%${q}%,presentacion.ilike.%${q}%`);
+      }
+
+      const { data, error } = await query.limit(30);
 
       if (error) {
         console.error('Error al buscar productos en detalle:', error);
@@ -308,6 +324,7 @@ export function ListaDetalleScreen({ listId, onBack }: ListaDetalleScreenProps) 
                 <View style={styles.resultsList}>
                   {searchResults.map((prod) => {
                     const alreadyInThisList = items.some((it) => String(it.productId) === String(prod.id));
+                    const effectivePrice = getProductPriceForCustomerRole(prod, customerRole);
 
                     return (
                       <View key={prod.id} style={styles.resultItemRow}>
@@ -315,7 +332,7 @@ export function ListaDetalleScreen({ listId, onBack }: ListaDetalleScreenProps) 
                           <HoverImagePreview
                             imageUri={prod.imagen}
                             name={prod.nombre}
-                            price={prod.precio}
+                            price={effectivePrice}
                             presentation={prod.presentacion}
                             codigo={prod.codigo}
                           >
@@ -342,7 +359,7 @@ export function ListaDetalleScreen({ listId, onBack }: ListaDetalleScreenProps) 
                             )}
                           </Text>
                           <Text style={styles.resultMeta}>
-                            {prod.presentacion || prod.codigo} • {prod.precio > 0 ? formatPrice(prod.precio) : 'Sin precio'}
+                            {prod.presentacion || prod.codigo} • {effectivePrice > 0 ? formatPrice(effectivePrice) : 'Sin precio'}
                           </Text>
                         </View>
 
@@ -388,6 +405,7 @@ export function ListaDetalleScreen({ listId, onBack }: ListaDetalleScreenProps) 
               const p = item.product;
               if (!p) return null;
               const inCart = cartItems.some((ci) => String(ci.producto.id) === String(p.id));
+              const effectivePrice = getProductPriceForCustomerRole(p, customerRole);
 
               return (
                 <View key={item.id} style={styles.productRow}>
@@ -396,7 +414,7 @@ export function ListaDetalleScreen({ listId, onBack }: ListaDetalleScreenProps) 
                     <HoverImagePreview
                       imageUri={p.imagen}
                       name={p.nombre}
-                      price={p.precio}
+                      price={effectivePrice}
                       presentation={p.presentacion}
                       codigo={p.codigo}
                     >
@@ -427,7 +445,7 @@ export function ListaDetalleScreen({ listId, onBack }: ListaDetalleScreenProps) 
                       {p.presentacion || p.codigo} • por {p.unidad || 'unidad'}
                     </Text>
                     <Text style={styles.productPrice}>
-                      {p.precio > 0 ? formatPrice(p.precio) : 'Sin precio'}
+                      {effectivePrice > 0 ? formatPrice(effectivePrice) : 'Sin precio'}
                     </Text>
                   </View>
 

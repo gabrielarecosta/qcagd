@@ -3,6 +3,8 @@ import { Product, ProductCategory } from '../types';
 import { productService } from '@shared/services/productService';
 import { supabase } from '@shared/services/supabaseClient';
 import { useAuthStore } from './authStore';
+import { matchesAnySearch } from '@shared/utils/searchUtils';
+import { normalizeCustomerRole } from '@shared/services/cartService';
 
 export interface AppBanner {
   id: string;
@@ -117,9 +119,23 @@ export const useCatalogStore = create<CatalogStore>((set, get) => ({
 
   fetchSuperOffers: async () => {
     try {
-      const isLoggedIn = useAuthStore.getState().isLoggedIn;
+      const authState = useAuthStore.getState();
+      const isLoggedIn = authState.isLoggedIn;
+      const client = authState.clientData;
+      const rawRole = client?.tipoCliente;
+      const customerRole = rawRole ? normalizeCustomerRole(rawRole) : 'minorista';
+
       const offers = await productService.getSuperOffers(!isLoggedIn);
-      set({ superOffers: offers.filter((o: any) => o.activo) });
+      const activeOffers = offers.filter((o: any) => o.activo);
+
+      // Filtrar ofertas dirigidas a 'todos' o coincidentes con la categoría del cliente
+      const matchingOffers = activeOffers.filter((o: any) => {
+        const target = o.tipo_cliente || 'todos';
+        if (target === 'todos' || target === 'all') return true;
+        return target === customerRole;
+      });
+
+      set({ superOffers: matchingOffers });
     } catch (e) {
       console.error('Error fetching super offers:', e);
     }
@@ -187,18 +203,18 @@ export const useCatalogStore = create<CatalogStore>((set, get) => ({
 
   searchProducts: (query, categoria) => {
     const { products } = get();
-    const q = query.toLowerCase().trim();
+    if (!query || !query.trim()) {
+      return products.filter((p) => {
+        if (!p.activo) return false;
+        if (categoria && p.categoria !== categoria) return false;
+        return true;
+      });
+    }
+
     return products.filter((p) => {
       if (!p.activo) return false;
       if (categoria && p.categoria !== categoria) return false;
-      if (!q) return true;
-
-      return (
-        p.nombre.toLowerCase().includes(q) ||
-        p.codigo.toLowerCase().includes(q) ||
-        (p.presentacion?.toLowerCase().includes(q) ?? false) ||
-        (p.descripcion?.toLowerCase().includes(q) ?? false)
-      );
+      return matchesAnySearch([p.nombre, p.codigo, p.presentacion, p.descripcion], query);
     });
   },
 

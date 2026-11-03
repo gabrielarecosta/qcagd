@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { cartService, AbandonedCart } from '@shared/services/cartService';
 import { useAdminStore } from '../store/adminStore';
 import { formatPrice } from '@shared/utils/formatCurrency';
+import { matchesAnySearch } from '@shared/utils/searchUtils';
 
 export function AbandonedCartsView() {
   const { activeBranchId, branches } = useAdminStore();
@@ -51,22 +52,24 @@ export function AbandonedCartsView() {
     }
   };
 
-  // Filtrado por buscador
+  // Filtrado por buscador indiferente a tildes
   const filteredCarts = useMemo(() => {
     if (!search.trim()) return carts;
-    const q = search.toLowerCase().trim();
     return carts.filter(c => {
-      const name = c.customer?.nombre?.toLowerCase() || '';
-      const razon = c.customer?.razonSocial?.toLowerCase() || '';
-      const email = c.customer?.email?.toLowerCase() || '';
-      const phone = c.customer?.telefono || c.customer?.whatsapp || '';
-      const uid = c.userId.toLowerCase();
+      const customerFields = [
+        c.customer?.nombre,
+        c.customer?.razonSocial,
+        c.customer?.email,
+        c.customer?.telefono,
+        c.customer?.whatsapp,
+        c.userId,
+      ];
+      const customerMatches = matchesAnySearch(customerFields, search);
       const productMatches = c.items.some(it => 
-        it.producto?.nombre?.toLowerCase().includes(q) || 
-        it.producto?.codigo?.toLowerCase().includes(q)
+        matchesAnySearch([it.producto?.nombre, it.producto?.codigo, it.producto?.presentacion], search)
       );
 
-      return name.includes(q) || razon.includes(q) || email.includes(q) || phone.includes(q) || uid.includes(q) || productMatches;
+      return customerMatches || productMatches;
     });
   }, [carts, search]);
 
@@ -308,11 +311,15 @@ export function AbandonedCartsView() {
                           <div>
                             <div style={{ fontWeight: '700', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '6px' }}>
                               <span>👤</span> {cart.customer.nombre}
-                              {cart.customer.tipoCliente === 'mayorista' && (
-                                <span style={{ fontSize: '11px', backgroundColor: '#e0e7ff', color: '#4338ca', padding: '2px 6px', borderRadius: '4px', fontWeight: '700' }}>
-                                  Mayorista
+                              {cart.customer.tipoCliente === 'socio' || cart.customer.tipoCliente === 'socios' ? (
+                                <span style={{ fontSize: '11px', backgroundColor: '#f3e8ff', color: '#7e22ce', border: '1px solid #d8b4fe', padding: '2px 6px', borderRadius: '4px', fontWeight: '700' }}>
+                                  👑 Socio (L4)
                                 </span>
-                              )}
+                              ) : cart.customer.tipoCliente === 'mayorista' ? (
+                                <span style={{ fontSize: '11px', backgroundColor: '#e0e7ff', color: '#4338ca', padding: '2px 6px', borderRadius: '4px', fontWeight: '700' }}>
+                                  🏢 Mayorista (L3)
+                                </span>
+                              ) : null}
                             </div>
                             {cart.customer.razonSocial && (
                               <div style={{ fontSize: '12px', color: '#64748b' }}>

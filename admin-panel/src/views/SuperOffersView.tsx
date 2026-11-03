@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useAdminStore } from '../store/adminStore';
 import { formatPrice } from '@shared/utils/formatCurrency';
+import { matchesAnySearch } from '@shared/utils/searchUtils';
 import { supabase } from '@shared/services';
+
+export type TargetRole = 'todos' | 'minorista' | 'mayorista' | 'socio';
 
 interface SuperOffer {
   id: string;
@@ -10,6 +13,7 @@ interface SuperOffer {
   precio_oferta: number;
   precio_original: number;
   activo: boolean;
+  tipo_cliente?: TargetRole;
   deleted_at?: string | null;
   created_at?: string;
   fecha_inicio?: string;
@@ -36,7 +40,7 @@ interface SelectedComboItem {
 }
 
 export function SuperOffersView() {
-  const { superOffers, products, createSuperOffer, deleteSuperOffer, fetchSuperOffersOnly, fetchProductsOnly } = useAdminStore();
+  const { superOffers, products, createSuperOffer, updateSuperOffer, deleteSuperOffer, fetchSuperOffersOnly, fetchProductsOnly } = useAdminStore();
 
   useEffect(() => {
     fetchSuperOffersOnly();
@@ -45,27 +49,43 @@ export function SuperOffersView() {
 
   // Filter state
   const [filterTab, setFilterTab] = useState<'active' | 'paused' | 'deleted' | 'all'>('active');
+  const [roleFilter, setRoleFilter] = useState<'all' | 'todos' | 'minorista' | 'mayorista' | 'socio'>('all');
 
   // Edit Modal State
   const [editingOffer, setEditingOffer] = useState<SuperOffer | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<SuperOffer | null>(null);
-  const [editForm, setEditForm] = useState({
+  const [editForm, setEditForm] = useState<{
+    nombre: string;
+    descripcion: string;
+    precio_oferta: number;
+    fecha_fin: string;
+    activo: boolean;
+    tipo_cliente: TargetRole;
+  }>({
     nombre: '',
     descripcion: '',
     precio_oferta: 0,
     fecha_fin: '',
     activo: true,
+    tipo_cliente: 'todos',
   });
 
   // Create Modal State
   const [isCreating, setIsCreating] = useState(false);
   const [isSubmittingCreate, setIsSubmittingCreate] = useState(false);
-  const [createForm, setCreateForm] = useState({
+  const [createForm, setCreateForm] = useState<{
+    nombre: string;
+    descripcion: string;
+    precioOferta: number;
+    fechaFin: string;
+    tipo_cliente: TargetRole;
+  }>({
     nombre: '',
     descripcion: '',
     precioOferta: 0,
     fechaFin: '',
+    tipo_cliente: 'todos',
   });
   const [selectedItems, setSelectedItems] = useState<SelectedComboItem[]>([]);
   const [productSearch, setProductSearch] = useState('');
@@ -79,6 +99,7 @@ export function SuperOffersView() {
       precio_oferta: offer.precio_oferta,
       fecha_fin: offer.fecha_fin ? offer.fecha_fin.split('T')[0] : '',
       activo: offer.activo,
+      tipo_cliente: offer.tipo_cliente || 'todos',
     });
   };
 
@@ -87,17 +108,14 @@ export function SuperOffersView() {
     if (!editingOffer) return;
     setIsSaving(true);
     try {
-      const { error } = await supabase
-        .from('super_offers')
-        .update({
-          nombre: editForm.nombre,
-          descripcion: editForm.descripcion || null,
-          precio_oferta: editForm.precio_oferta,
-          fecha_fin: editForm.fecha_fin ? new Date(editForm.fecha_fin).toISOString() : null,
-          activo: editForm.activo,
-        })
-        .eq('id', editingOffer.id);
-      if (error) throw error;
+      await updateSuperOffer(editingOffer.id, {
+        nombre: editForm.nombre,
+        descripcion: editForm.descripcion || null,
+        precio_oferta: editForm.precio_oferta,
+        fecha_fin: editForm.fecha_fin ? editForm.fecha_fin : null,
+        activo: editForm.activo,
+        tipo_cliente: editForm.tipo_cliente,
+      });
       await fetchSuperOffersOnly();
       setEditingOffer(null);
     } catch (err: any) {
@@ -134,6 +152,7 @@ export function SuperOffersView() {
       descripcion: '',
       precioOferta: 0,
       fechaFin: '',
+      tipo_cliente: 'todos',
     });
     setSelectedItems([]);
     setProductSearch('');
@@ -190,7 +209,8 @@ export function SuperOffersView() {
           precioOriginal: originalPrice,
           precioOferta: createForm.precioOferta,
           fechaFin: createForm.fechaFin ? createForm.fechaFin : undefined,
-          activo: true
+          activo: true,
+          tipo_cliente: createForm.tipo_cliente,
         },
         selectedItems
       );
@@ -222,22 +242,33 @@ export function SuperOffersView() {
   const deletedOffers = allList.filter(o => Boolean(o.deleted_at));
   const totalSales = allList.reduce((sum, o) => sum + (o.veces_comprada || 0), 0);
 
-  const filteredOffers =
+  const baseFiltered =
     filterTab === 'active' ? activeOffers :
     filterTab === 'paused' ? pausedOffers :
     filterTab === 'deleted' ? deletedOffers :
     allList.filter(o => !o.deleted_at);
+
+  const roleCounts = {
+    all: baseFiltered.length,
+    todos: baseFiltered.filter(o => (o.tipo_cliente || 'todos') === 'todos').length,
+    minorista: baseFiltered.filter(o => o.tipo_cliente === 'minorista').length,
+    mayorista: baseFiltered.filter(o => o.tipo_cliente === 'mayorista').length,
+    socio: baseFiltered.filter(o => o.tipo_cliente === 'socio').length,
+  };
+
+  const filteredOffers = roleFilter === 'all'
+    ? baseFiltered
+    : baseFiltered.filter(o => (o.tipo_cliente || 'todos') === roleFilter);
 
   const calculatedOriginalPrice = selectedItems.reduce((sum, item) => sum + (item.precio * item.cantidad), 0);
   const calculatedDiscount = calculatedOriginalPrice > 0 && createForm.precioOferta > 0
     ? Math.round(((calculatedOriginalPrice - createForm.precioOferta) / calculatedOriginalPrice) * 100)
     : 0;
 
-  // Search results for adding products to combo
+  // Search results for adding products to combo (indiferente a tildes)
   const matchingProducts = productSearch.trim().length >= 2
     ? (products || []).filter(p =>
-        p.nombre.toLowerCase().includes(productSearch.toLowerCase()) ||
-        (p.codigo && p.codigo.toLowerCase().includes(productSearch.toLowerCase()))
+        matchesAnySearch([p.nombre, p.codigo, p.presentacion, p.categoria], productSearch)
       ).slice(0, 8)
     : [];
 
@@ -247,7 +278,7 @@ export function SuperOffersView() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
         <div>
           <h1 className="page-title">🔥 Gestión de Súper Ofertas</h1>
-          <p className="page-desc">Administrá y creá combos promocionales visibles para clientes en la app</p>
+          <p className="page-desc">Administrá y creá combos promocionales segmentados por categoría de cliente</p>
         </div>
         <button
           onClick={handleOpenCreate}
@@ -290,8 +321,8 @@ export function SuperOffersView() {
         </div>
       </div>
 
-      {/* Tabs */}
-      <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', borderBottom: '2px solid #E2E8F0', paddingBottom: '10px' }}>
+      {/* Tabs de Estado */}
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '14px', borderBottom: '2px solid #E2E8F0', paddingBottom: '10px', flexWrap: 'wrap' }}>
         <button
           onClick={() => setFilterTab('active')}
           style={{
@@ -350,7 +381,89 @@ export function SuperOffersView() {
             color: filterTab === 'deleted' ? '#fff' : '#475569'
           }}
         >
-          📁 Eliminadas / Reclamos ({deletedOffers.length})
+          📁 Eliminadas ({deletedOffers.length})
+        </button>
+      </div>
+
+      {/* Filtro por Categoría de Cliente (Destinatario) */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '22px', flexWrap: 'wrap' }}>
+        <span style={{ fontSize: '11px', fontWeight: '800', color: '#64748B', textTransform: 'uppercase', marginRight: '4px' }}>
+          🎯 Destinatario:
+        </span>
+        <button
+          onClick={() => setRoleFilter('all')}
+          style={{
+            padding: '6px 14px',
+            borderRadius: '20px',
+            border: 'none',
+            fontSize: '12px',
+            fontWeight: '700',
+            cursor: 'pointer',
+            background: roleFilter === 'all' ? '#0F172A' : '#E2E8F0',
+            color: roleFilter === 'all' ? '#fff' : '#475569'
+          }}
+        >
+          Todos ({roleCounts.all})
+        </button>
+        <button
+          onClick={() => setRoleFilter('todos')}
+          style={{
+            padding: '6px 14px',
+            borderRadius: '20px',
+            border: 'none',
+            fontSize: '12px',
+            fontWeight: '700',
+            cursor: 'pointer',
+            background: roleFilter === 'todos' ? '#D97706' : '#FEF3C7',
+            color: roleFilter === 'todos' ? '#fff' : '#92400E'
+          }}
+        >
+          🌐 Público General ({roleCounts.todos})
+        </button>
+        <button
+          onClick={() => setRoleFilter('minorista')}
+          style={{
+            padding: '6px 14px',
+            borderRadius: '20px',
+            border: 'none',
+            fontSize: '12px',
+            fontWeight: '700',
+            cursor: 'pointer',
+            background: roleFilter === 'minorista' ? '#0D9488' : '#CCFBF1',
+            color: roleFilter === 'minorista' ? '#fff' : '#115E59'
+          }}
+        >
+          👤 Minoristas ({roleCounts.minorista})
+        </button>
+        <button
+          onClick={() => setRoleFilter('mayorista')}
+          style={{
+            padding: '6px 14px',
+            borderRadius: '20px',
+            border: 'none',
+            fontSize: '12px',
+            fontWeight: '700',
+            cursor: 'pointer',
+            background: roleFilter === 'mayorista' ? '#2563EB' : '#DBEAFE',
+            color: roleFilter === 'mayorista' ? '#fff' : '#1E40AF'
+          }}
+        >
+          🏢 Mayoristas ({roleCounts.mayorista})
+        </button>
+        <button
+          onClick={() => setRoleFilter('socio')}
+          style={{
+            padding: '6px 14px',
+            borderRadius: '20px',
+            border: 'none',
+            fontSize: '12px',
+            fontWeight: '700',
+            cursor: 'pointer',
+            background: roleFilter === 'socio' ? '#7C3AED' : '#EDE9FE',
+            color: roleFilter === 'socio' ? '#fff' : '#5B21B6'
+          }}
+        >
+          💎 Socios ({roleCounts.socio})
         </button>
       </div>
 
@@ -423,6 +536,25 @@ export function SuperOffersView() {
                       
                       {discount > 0 && (
                         <span style={{ padding: '3px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: '900', background: '#DC2626', color: '#fff', letterSpacing: '0.5px' }}>-{discount}% OFF</span>
+                      )}
+
+                      {/* Target Audience Badge */}
+                      {(!offer.tipo_cliente || offer.tipo_cliente === 'todos') ? (
+                        <span style={{ padding: '3px 12px', borderRadius: '20px', fontSize: '11px', fontWeight: '800', background: '#FEF3C7', color: '#92400E', border: '1px solid #F59E0B' }}>
+                          🌐 PÚBLICO GENERAL (TODOS)
+                        </span>
+                      ) : offer.tipo_cliente === 'socio' ? (
+                        <span style={{ padding: '3px 12px', borderRadius: '20px', fontSize: '11px', fontWeight: '800', background: '#EDE9FE', color: '#6D28D9', border: '1px solid #8B5CF6' }}>
+                          💎 EXCLUSIVO SOCIOS (LISTA 4)
+                        </span>
+                      ) : offer.tipo_cliente === 'mayorista' ? (
+                        <span style={{ padding: '3px 12px', borderRadius: '20px', fontSize: '11px', fontWeight: '800', background: '#DBEAFE', color: '#1D4ED8', border: '1px solid #3B82F6' }}>
+                          🏢 EXCLUSIVO MAYORISTAS (LISTA 3)
+                        </span>
+                      ) : (
+                        <span style={{ padding: '3px 12px', borderRadius: '20px', fontSize: '11px', fontWeight: '800', background: '#CCFBF1', color: '#0F766E', border: '1px solid #14B8A6' }}>
+                          👤 MINORISTAS (LISTA 1)
+                        </span>
                       )}
                     </div>
 
@@ -558,6 +690,30 @@ export function SuperOffersView() {
                   onChange={e => setCreateForm({ ...createForm, descripcion: e.target.value })}
                   placeholder="Detalles o instrucciones de la promoción..."
                 />
+              </div>
+
+              {/* TARGET AUDIENCE SELECTOR */}
+              <div>
+                <label style={{ fontSize: '12px', color: '#38bdf8', display: 'block', marginBottom: '6px', fontWeight: '800', textTransform: 'uppercase' }}>
+                  🎯 Destinatario / Categoría de Clientes *
+                </label>
+                <select
+                  style={{ background: '#0f172a', border: '1px solid #38bdf8', color: '#fff', borderRadius: '8px', width: '100%', padding: '10px 14px', fontSize: '14px', fontWeight: '700' }}
+                  value={createForm.tipo_cliente}
+                  onChange={e => setCreateForm({ ...createForm, tipo_cliente: e.target.value as TargetRole })}
+                  required
+                >
+                  <option value="todos">🌐 Para Todos (Público general / Todas las categorías)</option>
+                  <option value="minorista">👤 Solo Minoristas (Lista 1)</option>
+                  <option value="mayorista">🏢 Solo Mayoristas (Lista 3)</option>
+                  <option value="socio">💎 Solo Socios (Lista 4)</option>
+                </select>
+                <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px' }}>
+                  {createForm.tipo_cliente === 'todos' && 'Visible para todo tipo de cliente y visitantes no logueados.'}
+                  {createForm.tipo_cliente === 'minorista' && 'Visible exclusivamente para clientes clasificados como Minoristas.'}
+                  {createForm.tipo_cliente === 'mayorista' && 'Visible exclusivamente para clientes aprobados como Mayoristas.'}
+                  {createForm.tipo_cliente === 'socio' && 'Visible exclusivamente para clientes activos de la categoría Socios.'}
+                </div>
               </div>
 
               {/* PRODUCTS SELECTOR FOR COMBO */}
@@ -757,6 +913,24 @@ export function SuperOffersView() {
                   />
                   <div style={{ fontSize: '10px', color: '#64748b', marginTop: '3px' }}>Dejá vacío para sin vencimiento</div>
                 </div>
+              </div>
+
+              {/* TARGET AUDIENCE SELECTOR */}
+              <div>
+                <label style={{ fontSize: '11px', color: '#38bdf8', display: 'block', marginBottom: '5px', textTransform: 'uppercase', fontWeight: '700' }}>
+                  🎯 Destinatario / Categoría de Clientes *
+                </label>
+                <select
+                  style={{ background: '#0f172a', border: '1px solid #38bdf8', color: '#fff', borderRadius: '8px', width: '100%', padding: '9px 12px', fontSize: '13px', fontWeight: '700' }}
+                  value={editForm.tipo_cliente}
+                  onChange={e => setEditForm({ ...editForm, tipo_cliente: e.target.value as TargetRole })}
+                  required
+                >
+                  <option value="todos">🌐 Para Todos (Público general / Todas las categorías)</option>
+                  <option value="minorista">👤 Solo Minoristas (Lista 1)</option>
+                  <option value="mayorista">🏢 Solo Mayoristas (Lista 3)</option>
+                  <option value="socio">💎 Solo Socios (Lista 4)</option>
+                </select>
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.06)' }}>

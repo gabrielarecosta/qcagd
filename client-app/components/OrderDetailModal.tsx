@@ -9,12 +9,13 @@ import {
   SafeAreaView,
   Linking,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import MaterialCommunityIcons from './icons/MaterialCommunityIcons';
 import { Colors } from '../constants/Colors';
 import { FontSize, FontWeight } from '../constants/Typography';
 import { Radius, Spacing } from '../constants/Spacing';
-import { Order, ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from '../types';
+import { Order, OrderItem, ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from '../types';
 import { formatPrice, formatDate, formatTime } from '../utils/formatters';
 import { companySettingsService } from '@shared/services/companySettingsService';
 import { orderService } from '@shared/services/orderService';
@@ -31,6 +32,33 @@ export function OrderDetailModal({ order, onClose, onRepeat }: OrderDetailModalP
   const router = useRouter();
   const [companySettings, setCompanySettings] = useState<any>(null);
   const [isGeneratingMpLink, setIsGeneratingMpLink] = useState(false);
+  const [itemsList, setItemsList] = useState<OrderItem[]>(order?.items || []);
+  const [isLoadingItems, setIsLoadingItems] = useState(false);
+
+  useEffect(() => {
+    if (!order) {
+      setItemsList([]);
+      return;
+    }
+    if (order.items && order.items.length > 0) {
+      setItemsList(order.items);
+      return;
+    }
+    let isMounted = true;
+    setIsLoadingItems(true);
+    orderService.getOrderItems(order.id)
+      .then((items) => {
+        if (isMounted) setItemsList(items || []);
+      })
+      .catch((err) => {
+        console.warn('Error al cargar items del pedido:', err);
+      })
+      .finally(() => {
+        if (isMounted) setIsLoadingItems(false);
+      });
+
+    return () => { isMounted = false; };
+  }, [order?.id, order?.items]);
 
   const isMpLinkExpired = (ord: Order) => {
     if (!ord.mpPreferenceExpiresAt) return true;
@@ -79,7 +107,7 @@ export function OrderDetailModal({ order, onClose, onRepeat }: OrderDetailModalP
       }
 
       if (mpData.preferenceId && mpData.expiresAt) {
-        await orderService.updateMercadoPagoPreference(ord.id, mpData.preferenceId, link, mpData.expiresAt);
+        await orderService.updateMercadoPagoPreference(String(ord.id), mpData.preferenceId, link, mpData.expiresAt);
       }
 
       if (Platform.OS === 'web') {
@@ -335,40 +363,69 @@ export function OrderDetailModal({ order, onClose, onRepeat }: OrderDetailModalP
 
             {/* Listado de Productos */}
             <View style={styles.itemsCard}>
-              <Text style={styles.sectionHeaderTitle}>Productos solicitados ({order.items.length})</Text>
-
-              {([...order.items].sort((a, b) => {
-                const nameA = (a.producto?.nombre || '').trim().toLowerCase();
-                const nameB = (b.producto?.nombre || '').trim().toLowerCase();
-                return nameA.localeCompare(nameB, 'es', { sensitivity: 'base' });
-              })).map((item, idx) => (
-                <View key={idx} style={styles.itemRow}>
-                  <View style={styles.itemMain}>
-                    <Text 
-                      style={styles.itemName} 
-                      numberOfLines={2}
-                      {...(Platform.OS === 'web' ? ({ translate: 'no', className: 'notranslate' } as any) : {})}
-                    >
-                      {Platform.OS === 'web' ? (
-                        <span className="notranslate" translate="no">
-                          {item.producto.nombre}
-                        </span>
-                      ) : (
-                        item.producto.nombre
-                      )}
-                    </Text>
-                    <Text style={styles.itemSub}>
-                      {item.cantidad} x {formatPrice(item.precioUnitario)}
-                    </Text>
-                  </View>
-                  <Text style={styles.itemSubtotal}>{formatPrice(item.subtotal)}</Text>
-                </View>
-              ))}
-
-              <View style={styles.totalRow}>
-                <Text style={styles.totalLabel}>Total del Pedido:</Text>
-                <Text style={styles.totalVal}>{formatPrice(order.total)}</Text>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.md }}>
+                <Text style={[styles.sectionHeaderTitle, { marginBottom: 0 }]}>
+                  Productos solicitados ({itemsList.length})
+                </Text>
+                {itemsList.length > 0 && (
+                  <Text style={{ fontSize: FontSize.xs, color: Colors.primary, fontWeight: FontWeight.semibold }}>
+                    {itemsList.reduce((acc, it) => acc + (it.cantidad || 1), 0)} unidades
+                  </Text>
+                )}
               </View>
+
+              {isLoadingItems ? (
+                <View style={{ paddingVertical: 20, alignItems: 'center' }}>
+                  <ActivityIndicator size="small" color={Colors.primary} />
+                  <Text style={{ marginTop: 8, fontSize: FontSize.sm, color: Colors.textSecondary }}>Cargando artículos del pedido...</Text>
+                </View>
+              ) : itemsList.length > 0 ? (
+                <>
+                  {([...itemsList].sort((a, b) => {
+                    const nameA = (a.producto?.nombre || '').trim().toLowerCase();
+                    const nameB = (b.producto?.nombre || '').trim().toLowerCase();
+                    return nameA.localeCompare(nameB, 'es', { sensitivity: 'base' });
+                  })).map((item, idx) => (
+                    <View key={idx} style={styles.itemRow}>
+                      <View style={styles.itemMain}>
+                        <Text 
+                          style={styles.itemName} 
+                          numberOfLines={2}
+                          {...(Platform.OS === 'web' ? ({ translate: 'no', className: 'notranslate' } as any) : {})}
+                        >
+                          {Platform.OS === 'web' ? (
+                            <span className="notranslate" translate="no">
+                              {item.producto?.nombre || 'Producto'}
+                            </span>
+                          ) : (
+                            item.producto?.nombre || 'Producto'
+                          )}
+                        </Text>
+                        {!!item.producto?.presentacion && item.producto.presentacion !== 'Presentación Importada' && (
+                          <Text style={{ fontSize: FontSize.xs, color: Colors.textSecondary, marginTop: 1 }}>
+                            {item.producto.presentacion}
+                          </Text>
+                        )}
+                        <Text style={styles.itemSub}>
+                          {item.cantidad} x {formatPrice(item.precioUnitario)}
+                        </Text>
+                      </View>
+                      <Text style={styles.itemSubtotal}>{formatPrice(item.subtotal)}</Text>
+                    </View>
+                  ))}
+
+                  <View style={styles.totalRow}>
+                    <Text style={styles.totalLabel}>Total del Pedido:</Text>
+                    <Text style={styles.totalVal}>{formatPrice(order.total)}</Text>
+                  </View>
+                </>
+              ) : (
+                <View style={{ paddingVertical: 12 }}>
+                  <Text style={{ fontSize: FontSize.sm, color: Colors.textSecondary, fontStyle: 'italic' }}>
+                    No se encontraron detalles de artículos para este pedido.
+                  </Text>
+                </View>
+              )}
             </View>
           </ScrollView>
 

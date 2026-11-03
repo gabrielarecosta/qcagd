@@ -117,6 +117,7 @@ interface AdminStore {
   markNotificationRead: (id: string | number) => Promise<void>;
   markAllNotificationsRead: () => Promise<void>;
   createSuperOffer: (offer: any, items: any[]) => Promise<void>;
+  updateSuperOffer: (id: string | number, updates: any) => Promise<void>;
   deleteSuperOffer: (id: string | number) => Promise<void>;
 }
 
@@ -876,6 +877,11 @@ export const useAdminStore = create<AdminStore>((set, get) => ({
 
   createSuperOffer: async (offer, items) => {
     await productService.createSuperOffer(offer, items);
+    await get().fetchData(true);
+  },
+
+  updateSuperOffer: async (id, updates) => {
+    await productService.updateSuperOffer(id, updates);
     await get().fetchData(true);
   },
 

@@ -84,7 +84,7 @@ export const wholesaleService = {
       const { data: custData, error: custErr } = await supabase
         .from('customers')
         .select('*')
-        .eq('tipo_cliente', 'mayorista')
+        .in('tipo_cliente', ['mayorista', 'socio', 'socios'])
         .is('deleted_at', null)
         .order('created_at', { ascending: false });
 
@@ -154,13 +154,14 @@ export const wholesaleService = {
   },
 
   /**
-   * Aprueba una solicitud mayorista y habilita al cliente en el sistema.
+   * Aprueba una solicitud autorizando al cliente como mayorista o socio.
    */
-  approve: async (application: WholesaleApplication, adminEmail?: string): Promise<{ success: boolean; message: string }> => {
+  approve: async (application: WholesaleApplication, adminEmail?: string, targetRole: 'mayorista' | 'socio' = 'mayorista'): Promise<{ success: boolean; message: string }> => {
     const now = new Date().toISOString();
+    const finalRole = targetRole === 'socio' ? 'socio' : 'mayorista';
 
-    // 1. Intentar RPC oficial si el customer_id está disponible
-    if (application.customer_id) {
+    // 1. Si es mayorista, intentar RPC oficial si el customer_id está disponible
+    if (finalRole === 'mayorista' && application.customer_id) {
       try {
         const { data: rpcRes, error: rpcErr } = await supabase.rpc('approve_wholesale_application', {
           p_customer_id: application.customer_id,
@@ -179,7 +180,7 @@ export const wholesaleService = {
       await supabase
         .from('customers')
         .update({
-          tipo_cliente: 'mayorista',
+          tipo_cliente: finalRole,
           mayorista_autorizado: true,
           estado_solicitud_mayorista: 'aprobada',
           fecha_resolucion_mayorista: now,
@@ -190,7 +191,7 @@ export const wholesaleService = {
       await supabase
         .from('customers')
         .update({
-          tipo_cliente: 'mayorista',
+          tipo_cliente: finalRole,
           mayorista_autorizado: true,
           estado_solicitud_mayorista: 'aprobada',
           fecha_resolucion_mayorista: now,
@@ -207,12 +208,33 @@ export const wholesaleService = {
           estado: 'aprobada',
           fecha_resolucion: now,
           revisado_por: adminEmail || 'Administrador',
+          notas: `[Aprobado como ${finalRole.toUpperCase()}] ${application.notas || ''}`.trim(),
           updated_at: now,
         })
         .eq('id', application.id);
     }
 
-    return { success: true, message: 'Solicitud aprobada y cliente autorizado como mayorista exitosamente.' };
+    // 4. Actualizar inmediatamente los productos del carrito guardado/abandonado con los nuevos precios
+    try {
+      const { cartService } = await import('./cartService');
+      if (application.customer_id) {
+        await cartService.refreshUserCartPrices(String(application.customer_id), finalRole);
+      }
+      if (application.email) {
+        const { data: custRow } = await supabase
+          .from('customers')
+          .select('id, user_id')
+          .ilike('email', application.email.trim())
+          .maybeSingle();
+        if (custRow?.id) await cartService.refreshUserCartPrices(String(custRow.id), finalRole);
+        if (custRow?.user_id) await cartService.refreshUserCartPrices(String(custRow.user_id), finalRole);
+      }
+    } catch (cartErr) {
+      console.warn('Advertencia al refrescar carrito tras aprobación mayorista/socio:', cartErr);
+    }
+
+    const label = finalRole === 'socio' ? 'Socio (Lista 4 · Precios Socios)' : 'Mayorista (Lista 3 · Precios Mayoristas)';
+    return { success: true, message: `Solicitud aprobada y cliente autorizado como ${label} exitosamente.` };
   },
 
   /**

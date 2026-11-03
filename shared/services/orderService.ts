@@ -25,6 +25,7 @@ const mapOrder = (o: any, items: any[] = [], customerObj?: any): Order => {
   const resolvedName = o.customer_name || cust.razon_social || cust.nombre || undefined;
   const resolvedPhone = o.customer_phone || cust.telefono || cust.whatsapp || undefined;
   const resolvedAddress = o.original_address || cust.direccion || undefined;
+  const resolvedType = cust.tipo_cliente || o.customer_type || o.tipo_cliente || undefined;
 
   let rawCount: number | undefined = undefined;
   if (Array.isArray(o.order_items) && o.order_items[0]?.count !== undefined) {
@@ -77,6 +78,18 @@ const mapOrder = (o: any, items: any[] = [], customerObj?: any): Order => {
     locationStatus: o.location_status || (o.latitude && o.longitude ? 'geocoded' : 'pending'),
     customerName: resolvedName,
     customerPhone: resolvedPhone,
+    customerType: resolvedType,
+    customer: cust && Object.keys(cust).length > 0 ? {
+      id: cust.id,
+      userId: cust.user_id,
+      nombre: cust.nombre,
+      razonSocial: cust.razon_social,
+      tipoCliente: cust.tipo_cliente,
+      telefono: cust.telefono || cust.whatsapp,
+      email: cust.email,
+      cuit: cust.cuit,
+      direccion: cust.direccion,
+    } : undefined,
     outOfStockPreference: o.out_of_stock_preference || undefined,
     mpPreferenceId: o.mp_preference_id || undefined,
     mpInitPoint: o.mp_init_point || undefined,
@@ -98,19 +111,30 @@ export const orderService = {
 
     if (!ordersData || ordersData.length === 0) return [];
 
-    // Cargar mapa completo de clientes por ID numérico y por UUID user_id
+    // Cargar mapa completo de clientes por ID numérico, por UUID user_id y por nombre/razón social
     const custMap = new Map<string, any>();
     try {
       const { data: custsData } = await supabase.from('customers').select('*').is('deleted_at', null);
       if (custsData) {
         custsData.forEach((c: any) => {
-          if (c.id) custMap.set(String(c.id), c);
-          if (c.user_id) custMap.set(String(c.user_id), c);
+          if (c.id != null) custMap.set(String(c.id).trim(), c);
+          if (c.user_id) custMap.set(String(c.user_id).trim(), c);
+          if (c.nombre) custMap.set(`name:${c.nombre.trim().toUpperCase()}`, c);
+          if (c.razon_social) custMap.set(`name:${c.razon_social.trim().toUpperCase()}`, c);
         });
       }
     } catch (e) {
       console.warn('Advertencia cargando clientes:', e);
     }
+
+    const resolveCustForOrder = (o: any) => {
+      let found = o.cliente_id != null ? custMap.get(String(o.cliente_id).trim()) : undefined;
+      if (!found && o.observaciones_cliente) {
+        const clean = o.observaciones_cliente.replace(/^Recibe:\s*/i, '').trim().toUpperCase();
+        found = custMap.get(`name:${clean}`);
+      }
+      return found;
+    };
 
     if (options?.includeItems) {
       const orderIds = ordersData.map((o: any) => o.id);
@@ -123,14 +147,14 @@ export const orderService = {
 
       return ordersData.map((o: any) => {
         const items = (itemsData || []).filter((item: any) => String(item.order_id) === String(o.id));
-        const custObj = custMap.get(String(o.cliente_id));
+        const custObj = resolveCustForOrder(o);
         return mapOrder(o, items, custObj);
       });
     }
 
     // Por defecto no cargamos los items de todas las órdenes en bloque
     return ordersData.map((o: any) => {
-      const custObj = custMap.get(String(o.cliente_id));
+      const custObj = resolveCustForOrder(o);
       return mapOrder(o, [], custObj);
     });
   },

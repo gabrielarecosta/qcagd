@@ -302,6 +302,7 @@ export function ProductsView({
     nombre: '',
     descripcion: '',
     precioOferta: 0,
+    tipo_cliente: 'todos',
   });
   const [offerItems, setOfferItems] = useState<{ productId: string; nombre: string; precio: number; cantidad: number; unidad: string }[]>([]);
 
@@ -769,6 +770,7 @@ export function ProductsView({
       nombre: '',
       descripcion: '',
       precioOferta: Math.round(originalPrice * 0.8),
+      tipo_cliente: 'todos',
     });
     
     setOfferItems(selectedProds.map(p => {
@@ -798,6 +800,7 @@ export function ProductsView({
         descripcion: offerForm.descripcion,
         precioOriginal: originalPrice,
         precioOferta: offerForm.precioOferta,
+        tipo_cliente: offerForm.tipo_cliente,
         activo: true
       }, offerItems);
       
@@ -1707,6 +1710,21 @@ export function ProductsView({
                     onChange={e => setOfferForm({ ...offerForm, descripcion: e.target.value })}
                     placeholder="Ej: Súper promo ahorro! Llevate todo por tiempo limitado."
                   />
+                </div>
+
+                <div className="form-group" style={{ marginBottom: '16px' }}>
+                  <label className="form-label" style={{ color: '#38bdf8', fontSize: '12px', display: 'block', marginBottom: '6px', fontWeight: 'bold' }}>Destinatario / Categoría de Clientes</label>
+                  <select
+                    className="form-input"
+                    style={{ background: '#0f172a', border: '1px solid #38bdf8', color: '#fff', borderRadius: '6px', width: '100%', padding: '8px 12px', fontWeight: 'bold' }}
+                    value={offerForm.tipo_cliente}
+                    onChange={e => setOfferForm({ ...offerForm, tipo_cliente: e.target.value })}
+                  >
+                    <option value="todos">🌐 Para Todos (Público general / Todas las categorías)</option>
+                    <option value="minorista">👤 Solo Minoristas (Lista 1)</option>
+                    <option value="mayorista">🏢 Solo Mayoristas (Lista 3)</option>
+                    <option value="socio">💎 Solo Socios (Lista 4)</option>
+                  </select>
                 </div>
 
                 <div className="form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>

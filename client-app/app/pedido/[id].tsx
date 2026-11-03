@@ -99,14 +99,28 @@ export default function OrderDetailScreen() {
     }
   };
 
+  const [directOrder, setDirectOrder] = useState<Order | null>(null);
+  const [orderItems, setOrderItems] = useState<any[]>([]);
+  const [isLoadingItems, setIsLoadingItems] = useState(false);
+
   useEffect(() => {
     const init = async () => {
       try {
         const [settings] = await Promise.all([
           companySettingsService.get(),
-          fetchOrders(clientData?.id),
+          fetchOrders(clientData?.id ? String(clientData.id) : undefined),
         ]);
         setCompanySettings(settings);
+
+        if (id) {
+          const direct = await orderService.getById(id);
+          if (direct) {
+            setDirectOrder(direct);
+            if (direct.items && direct.items.length > 0) {
+              setOrderItems(direct.items);
+            }
+          }
+        }
       } catch (err) {
         console.warn('Error cargando pedido:', err);
       } finally {
@@ -116,9 +130,30 @@ export default function OrderDetailScreen() {
     init();
   }, [id, clientData?.id]);
 
-  const targetOrder = orders.find(
-    (o) => o.id === id || o.numero === id || o.numero === `#${id}`
+  const storeOrder = orders.find(
+    (o) => String(o.id) === String(id) || o.numero === id || o.numero === `#${id}`
   );
+  const targetOrder = directOrder || storeOrder;
+
+  useEffect(() => {
+    if (targetOrder && (!targetOrder.items || targetOrder.items.length === 0) && orderItems.length === 0) {
+      setIsLoadingItems(true);
+      orderService.getOrderItems(targetOrder.id)
+        .then(items => {
+          setOrderItems(items || []);
+        })
+        .catch(err => {
+          console.warn('Error al cargar artículos:', err);
+        })
+        .finally(() => {
+          setIsLoadingItems(false);
+        });
+    } else if (targetOrder && targetOrder.items && targetOrder.items.length > 0 && orderItems.length === 0) {
+      setOrderItems(targetOrder.items);
+    }
+  }, [targetOrder?.id, targetOrder?.items]);
+
+  const displayItems = orderItems.length > 0 ? orderItems : (targetOrder?.items || []);
 
   const handleRepeatOrder = (ord: Order) => {
     repeatOrder(ord);
@@ -389,30 +424,59 @@ export default function OrderDetailScreen() {
 
           {/* Listado de Productos */}
           <View style={styles.itemsSection}>
-            <Text style={styles.sectionHeaderTitle}>Productos ({targetOrder.items.length})</Text>
-
-            {([...targetOrder.items].sort((a, b) => {
-              const nameA = (a.producto?.nombre || '').trim().toLowerCase();
-              const nameB = (b.producto?.nombre || '').trim().toLowerCase();
-              return nameA.localeCompare(nameB, 'es', { sensitivity: 'base' });
-            })).map((item, idx) => (
-              <View key={idx} style={styles.itemRow}>
-                <View style={styles.itemMain}>
-                  <Text style={styles.itemName} numberOfLines={2}>
-                    {item.producto.nombre}
-                  </Text>
-                  <Text style={styles.itemSub}>
-                    {item.cantidad} x {formatPrice(item.precioUnitario)}
-                  </Text>
-                </View>
-                <Text style={styles.itemSubtotal}>{formatPrice(item.subtotal)}</Text>
-              </View>
-            ))}
-
-            <View style={styles.totalRow}>
-              <Text style={styles.totalLabel}>Total del Pedido:</Text>
-              <Text style={styles.totalVal}>{formatPrice(targetOrder.total)}</Text>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.md }}>
+              <Text style={[styles.sectionHeaderTitle, { marginBottom: 0 }]}>
+                Productos solicitados ({displayItems.length})
+              </Text>
+              {displayItems.length > 0 && (
+                <Text style={{ fontSize: FontSize.xs, color: Colors.primary, fontWeight: FontWeight.semibold }}>
+                  {displayItems.reduce((acc, it) => acc + (it.cantidad || 1), 0)} unidades
+                </Text>
+              )}
             </View>
+
+            {isLoadingItems ? (
+              <View style={{ paddingVertical: 20, alignItems: 'center' }}>
+                <ActivityIndicator size="small" color={Colors.primary} />
+                <Text style={{ marginTop: 8, fontSize: FontSize.sm, color: Colors.textSecondary }}>Cargando artículos del pedido...</Text>
+              </View>
+            ) : displayItems.length > 0 ? (
+              <>
+                {([...displayItems].sort((a, b) => {
+                  const nameA = (a.producto?.nombre || '').trim().toLowerCase();
+                  const nameB = (b.producto?.nombre || '').trim().toLowerCase();
+                  return nameA.localeCompare(nameB, 'es', { sensitivity: 'base' });
+                })).map((item, idx) => (
+                  <View key={idx} style={styles.itemRow}>
+                    <View style={styles.itemMain}>
+                      <Text style={styles.itemName} numberOfLines={2}>
+                        {item.producto?.nombre || 'Producto'}
+                      </Text>
+                      {!!item.producto?.presentacion && item.producto.presentacion !== 'Presentación Importada' && (
+                        <Text style={{ fontSize: FontSize.xs, color: Colors.textSecondary, marginTop: 1 }}>
+                          {item.producto.presentacion}
+                        </Text>
+                      )}
+                      <Text style={styles.itemSub}>
+                        {item.cantidad} x {formatPrice(item.precioUnitario)}
+                      </Text>
+                    </View>
+                    <Text style={styles.itemSubtotal}>{formatPrice(item.subtotal)}</Text>
+                  </View>
+                ))}
+
+                <View style={styles.totalRow}>
+                  <Text style={styles.totalLabel}>Total del Pedido:</Text>
+                  <Text style={styles.totalVal}>{formatPrice(targetOrder.total)}</Text>
+                </View>
+              </>
+            ) : (
+              <View style={{ paddingVertical: 12 }}>
+                <Text style={{ fontSize: FontSize.sm, color: Colors.textSecondary, fontStyle: 'italic' }}>
+                  No se encontraron detalles de artículos para este pedido.
+                </Text>
+              </View>
+            )}
           </View>
 
           {/* Acciones Rápidas */}

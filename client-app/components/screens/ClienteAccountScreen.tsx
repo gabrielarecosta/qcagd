@@ -35,6 +35,8 @@ import { triggerPwaInstallModal } from '../PwaInstallBanner';
 import { MisListasScreen } from './MisListasScreen';
 import { useListsStore } from '../../store/listsStore';
 import { useAccountTabStore, AccountTab } from '../../store/accountTabStore';
+import { useCatalogStore } from '../../store/catalogStore';
+import { normalizeCustomerRole } from '@shared/services/cartService';
 
 
 function InfoRow({ label, value }: { label: string; value: string }) {
@@ -74,7 +76,13 @@ export function ClienteAccountScreen() {
   const router = useRouter();
   const { clientData, logout, setClienteSession } = useAuthStore();
   const { orders, fetchOrders } = useOrderStore();
-  const { repeatOrder } = useCartStore();
+  const { repeatOrder, addProduct } = useCartStore();
+  const { superOffers, fetchSuperOffers } = useCatalogStore();
+  const clientRole = normalizeCustomerRole(clientData?.tipoCliente);
+
+  useEffect(() => {
+    fetchSuperOffers();
+  }, [clientData?.tipoCliente]);
 
   const [companySettings, setCompanySettings] = useState<any>(null);
   const [addresses, setAddresses] = useState<CustomerAddress[]>([]);
@@ -92,7 +100,7 @@ export function ClienteAccountScreen() {
   const { activeTab: activeAccountTab, setActiveTab: setActiveAccountTab } = useAccountTabStore();
 
   useEffect(() => {
-    if (params?.tab && ['pedidos', 'listas', 'reparto', 'datos', 'todos'].includes(params.tab)) {
+    if (params?.tab && ['pedidos', 'listas', 'reparto', 'datos', 'ofertas', 'todos'].includes(params.tab)) {
       setActiveAccountTab(params.tab as AccountTab);
     }
   }, [params?.tab]);
@@ -391,9 +399,10 @@ export function ClienteAccountScreen() {
     loadSettingsAndBranches();
     loadAddresses();
     if (clientData?.id) {
-      fetchOrders(clientData.id);
+      fetchOrders(String(clientData.id));
+      useAuthStore.getState().refreshClientProfile();
     }
-  }, [clientData]);
+  }, [clientData?.id]);
 
   const currentBranchName = useMemo(() => {
     if (!clientData?.branchId) return 'Casa Central';
@@ -427,7 +436,7 @@ export function ClienteAccountScreen() {
 
   const clientOrders = useMemo(() => {
     if (!clientData) return [];
-    return orders.filter(o => o.clienteId === clientData.id);
+    return orders.filter(o => String(o.clienteId) === String(clientData.id));
   }, [orders, clientData]);
 
   // Contadores para chips de método de entrega
@@ -509,6 +518,63 @@ export function ClienteAccountScreen() {
     router.push('/(tabs)/carrito');
   };
 
+  const handleAddOfferToCart = (offer: any) => {
+    const items: any[] = offer.super_offer_items || [];
+    if (!items || items.length === 0) return;
+
+    const totalOriginalComboPrice = items.reduce((sum: number, it: any) => {
+      const p = it.products;
+      const unitOrigPrice = Number(p ? (p.precio || p.precio_original || 0) : 0);
+      const qty = Math.max(1, Math.ceil(Number(it.cantidad) || 1));
+      return sum + (unitOrigPrice * qty);
+    }, 0);
+
+    const offerPrice = Number(offer.precio_oferta || 0);
+
+    items.forEach((it: any) => {
+      if (it.products) {
+        const qty = Math.max(1, Math.ceil(Number(it.cantidad) || 1));
+        const unitOrigPrice = Number(it.products.precio || it.products.precio_original || 0);
+        const itemOriginalTotal = unitOrigPrice * qty;
+
+        let effectiveUnitPrice = 0;
+        if (totalOriginalComboPrice > 0) {
+          const itemEffectiveTotal = offerPrice * (itemOriginalTotal / totalOriginalComboPrice);
+          effectiveUnitPrice = Math.round((itemEffectiveTotal / qty) * 100) / 100;
+        } else {
+          const totalUnits = items.reduce((sum: number, i: any) => sum + Math.max(1, Math.ceil(Number(i.cantidad) || 1)), 0);
+          effectiveUnitPrice = Math.round((offerPrice / (totalUnits || 1)) * 100) / 100;
+        }
+
+        const superOfferProduct = {
+          ...it.products,
+          isSuperOffer: true,
+          superOfferId: offer.id,
+          superOfferName: offer.nombre,
+          precio: effectiveUnitPrice,
+          precioFinal: effectiveUnitPrice,
+          precioVenta: effectiveUnitPrice,
+          precio_venta: effectiveUnitPrice,
+          precioMinorista: effectiveUnitPrice,
+          precioMayorista: effectiveUnitPrice,
+          precioSocios: effectiveUnitPrice,
+          precio_mayorista: effectiveUnitPrice,
+          precio_socios: effectiveUnitPrice,
+          precioOriginal: unitOrigPrice > 0 ? unitOrigPrice : effectiveUnitPrice,
+          precioOriginalLista: unitOrigPrice > 0 ? unitOrigPrice : effectiveUnitPrice,
+          roleListaAplicada: 'Súper Oferta',
+        };
+
+        addProduct(superOfferProduct, qty, true);
+      }
+    });
+
+    customAlert(
+      '¡Súper Oferta Agregada!',
+      `Los artículos del combo "${offer.nombre}" fueron agregados a tu carrito con precio de Súper Oferta.`
+    );
+  };
+
   const handleCallSupport = () => {
     const tel = companySettings?.telefono || '3584123456';
     Linking.openURL(`tel:${tel}`);
@@ -551,12 +617,31 @@ export function ClienteAccountScreen() {
             {!!clientData.razonSocial && (
               <Text style={styles.razonSocial}>{clientData.razonSocial}</Text>
             )}
-            <View style={{ marginTop: 4, flexDirection: 'row', alignItems: 'center' }}>
+            <View style={{ marginTop: 6, flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
               <View style={{ backgroundColor: '#e0f2fe', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6, borderWidth: 1, borderColor: '#bae6fd' }}>
                 <Text style={{ fontSize: 12, fontWeight: '700', color: '#0369a1' }}>
                   Número de cliente: #{clientData.id}
                 </Text>
               </View>
+              {clientData.tipoCliente === 'socio' || clientData.tipoCliente === 'socios' ? (
+                <View style={{ backgroundColor: '#f3e8ff', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6, borderWidth: 1, borderColor: '#d8b4fe' }}>
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: '#7e22ce' }}>
+                    👑 Socio · Lista 4
+                  </Text>
+                </View>
+              ) : clientData.tipoCliente === 'mayorista' ? (
+                <View style={{ backgroundColor: '#fef3c7', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6, borderWidth: 1, borderColor: '#fcd34d' }}>
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: '#b45309' }}>
+                    🏢 Mayorista · Lista 3
+                  </Text>
+                </View>
+              ) : (
+                <View style={{ backgroundColor: '#f1f5f9', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6, borderWidth: 1, borderColor: '#cbd5e1' }}>
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: '#475569' }}>
+                    🛒 Minorista · Lista 1
+                  </Text>
+                </View>
+              )}
             </View>
           </View>
         </View>
@@ -652,6 +737,21 @@ export function ClienteAccountScreen() {
         </TouchableOpacity>
 
         <TouchableOpacity
+          style={[accountTabStyles.tabItem, activeAccountTab === 'ofertas' && accountTabStyles.tabItemActive]}
+          onPress={() => setActiveAccountTab('ofertas')}
+          activeOpacity={0.7}
+        >
+          <MaterialCommunityIcons
+            name="lightning-bolt"
+            size={18}
+            color={activeAccountTab === 'ofertas' ? '#EA580C' : '#64748B'}
+          />
+          <Text style={[accountTabStyles.tabText, activeAccountTab === 'ofertas' && accountTabStyles.tabTextActive, activeAccountTab === 'ofertas' && { color: '#EA580C' }]}>
+            Súper Ofertas ({superOffers.length})
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
           style={[accountTabStyles.tabItem, activeAccountTab === 'todos' && accountTabStyles.tabItemActive]}
           onPress={() => setActiveAccountTab('todos')}
           activeOpacity={0.7}
@@ -666,6 +766,158 @@ export function ClienteAccountScreen() {
           </Text>
         </TouchableOpacity>
       </View>
+
+      {/* Súper Ofertas Exclusivas según Categoría */}
+      {(activeAccountTab === 'ofertas' || activeAccountTab === 'todos') && (
+        <View style={[styles.card, { marginBottom: Spacing.xl, borderColor: '#FED7AA', borderWidth: 1.5 }]}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: Spacing.md, flexWrap: 'wrap', gap: 8 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <View style={{ backgroundColor: '#FFEDD5', padding: 6, borderRadius: Radius.full }}>
+                <MaterialCommunityIcons name="lightning-bolt" size={20} color="#EA580C" />
+              </View>
+              <View>
+                <Text style={[styles.cardTitle, { marginBottom: 0 }]}>
+                  {clientRole === 'socio'
+                    ? 'Mis Ofertas Exclusivas para Socios'
+                    : clientRole === 'mayorista'
+                    ? 'Mis Ofertas Exclusivas Mayoristas'
+                    : 'Mis Súper Ofertas y Promociones'}
+                </Text>
+                <Text style={{ fontSize: FontSize.xs, color: Colors.textSecondary, marginTop: 2 }}>
+                  Combos y promociones vigentes para tu categoría ({clientRole === 'socio' ? 'Lista 4 Socios' : clientRole === 'mayorista' ? 'Lista 3 Mayoristas' : 'Lista 1 Minoristas'})
+                </Text>
+              </View>
+            </View>
+            <View style={{ backgroundColor: clientRole === 'socio' ? '#EDE9FE' : clientRole === 'mayorista' ? '#DBEAFE' : '#CCFBF1', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 }}>
+              <Text style={{ fontSize: FontSize.xs, fontWeight: FontWeight.bold, color: clientRole === 'socio' ? '#6D28D9' : clientRole === 'mayorista' ? '#1D4ED8' : '#0F766E' }}>
+                {clientRole === 'socio' ? '💎 SOCIO' : clientRole === 'mayorista' ? '🏢 MAYORISTA' : '👤 MINORISTA'}
+              </Text>
+            </View>
+          </View>
+
+          {superOffers.length === 0 ? (
+            <View style={{ padding: Spacing.xl, alignItems: 'center', justifyContent: 'center' }}>
+              <MaterialCommunityIcons name="tag-off-outline" size={44} color="#94A3B8" />
+              <Text style={{ fontSize: FontSize.sm, color: Colors.textSecondary, marginTop: Spacing.sm, textAlign: 'center' }}>
+                No hay súper ofertas vigentes en este momento para tu categoría.
+              </Text>
+            </View>
+          ) : (
+            <View style={{ flexDirection: 'column', gap: 14 }}>
+              {superOffers.map((offer: any) => {
+                const discount = offer.precio_original > 0
+                  ? Math.round(((offer.precio_original - offer.precio_oferta) / offer.precio_original) * 100)
+                  : 0;
+                const items: any[] = offer.super_offer_items || [];
+                const target = offer.tipo_cliente || 'todos';
+
+                return (
+                  <View
+                    key={offer.id}
+                    style={{
+                      backgroundColor: '#FFFBEB',
+                      borderRadius: Radius.md,
+                      padding: Spacing.md,
+                      borderWidth: 1.5,
+                      borderColor: '#FDE68A',
+                    }}
+                  >
+                    <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
+                      <View style={{ flex: 1, minWidth: 200 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 4 }}>
+                          <Text style={{ fontSize: FontSize.md, fontWeight: FontWeight.bold, color: '#1E293B' }}>
+                            {offer.nombre}
+                          </Text>
+                          {discount > 0 && (
+                            <View style={{ backgroundColor: '#DC2626', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 12 }}>
+                              <Text style={{ color: '#fff', fontSize: FontSize.xs, fontWeight: FontWeight.bold }}>
+                                -{discount}% OFF
+                              </Text>
+                            </View>
+                          )}
+                          {target === 'socio' ? (
+                            <View style={{ backgroundColor: '#EDE9FE', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 12, borderWidth: 1, borderColor: '#8B5CF6' }}>
+                              <Text style={{ color: '#6D28D9', fontSize: 10, fontWeight: FontWeight.bold }}>💎 EXCLUSIVO SOCIOS</Text>
+                            </View>
+                          ) : target === 'mayorista' ? (
+                            <View style={{ backgroundColor: '#DBEAFE', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 12, borderWidth: 1, borderColor: '#3B82F6' }}>
+                              <Text style={{ color: '#1D4ED8', fontSize: 10, fontWeight: FontWeight.bold }}>🏢 EXCLUSIVO MAYORISTAS</Text>
+                            </View>
+                          ) : target === 'minorista' ? (
+                            <View style={{ backgroundColor: '#CCFBF1', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 12, borderWidth: 1, borderColor: '#14B8A6' }}>
+                              <Text style={{ color: '#0F766E', fontSize: 10, fontWeight: FontWeight.bold }}>👤 MINORISTAS</Text>
+                            </View>
+                          ) : (
+                            <View style={{ backgroundColor: '#FEF3C7', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 12, borderWidth: 1, borderColor: '#F59E0B' }}>
+                              <Text style={{ color: '#92400E', fontSize: 10, fontWeight: FontWeight.bold }}>🌐 TODOS</Text>
+                            </View>
+                          )}
+                        </View>
+
+                        {offer.descripcion ? (
+                          <Text style={{ fontSize: FontSize.xs, color: '#475569', marginBottom: 8 }}>
+                            {offer.descripcion}
+                          </Text>
+                        ) : null}
+
+                        {items.length > 0 && (
+                          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
+                            {items.map((it: any) => (
+                              <View
+                                key={it.id}
+                                style={{
+                                  backgroundColor: '#1E40AF',
+                                  paddingHorizontal: 8,
+                                  paddingVertical: 3,
+                                  borderRadius: 6,
+                                }}
+                              >
+                                <Text style={{ color: '#fff', fontSize: 11, fontWeight: FontWeight.semibold }}>
+                                  {it.cantidad} {it.unidad} · {it.products?.nombre || it.product_id}
+                                </Text>
+                              </View>
+                            ))}
+                          </View>
+                        )}
+                      </View>
+
+                      <View style={{ alignItems: 'flex-end', justifyContent: 'center' }}>
+                        {offer.precio_original > 0 && (
+                          <Text style={{ fontSize: FontSize.xs, color: '#94A3B8', textDecorationLine: 'line-through' }}>
+                            {formatPrice(offer.precio_original)}
+                          </Text>
+                        )}
+                        <Text style={{ fontSize: FontSize.xl, fontWeight: FontWeight.bold, color: '#B45309' }}>
+                          {formatPrice(offer.precio_oferta)}
+                        </Text>
+                        <TouchableOpacity
+                          style={{
+                            marginTop: 8,
+                            backgroundColor: '#EA580C',
+                            paddingHorizontal: 14,
+                            paddingVertical: 8,
+                            borderRadius: Radius.md,
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            gap: 6,
+                          }}
+                          onPress={() => handleAddOfferToCart(offer)}
+                          activeOpacity={0.8}
+                        >
+                          <MaterialCommunityIcons name="cart-plus" size={16} color="#fff" />
+                          <Text style={{ color: '#fff', fontSize: FontSize.xs, fontWeight: FontWeight.bold }}>
+                            Agregar al carrito
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+          )}
+        </View>
+      )}
 
       {/* Mis Listas */}
       {(activeAccountTab === 'listas' || activeAccountTab === 'todos') && (

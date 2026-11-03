@@ -85,9 +85,16 @@ export function CartPreviewItemRow({
             )}
           </Text>
         </TouchableOpacity>
-        <Text style={styles.price}>
-          {formatPrice(item.producto.precio)}
-        </Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+          <Text style={styles.price}>
+            {formatPrice(item.producto.precio)}
+          </Text>
+          {Boolean((item.producto as any).isSuperOffer || (item.producto as any).superOfferId) && (
+            <View style={{ backgroundColor: '#FEF2F2', paddingHorizontal: 4, paddingVertical: 1, borderRadius: 3, borderWidth: 0.5, borderColor: '#FCA5A5' }}>
+              <Text style={{ fontSize: 9, color: '#DC2626', fontWeight: 'bold' }}>🔥 Oferta</Text>
+            </View>
+          )}
+        </View>
       </View>
 
       <View style={styles.stepperContainer}>

@@ -2,6 +2,7 @@ import { supabase } from './supabaseClient';
 import { processLogService } from './processLogService';
 import { cartService } from './cartService';
 import { Product, ProductStock, ProductCategory } from '../types/product';
+import { buildAccentInsensitivePattern, buildSearchOrClause } from '../utils/searchUtils';
 
 const mapProduct = (d: any, rate: number = 1000, isPublic: boolean = false): Product => {
   const isDolarizado = d.dolarizado || false;
@@ -18,8 +19,8 @@ const mapProduct = (d: any, rate: number = 1000, isPublic: boolean = false): Pro
     presentacion: d.presentacion,
     unidad: d.unidad || 'unidad',
     precio: precioArs,
-    precioMayorista: isPublic ? undefined : (d.precio_mayorista ? Number(d.precio_mayorista) : undefined),
-    precioSocios: isPublic ? undefined : (d.precio_socios ? Number(d.precio_socios) : undefined),
+    precioMayorista: d.precio_mayorista != null && Number(d.precio_mayorista) > 0 ? Number(d.precio_mayorista) : undefined,
+    precioSocios: d.precio_socios != null && Number(d.precio_socios) > 0 ? Number(d.precio_socios) : undefined,
     descripcion: d.descripcion || undefined,
     imagen: d.imagen || undefined,
     imagenSecundaria: d.imagen_secundaria || (d.imagenes && d.imagenes[1]) || undefined,
@@ -127,7 +128,7 @@ export const productService = {
     const isStockFilterActive = options.stockFilter && options.stockFilter !== 'all';
 
     const selectCols = isPublic
-      ? 'id, codigo, nombre, categoria, subcategoria, presentacion, unidad, descripcion, imagen, imagen_secundaria, imagenes, activo, visible_en_app, destacado, precio, precio_usd, dolarizado, created_at, updated_at'
+      ? 'id, codigo, nombre, categoria, subcategoria, presentacion, unidad, descripcion, imagen, imagen_secundaria, imagenes, activo, visible_en_app, destacado, precio, precio_usd, dolarizado, precio_mayorista, precio_socios, created_at, updated_at'
       : '*';
 
     let query = supabase
@@ -153,30 +154,12 @@ export const productService = {
       query = query.eq('categoria', options.categoria);
     }
 
-    // 4. Búsqueda segura por texto (nombre, código, descripción, presentación)
+    // 4. Búsqueda segura por texto indiferente a tildes (nombre, código, descripción, presentación)
     if (options.search && options.search.trim()) {
-      const clean = options.search.trim();
-      // Normalizar tildes/acentos (NFD) para que "líquido" encuentre "LIQUIDO" y viceversa, pero preservando la letra Ñ / ñ (\u0303)
-      const normalized = clean
-        .normalize('NFD')
-        .replace(/[\u0300-\u0302\u0304-\u036f]/g, '')
-        .normalize('NFC');
-      const terms = Array.from(new Set([clean, normalized].filter(Boolean)));
-
-      const clauses: string[] = [];
-      const fields = ['nombre', 'codigo', 'descripcion', 'presentacion'];
-
-      for (const term of terms) {
-        // Sanitizar comillas dobles y escapar comodines % y _ para coincidencia literal
-        const safeTerm = term.replace(/"/g, '').replace(/[%_]/g, '\\$&');
-        if (!safeTerm) continue;
-        for (const f of fields) {
-          clauses.push(`${f}.ilike."%${safeTerm}%"`);
-        }
-      }
-
-      if (clauses.length > 0) {
-        query = query.or(clauses.join(','));
+      const searchFields = ['nombre', 'codigo', 'descripcion', 'presentacion'];
+      const orClause = buildSearchOrClause(searchFields, options.search);
+      if (orClause) {
+        query = query.or(orClause);
       }
     }
 
@@ -377,7 +360,7 @@ export const productService = {
 
       const { data: chunk, error: prodErr } = await supabase
         .from('products')
-        .select(isPublic ? 'id, codigo, nombre, categoria, subcategoria, presentacion, unidad, descripcion, imagen, imagen_secundaria, imagenes, activo, visible_en_app, destacado, precio, precio_usd, dolarizado, created_at, updated_at, deleted_at, deleted_by' : '*')
+        .select(isPublic ? 'id, codigo, nombre, categoria, subcategoria, presentacion, unidad, descripcion, imagen, imagen_secundaria, imagenes, activo, visible_en_app, destacado, precio, precio_usd, dolarizado, precio_mayorista, precio_socios, created_at, updated_at, deleted_at, deleted_by' : '*')
         .is('deleted_at', null)
         .range(fromRange, toRange);
 
@@ -1527,38 +1510,102 @@ export const productService = {
   },
 
   createSuperOffer: async (offer: any, items: any[]): Promise<any> => {
+    const targetAudience = offer.tipoCliente || offer.tipo_cliente || 'todos';
     const insertPayload: any = {
       nombre: offer.nombre,
       descripcion: offer.descripcion || null,
       precio_oferta: offer.precioOferta ?? offer.precio_oferta,
       precio_original: offer.precioOriginal ?? offer.precio_original,
-      activo: offer.activo ?? true
+      activo: offer.activo ?? true,
+      tipo_cliente: targetAudience
     };
     if (offer.fechaFin || offer.fecha_fin) {
       insertPayload.fecha_fin = offer.fechaFin ? new Date(offer.fechaFin).toISOString() : new Date(offer.fecha_fin).toISOString();
     }
 
-    const { data: createdOffer, error: offerErr } = await supabase
+    let createdOffer: any = null;
+    const { data, error: offerErr } = await supabase
       .from('super_offers')
       .insert(insertPayload)
       .select('*')
       .single();
 
     if (offerErr) {
-      if (insertPayload.fecha_fin) {
-        delete insertPayload.fecha_fin;
-        const { data: fallbackOffer, error: fallbackErr } = await supabase
-          .from('super_offers')
-          .insert(insertPayload)
-          .select('*')
-          .single();
-        if (fallbackErr) throw fallbackErr;
-        return productService.insertSuperOfferItems(fallbackOffer, items);
+      // Si la columna tipo_cliente aún no existe en super_offers, insertar sin ella
+      if (offerErr.message?.includes('tipo_cliente')) {
+        delete insertPayload.tipo_cliente;
       }
-      throw offerErr;
+      if (insertPayload.fecha_fin && offerErr.message?.includes('fecha_fin')) {
+        delete insertPayload.fecha_fin;
+      }
+      const { data: fallbackOffer, error: fallbackErr } = await supabase
+        .from('super_offers')
+        .insert(insertPayload)
+        .select('*')
+        .single();
+      if (fallbackErr) throw fallbackErr;
+      createdOffer = fallbackOffer;
+    } else {
+      createdOffer = data;
     }
 
+    // Persistir target audience en app_config para sincronización inmediata
+    try {
+      const { data: configRow } = await supabase
+        .from('app_config')
+        .select('value')
+        .eq('key', 'super_offers_audience')
+        .maybeSingle();
+      const currentMap = (configRow?.value && typeof configRow.value === 'object') ? { ...configRow.value } : {};
+      currentMap[String(createdOffer.id)] = targetAudience;
+      await supabase.from('app_config').upsert({
+        key: 'super_offers_audience',
+        value: currentMap,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'key' });
+    } catch (_) {}
+
     return productService.insertSuperOfferItems(createdOffer, items);
+  },
+
+  updateSuperOffer: async (id: string | number, updates: any): Promise<void> => {
+    const cleanId = String(id).trim();
+    const targetAudience = updates.tipo_cliente || updates.tipoCliente;
+    const payload: any = {};
+    if (updates.nombre !== undefined) payload.nombre = updates.nombre;
+    if (updates.descripcion !== undefined) payload.descripcion = updates.descripcion || null;
+    if (updates.precio_oferta !== undefined) payload.precio_oferta = updates.precio_oferta;
+    if (updates.precioOferta !== undefined) payload.precio_oferta = updates.precioOferta;
+    if (updates.activo !== undefined) payload.activo = updates.activo;
+    if (updates.fecha_fin !== undefined) {
+      payload.fecha_fin = updates.fecha_fin ? new Date(updates.fecha_fin).toISOString() : null;
+    }
+    if (targetAudience !== undefined) {
+      payload.tipo_cliente = targetAudience;
+    }
+
+    const { error } = await supabase.from('super_offers').update(payload).eq('id', cleanId);
+    if (error && error.message?.includes('tipo_cliente')) {
+      delete payload.tipo_cliente;
+      await supabase.from('super_offers').update(payload).eq('id', cleanId);
+    }
+
+    if (targetAudience !== undefined) {
+      try {
+        const { data: configRow } = await supabase
+          .from('app_config')
+          .select('value')
+          .eq('key', 'super_offers_audience')
+          .maybeSingle();
+        const currentMap = (configRow?.value && typeof configRow.value === 'object') ? { ...configRow.value } : {};
+        currentMap[cleanId] = targetAudience;
+        await supabase.from('app_config').upsert({
+          key: 'super_offers_audience',
+          value: currentMap,
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'key' });
+      } catch (_) {}
+    }
   },
 
   insertSuperOfferItems: async (createdOffer: any, items: any[]): Promise<any> => {
@@ -1580,7 +1627,7 @@ export const productService = {
     return createdOffer;
   },
 
-  getSuperOffers: async (isPublic?: boolean): Promise<any[]> => {
+  getSuperOffers: async (isPublic?: boolean, customerRole?: string): Promise<any[]> => {
     const { data, error } = await supabase
       .from('super_offers')
       .select(`
@@ -1593,16 +1640,47 @@ export const productService = {
       .order('created_at', { ascending: false });
     if (error) throw error;
 
+    // Obtener mapa de audiencias desde app_config para garantizar compatibilidad
+    let audienceMap: Record<string, string> = {};
+    try {
+      const { data: configRow } = await supabase
+        .from('app_config')
+        .select('value')
+        .eq('key', 'super_offers_audience')
+        .maybeSingle();
+      if (configRow?.value && typeof configRow.value === 'object') {
+        audienceMap = configRow.value as Record<string, string>;
+      }
+    } catch (_) {}
+
     let list = (data || []).filter((offer: any) => offer.activo && !offer.deleted_at);
-    return list.map((offer: any) => ({
-      ...offer,
-      precio_oferta: Number(offer.precio_oferta || 0),
-      precio_original: Number(offer.precio_original || 0),
-      super_offer_items: (offer.super_offer_items || []).map((item: any) => ({
-        ...item,
-        products: item.products ? mapProduct(item.products, 1000, !!isPublic) : null
-      }))
-    }));
+
+    const mapped = list.map((offer: any) => {
+      const audience = offer.tipo_cliente || audienceMap[String(offer.id)] || 'todos';
+      return {
+        ...offer,
+        tipo_cliente: audience,
+        precio_oferta: Number(offer.precio_oferta || 0),
+        precio_original: Number(offer.precio_original || 0),
+        super_offer_items: (offer.super_offer_items || []).map((item: any) => ({
+          ...item,
+          products: item.products ? mapProduct(item.products, 1000, !!isPublic) : null
+        }))
+      };
+    });
+
+    if (customerRole) {
+      const normRole = customerRole.trim().toLowerCase();
+      return mapped.filter((o: any) => {
+        const target = o.tipo_cliente || 'todos';
+        if (target === 'todos' || target === 'all') return true;
+        if (normRole === 'socio' || normRole === 'socios') return target === 'socio';
+        if (normRole === 'mayorista') return target === 'mayorista';
+        return target === 'minorista';
+      });
+    }
+
+    return mapped;
   },
 
   deleteSuperOffer: async (id: string): Promise<void> => {
@@ -1655,7 +1733,12 @@ export const productService = {
       query = query.eq('marca', marca);
     }
     if (searchTerm && searchTerm.trim()) {
-      query = query.ilike('nombre', `%${searchTerm.trim()}%`);
+      const pattern = buildAccentInsensitivePattern(searchTerm);
+      if (pattern) {
+        query = query.filter('nombre', 'imatch', pattern);
+      } else {
+        query = query.ilike('nombre', `%${searchTerm.trim()}%`);
+      }
     }
     if (codigoDesde && codigoDesde.trim()) {
       query = query.gte('codigo', codigoDesde.trim().toUpperCase());

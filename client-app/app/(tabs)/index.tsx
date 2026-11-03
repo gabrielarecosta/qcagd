@@ -261,29 +261,48 @@ export default function HomeScreen() {
 
     const totalOriginalComboPrice = items.reduce((sum: number, it: any) => {
       const p = it.products;
-      const unitOrigPrice = p ? p.precio || 0 : 0;
-      const qty = Math.max(1, Math.ceil(it.cantidad || 1));
+      const unitOrigPrice = Number(p ? (p.precio || p.precio_original || 0) : 0);
+      const qty = Math.max(1, Math.ceil(Number(it.cantidad) || 1));
       return sum + unitOrigPrice * qty;
     }, 0);
 
-    const offerPrice = offer.precio_oferta || 0;
+    const offerPrice = Number(offer.precio_oferta || 0);
 
     items.forEach((it: any) => {
       if (it.products) {
-        const qty = Math.max(1, Math.ceil(it.cantidad || 1));
-        const unitOrigPrice = it.products.precio || 0;
+        const qty = Math.max(1, Math.ceil(Number(it.cantidad) || 1));
+        const unitOrigPrice = Number(it.products.precio || it.products.precio_original || 0);
         const itemOriginalTotal = unitOrigPrice * qty;
 
         let effectiveUnitPrice = 0;
         if (totalOriginalComboPrice > 0) {
           const itemEffectiveTotal = offerPrice * (itemOriginalTotal / totalOriginalComboPrice);
-          effectiveUnitPrice = itemEffectiveTotal / qty;
+          effectiveUnitPrice = Math.round((itemEffectiveTotal / qty) * 100) / 100;
         } else {
-          const totalUnits = items.reduce((sum: number, i: any) => sum + Math.max(1, Math.ceil(i.cantidad || 1)), 0);
-          effectiveUnitPrice = offerPrice / (totalUnits || 1);
+          const totalUnits = items.reduce((sum: number, i: any) => sum + Math.max(1, Math.ceil(Number(i.cantidad) || 1)), 0);
+          effectiveUnitPrice = Math.round((offerPrice / (totalUnits || 1)) * 100) / 100;
         }
 
-        addProduct({ ...it.products, precio: effectiveUnitPrice }, qty);
+        const superOfferProduct = {
+          ...it.products,
+          isSuperOffer: true,
+          superOfferId: offer.id,
+          superOfferName: offer.nombre,
+          precio: effectiveUnitPrice,
+          precioFinal: effectiveUnitPrice,
+          precioVenta: effectiveUnitPrice,
+          precio_venta: effectiveUnitPrice,
+          precioMinorista: effectiveUnitPrice,
+          precioMayorista: effectiveUnitPrice,
+          precioSocios: effectiveUnitPrice,
+          precio_mayorista: effectiveUnitPrice,
+          precio_socios: effectiveUnitPrice,
+          precioOriginal: unitOrigPrice > 0 ? unitOrigPrice : effectiveUnitPrice,
+          precioOriginalLista: unitOrigPrice > 0 ? unitOrigPrice : effectiveUnitPrice,
+          roleListaAplicada: 'Súper Oferta',
+        };
+
+        addProduct(superOfferProduct, qty, true);
       }
     });
     router.push('/(tabs)/carrito' as any);
@@ -749,6 +768,24 @@ export default function HomeScreen() {
                             <MaterialCommunityIcons name="flash" size={13} color="#FBBF24" />
                             <Text style={styles.offerFlashText}>COMBO ESPECIAL</Text>
                           </View>
+                          {offer.tipo_cliente === 'socio' && (
+                            <View style={[styles.offerFlashBadge, { backgroundColor: '#EDE9FE', borderColor: '#8B5CF6', borderWidth: 1 }]}>
+                              <MaterialCommunityIcons name="diamond-stone" size={12} color="#6D28D9" />
+                              <Text style={[styles.offerFlashText, { color: '#6D28D9' }]}>SOCIOS</Text>
+                            </View>
+                          )}
+                          {offer.tipo_cliente === 'mayorista' && (
+                            <View style={[styles.offerFlashBadge, { backgroundColor: '#DBEAFE', borderColor: '#3B82F6', borderWidth: 1 }]}>
+                              <MaterialCommunityIcons name="domain" size={12} color="#1D4ED8" />
+                              <Text style={[styles.offerFlashText, { color: '#1D4ED8' }]}>MAYORISTAS</Text>
+                            </View>
+                          )}
+                          {offer.tipo_cliente === 'minorista' && (
+                            <View style={[styles.offerFlashBadge, { backgroundColor: '#CCFBF1', borderColor: '#14B8A6', borderWidth: 1 }]}>
+                              <MaterialCommunityIcons name="account" size={12} color="#0F766E" />
+                              <Text style={[styles.offerFlashText, { color: '#0F766E' }]}>MINORISTAS</Text>
+                            </View>
+                          )}
                         </View>
                         {savings > 0 && (
                           <View style={styles.offerSavingsPill}>

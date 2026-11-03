@@ -14,6 +14,7 @@ interface AuthState {
   sessionExpired?: boolean;
   setSessionExpired: (expired: boolean) => void;
   setClienteSession: (client: Customer) => void;
+  refreshClientProfile: () => Promise<void>;
   
   loginAsCliente: (username: string, password?: string) => Promise<boolean>;
   loginAsRepartidor: (username: string, password?: string) => Promise<boolean>;
@@ -42,7 +43,7 @@ const safeStorage = {
 
 export const useAuthStore = create<AuthState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       isLoggedIn: false,
       userRole: null,
       clientData: null,
@@ -50,6 +51,60 @@ export const useAuthStore = create<AuthState>()(
       lastUsername: '',
       sessionExpired: false,
       setSessionExpired: (expired) => set({ sessionExpired: expired }),
+
+      refreshClientProfile: async () => {
+        const state = get();
+        if (!state.isLoggedIn || !state.clientData) return;
+        const cId = state.clientData.id;
+        const uId = state.clientData.userId;
+        if (!cId && !uId) return;
+
+        try {
+          const isNum = cId && /^\d+$/.test(String(cId).trim());
+          let query = supabase.from('customers').select('*');
+          if (isNum) {
+            query = query.or(`id.eq.${cId}${uId ? `,user_id.eq.${uId}` : ''}`);
+          } else if (uId) {
+            query = query.eq('user_id', String(uId).trim());
+          } else {
+            query = query.eq('id', cId);
+          }
+
+          const { data: latest, error } = await query.maybeSingle();
+          if (latest && !error) {
+            const oldTipo = state.clientData.tipoCliente;
+            const newTipo = latest.tipo_cliente || 'minorista';
+            const updatedClient: Customer = {
+              ...state.clientData,
+              nombre: latest.nombre || state.clientData.nombre,
+              razonSocial: latest.razon_social || latest.nombre || state.clientData.razonSocial,
+              cuit: latest.cuit || state.clientData.cuit,
+              telefono: latest.telefono || state.clientData.telefono,
+              whatsapp: latest.whatsapp || state.clientData.whatsapp,
+              email: latest.email || state.clientData.email,
+              direccion: latest.direccion || state.clientData.direccion,
+              branchId: latest.branch_id || state.clientData.branchId,
+              tipoCliente: newTipo,
+              activo: latest.activo ?? true,
+              ctaCteAutorizada: latest.cta_cte_autorizada ?? false,
+              limiteCredito: latest.limite_credito ? Number(latest.limite_credito) : 0,
+              mayoristaAutorizado: latest.mayorista_autorizado ?? (newTipo !== 'mayorista' && newTipo !== 'sucursal'),
+            };
+
+            set({ clientData: updatedClient });
+
+            // Si cambió su segmento (ej. socio, mayorista, minorista), refrescar carrito y precios
+            if (oldTipo !== newTipo) {
+              try {
+                const { useCartStore } = require('./cartStore');
+                useCartStore.getState().loadCartForUser(String(latest.id));
+              } catch (_) {}
+            }
+          }
+        } catch (e) {
+          console.warn('Error al sincronizar perfil del cliente:', e);
+        }
+      },
 
       setClienteSession: (client) => {
         set({

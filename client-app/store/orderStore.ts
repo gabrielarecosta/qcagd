@@ -25,10 +25,10 @@ export const useOrderStore = create<OrderStore>((set, get) => ({
       const data = await orderService.getAll(undefined, { includeItems: true }) as any[];
       let filtered = data;
       if (clienteId) {
-        filtered = filtered.filter(o => o.clienteId === clienteId);
+        filtered = filtered.filter(o => String(o.clienteId) === String(clienteId));
       }
       if (repartidorId) {
-        filtered = filtered.filter(o => o.repartidorId === repartidorId);
+        filtered = filtered.filter(o => String(o.repartidorId) === String(repartidorId));
       }
       set({ orders: filtered as Order[], isLoading: false });
     } catch (e) {

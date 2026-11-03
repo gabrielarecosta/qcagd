@@ -18,6 +18,7 @@ export function DashboardView({ onNavigate, onFilterProductsNoPhoto }: Dashboard
     clients,
     updateOrderStatus,
     fetchOrdersOnly,
+    fetchClientsOnly,
   } = useAdminStore();
 
   const [latestImport, setLatestImport] = useState<any | null>(null);
@@ -133,6 +134,7 @@ export function DashboardView({ onNavigate, onFilterProductsNoPhoto }: Dashboard
 
   useEffect(() => {
     fetchOrdersOnly();
+    fetchClientsOnly();
     fetchDashboardDbMetrics();
     loadLatestImport();
 
@@ -152,6 +154,7 @@ export function DashboardView({ onNavigate, onFilterProductsNoPhoto }: Dashboard
         fetchDashboardDbMetrics();
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'customers' }, () => {
+        fetchClientsOnly();
         fetchDashboardDbMetrics();
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'delivery_routes' }, () => {
@@ -179,6 +182,7 @@ export function DashboardView({ onNavigate, onFilterProductsNoPhoto }: Dashboard
     try {
       await Promise.all([
         fetchOrdersOnly(),
+        fetchClientsOnly(),
         fetchDashboardDbMetrics(),
         loadLatestImport(),
       ]);
@@ -877,8 +881,22 @@ export function DashboardView({ onNavigate, onFilterProductsNoPhoto }: Dashboard
                   </thead>
                   <tbody>
                     {recentOrders.map(o => {
-                      const client = clients.find(c => String(c.id) === String(o.clienteId) || (c.userId && String(c.userId) === String(o.clienteId)));
-                      const clientName = o.customerName || client?.razonSocial || client?.nombre || (o as any).cliente_nombre || 'Cliente Desconocido';
+                      const client = clients.find(c => 
+                        (o.clienteId != null && String(c.id).trim() === String(o.clienteId).trim()) || 
+                        (c.userId && o.clienteId != null && String(c.userId).trim() === String(o.clienteId).trim()) ||
+                        (o.customerName && c.nombre && c.nombre.trim().toUpperCase() === o.customerName.trim().toUpperCase()) ||
+                        (o.customerName && c.razonSocial && c.razonSocial.trim().toUpperCase() === o.customerName.trim().toUpperCase()) ||
+                        (o.observacionesCliente && (
+                          (c.nombre && o.observacionesCliente.toUpperCase().includes(c.nombre.trim().toUpperCase())) ||
+                          (c.razonSocial && o.observacionesCliente.toUpperCase().includes(c.razonSocial.trim().toUpperCase()))
+                        ))
+                      );
+                      const clientName = o.customerName || (o as any).customer?.razonSocial || (o as any).customer?.nombre || client?.razonSocial || client?.nombre || (o as any).cliente_nombre || 'Cliente Desconocido';
+                      const rawType = (o as any).customerType || (o as any).customer?.tipoCliente || (o as any).customer?.tipo_cliente || client?.tipoCliente;
+                      const normType = String(rawType || '').toLowerCase().trim();
+                      const isSocio = normType === 'socio' || normType === 'socios';
+                      const isMayorista = normType === 'mayorista';
+
                       const paymentLabel = o.paymentMethod === 'efectivo' ? 'Efectivo' : 
                                            o.paymentMethod === 'mercado_pago' ? 'M. Pago' : 
                                            o.paymentMethod === 'transferencia' ? 'Transf.' : 'Cta. Cte.';
@@ -889,7 +907,13 @@ export function DashboardView({ onNavigate, onFilterProductsNoPhoto }: Dashboard
                           <td>
                             <div style={{ display: 'flex', flexDirection: 'column' }}>
                               <span style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '13px' }}>{clientName}</span>
-                              <span style={{ fontSize: '11px', color: 'var(--text-disabled)' }}>{client?.tipoCliente === 'mayorista' ? 'Mayorista' : 'Minorista'}</span>
+                              <span style={{ 
+                                fontSize: '11px', 
+                                color: isSocio ? '#9333ea' : isMayorista ? '#d97706' : 'var(--text-disabled)', 
+                                fontWeight: isSocio || isMayorista ? 700 : 400 
+                              }}>
+                                {isSocio ? '👑 Socio (L4)' : isMayorista ? '🏢 Mayorista (L3)' : 'Minorista'}
+                              </span>
                             </div>
                           </td>
                           <td>{new Date(o.fecha).toLocaleDateString('es-AR')}</td>

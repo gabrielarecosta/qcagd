@@ -28,6 +28,7 @@ import { CartItem, CATEGORY_ICONS, Order, CustomerAddress } from '../../types';
 import { formatPrice as fmtPrice } from '../../utils/formatters';
 import { Button } from '../../components/ui/Button';
 import MaterialCommunityIcons from '../../components/icons/MaterialCommunityIcons';
+import { matchesAnySearch } from '@shared/utils/searchUtils';
 import { customAlert } from '../../utils/alert';
 import { HoverImagePreview } from '../../components/ui/HoverImagePreview';
 import { offerService } from '@shared/services/offerService';
@@ -100,14 +101,17 @@ export default function CarritoScreen() {
   const filteredCartItems = useMemo(() => {
     let list = items;
     if (cartSearch.trim()) {
-      const q = cartSearch.trim().toLowerCase();
-      list = items.filter((item) => {
-        const name = (item.producto?.nombre || '').toLowerCase();
-        const code = (item.producto?.codigo || '').toLowerCase();
-        const pres = (item.producto?.presentacion || '').toLowerCase();
-        const cat = (item.producto?.categoria || '').toLowerCase();
-        return name.includes(q) || code.includes(q) || pres.includes(q) || cat.includes(q);
-      });
+      list = items.filter((item) =>
+        matchesAnySearch(
+          [
+            item.producto?.nombre,
+            item.producto?.codigo,
+            item.producto?.presentacion,
+            item.producto?.categoria,
+          ],
+          cartSearch
+        )
+      );
     }
     return [...list].sort((a, b) =>
       (a.producto?.nombre || '').localeCompare(b.producto?.nombre || '', 'es', { sensitivity: 'base' })
@@ -135,6 +139,20 @@ export default function CarritoScreen() {
     };
     loadSettings();
   }, []);
+
+  // Al entrar al carrito o si cambia el tipo de cliente (ej. asignado socio o mayorista),
+  // revalidar perfil con Supabase y recalcular precios de los productos del carrito
+  useEffect(() => {
+    if (isLoggedIn && clientData) {
+      useAuthStore.getState().refreshClientProfile().then(() => {
+        const activeCust = useAuthStore.getState().clientData;
+        const targetId = activeCust?.id || activeCust?.userId;
+        if (targetId) {
+          useCartStore.getState().loadCartForUser(String(targetId));
+        }
+      });
+    }
+  }, [isLoggedIn, clientData?.id, clientData?.tipoCliente]);
 
   const [paymentConfigs, setPaymentConfigs] = useState<PaymentMethodConfig[]>([]);
 
@@ -341,7 +359,7 @@ export default function CarritoScreen() {
 
   const clientOrders = useMemo(() => {
     if (!clientData) return [];
-    return orders.filter(o => o.clienteId === clientData.id);
+    return orders.filter(o => String(o.clienteId) === String(clientData.id));
   }, [orders, clientData]);
 
   const handleRepeatOrder = useCallback((order: Order) => {
@@ -569,8 +587,11 @@ export default function CarritoScreen() {
               observaciones: observaciones || '',
               itemsJson: JSON.stringify(
                 newOrder.items.map((it) => ({
+                  id: it.producto.id,
+                  codigo: it.producto.codigo,
                   name: it.producto.nombre,
                   presentation: it.producto.presentacion,
+                  imagen: it.producto.imagen,
                   qty: it.cantidad,
                   unitPrice: it.precioUnitario,
                   subtotal: it.subtotal,
@@ -1724,6 +1745,14 @@ function CartItemRow({
           <Text style={rowStyles.presentacion}>{producto.presentacion}</Text>
         )}
         <Text style={rowStyles.codigo}>{producto.codigo}</Text>
+
+        {Boolean((producto as any).isSuperOffer || (producto as any).superOfferId) && (
+          <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#FEF2F2', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, alignSelf: 'flex-start', marginTop: 3, marginBottom: 2, borderWidth: 0.5, borderColor: '#FCA5A5' }}>
+            <Text style={{ fontSize: 10, color: '#DC2626', fontWeight: 'bold' }}>
+              🔥 Súper Oferta{(producto as any).superOfferName ? `: ${(producto as any).superOfferName}` : ''}
+            </Text>
+          </View>
+        )}
 
         {calculation.discountPercent > 0 ? (
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>

@@ -85,21 +85,29 @@ export function OrderCard({ order, onPress, onRepeat, style, compact = false, de
         {/* Resumen de items */}
         {!compact && (
           <View style={styles.itemsPreview}>
-            {order.items.slice(0, 2).map((item, i) => (
-              <Text key={i} style={styles.itemPreviewText} numberOfLines={1}>
-                • {item.cantidad}x{' '}
-                {Platform.OS === 'web' ? (
-                  <span className="notranslate" translate="no">
-                    {item.producto.nombre}
-                  </span>
-                ) : (
-                  item.producto.nombre
+            {order.items && order.items.length > 0 ? (
+              <>
+                {order.items.slice(0, 3).map((item, i) => (
+                  <Text key={i} style={styles.itemPreviewText} numberOfLines={1}>
+                    • {item.cantidad}x{' '}
+                    {Platform.OS === 'web' ? (
+                      <span className="notranslate" translate="no">
+                        {item.producto?.nombre || 'Producto'}
+                      </span>
+                    ) : (
+                      item.producto?.nombre || 'Producto'
+                    )}
+                  </Text>
+                ))}
+                {order.items.length > 3 && (
+                  <Text style={styles.itemPreviewMore}>
+                    +{order.items.length - 3} artículos más
+                  </Text>
                 )}
-              </Text>
-            ))}
-            {order.items.length > 2 && (
-              <Text style={styles.itemPreviewMore}>
-                +{order.items.length - 2} productos más
+              </>
+            ) : (
+              <Text style={styles.itemPreviewText}>
+                • {(order as any).itemsCount ? `${(order as any).itemsCount} artículos pedidos` : 'Ver detalle de artículos ›'}
               </Text>
             )}
           </View>
@@ -108,23 +116,31 @@ export function OrderCard({ order, onPress, onRepeat, style, compact = false, de
         {/* Footer */}
         <View style={styles.footer}>
           <View>
-            <Text style={styles.totalLabel}>{totalItems} artículos • Ver detalle ›</Text>
+            <Text style={styles.totalLabel}>
+              {totalItems > 0 ? `${totalItems} artículos` : `${(order as any).itemsCount || 1} artículos`} • Ver detalle ›
+            </Text>
             <Text style={styles.total}>{formatPrice(order.total)}</Text>
           </View>
 
-          {onRepeat && order.estado === 'entregado' && (
-            <TouchableOpacity
-              style={styles.repeatButton}
-              onPress={(e) => {
-                e.stopPropagation();
-                onRepeat(order);
-              }}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.repeatButtonText}>🔄 Repetir</Text>
-            </TouchableOpacity>
-          )}
+          <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+            <View style={styles.viewDetailsPill}>
+              <Text style={styles.viewDetailsPillText}>Ver artículos ›</Text>
+            </View>
+
+            {onRepeat && order.estado === 'entregado' && (
+              <TouchableOpacity
+                style={styles.repeatButton}
+                onPress={(e) => {
+                  e.stopPropagation();
+                  onRepeat(order);
+                }}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.repeatButtonText}>🔄 Repetir</Text>
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
       </TouchableOpacity>
     </Animated.View>
@@ -241,5 +257,18 @@ const styles = StyleSheet.create({
     fontSize: FontSize.md,
     fontWeight: FontWeight.semibold,
     color: Colors.primary,
+  },
+  viewDetailsPill: {
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: Radius.md,
+  },
+  viewDetailsPillText: {
+    fontSize: FontSize.sm,
+    fontWeight: FontWeight.semibold,
+    color: '#1E40AF',
   },
 });

@@ -6,3 +6,4 @@ export * from './orderStatusUtils';
 export * from './branchUtils';
 export * from './excelValidator';
 export * from './conflictDetector';
+export * from './searchUtils';
